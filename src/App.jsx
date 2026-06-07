@@ -106,6 +106,9 @@ const domainArtwork = {
   Systems: { mark: 'SY', accent: '#81958a', secondary: '#465a4f' },
   'Technology/Future': { mark: 'AI', accent: '#8095a0', secondary: '#425862' },
   Philosophy: { mark: 'PH', accent: '#9b9078', secondary: '#5b5445' },
+  'Self-Help': { mark: 'SH', accent: '#9aa476', secondary: '#586240' },
+  Literature: { mark: 'LT', accent: '#a78b75', secondary: '#624a3e' },
+  History: { mark: 'HS', accent: '#b09a6d', secondary: '#685334' },
 };
 
 function sourceInitials(label) {
@@ -375,7 +378,7 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
   const [sessionStart] = useState(() => Date.now());
   const [elapsed, setElapsed] = useState(0);
   const [ratedCards, setRatedCards] = useState({});
-  const [feedIds] = useState(() => feedQueue(state).map((lesson) => lesson.id));
+  const [feedIds] = useState(() => feedQueue(state, 100).map((lesson) => lesson.id));
   const initialDueIds = useRef(feedIds.filter((lessonId) => isDue(state.reviews[lessonId])));
   const lessons = useMemo(() => feedIds.map((lessonId) => state.lessons.find((lesson) => lesson.id === lessonId)).filter(Boolean), [feedIds, state.lessons]);
   const dueCount = lessons.filter((lesson) => isDue(state.reviews[lesson.id])).length;

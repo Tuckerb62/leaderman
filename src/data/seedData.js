@@ -409,6 +409,139 @@ const historicalExamples = {
     analogy:
       'Pragmatism is like testing a bridge by engineering standards and real traffic, not by admiring the blueprint alone.',
   },
+  'habit-identity': {
+    title: 'Benjamin Franklin’s habit ledger',
+    summary:
+      'Franklin’s famous virtue-tracking system was imperfect and self-conscious, but it shows an old pattern behind modern habit science: identity changes through repeated visible practice, not through aspiration alone.',
+    analogy:
+      'A habit is like a vote cast every day. One vote rarely changes the whole election, but repeated votes decide who governs.',
+  },
+  'proactive-circle': {
+    title: 'Nelson Mandela on Robben Island',
+    summary:
+      'Mandela’s prison years are often studied for disciplined attention to what remained governable: conduct, learning, relationships, and symbolic restraint. The case should not romanticize imprisonment; it shows agency under severe constraint.',
+    analogy:
+      'A circle of influence is like a campfire in bad weather: it does not control the storm, but it gives you a place to work from.',
+  },
+  'deep-work-protection': {
+    title: 'Darwin’s protected thinking routine',
+    summary:
+      'Charles Darwin’s work at Down House mixed observation, correspondence, walking, and protected thought over years. The broader lesson is that serious insight often needs guarded attention and slow synthesis.',
+    analogy:
+      'Deep work is like cultivating a garden. If every passerby can dig in the soil, nothing delicate grows.',
+  },
+  'growth-mindset-practice': {
+    title: 'Tuskegee and capacity building',
+    summary:
+      'Booker T. Washington’s institution-building at Tuskegee is contested in political terms, but the capacity-building lesson is useful: education, repetition, and practical skill can change what people believe they are capable of doing.',
+    analogy:
+      'Ability is like a path through woods. The first walk is rough; repeated travel makes the route visible.',
+  },
+  'grit-with-direction': {
+    title: 'Shackleton’s Antarctic expedition',
+    summary:
+      'Ernest Shackleton’s Endurance expedition is remembered less for reaching the original goal than for redirecting persistence toward survival. Grit without updated direction would have been ruinous.',
+    analogy:
+      'Grit is an engine; direction is the steering wheel. More power does not help if the vehicle points at a cliff.',
+  },
+  'keystone-habit': {
+    title: 'Public sanitation reforms',
+    summary:
+      'Sanitation reforms in cities changed many outcomes at once because they altered a repeated environmental pattern. A keystone habit works similarly at personal scale: one repeated practice can reshape many downstream choices.',
+    analogy:
+      'A keystone habit is like the first gear in a machine. Move it and several other gears begin to turn.',
+  },
+  'frankenstein-responsibility': {
+    title: 'The nuclear age and creator responsibility',
+    summary:
+      'Mary Shelley’s Frankenstein long predates nuclear weapons and artificial intelligence, but later technological history made its warning feel durable: creation without responsibility can abandon others to consequences the creator refuses to face.',
+    analogy:
+      'A creation is like a fire you light in a shared house. Genius is not enough; someone must watch the flame.',
+  },
+  'first-impressions': {
+    title: 'Intelligence assessment before crises',
+    summary:
+      'Governments and organizations have repeatedly suffered when first impressions hardened into certainty before contradictory evidence was weighed. Austen’s social insight transfers carefully: perception can be skilled, but pride and prejudice distort it.',
+    analogy:
+      'A first impression is a pencil sketch, not a verdict carved into stone.',
+  },
+  'obsession-narrows-vision': {
+    title: 'Napoleon’s invasion of Russia',
+    summary:
+      'Napoleon’s 1812 campaign is often used as a warning about overreach, fixation, logistics, and the refusal to update. The historical details are vast, but the leadership pattern is clear: obsession can shrink the field of vision.',
+    analogy:
+      'Obsession is a telescope held too long to one eye. It magnifies one target and hides the cliff beside you.',
+  },
+  'mercy-and-justice': {
+    title: 'Postwar reconciliation and accountability',
+    summary:
+      'Societies after war often struggle to balance punishment, truth, mercy, and repair. Les Miserables helps train this moral imagination: law without mercy can become cruelty, while mercy without responsibility can become evasion.',
+    analogy:
+      'Justice and mercy are two hands on the same wheel. Use only one and the vehicle pulls off course.',
+  },
+  'moral-complexity': {
+    title: 'Truth and reconciliation processes',
+    summary:
+      'Truth commissions and reconciliation efforts show that public moral repair rarely fits simple innocence and guilt categories. The Brothers Karamazov trains attention to conscience, responsibility, and the hidden interior life behind public actions.',
+    analogy:
+      'Moral judgment is like entering a room with several lights. One bright bulb can still leave corners in shadow.',
+  },
+  'return-to-purpose': {
+    title: 'Washington returning power to civilian rule',
+    summary:
+      'The Odyssey is a story of wandering, cunning, temptation, violence, and homecoming. In leadership terms, it pairs well with civic cases where the test is not only winning power but returning to purpose after danger passes.',
+    analogy:
+      'Purpose is a harbor. Strategy is the sailing skill that matters only because there is somewhere worth returning to.',
+  },
+  'melian-power': {
+    title: 'The Melian Dialogue',
+    summary:
+      'Thucydides presents Athens telling Melos that the strong do what they can and the weak suffer what they must. Whether read as analysis, warning, or tragic realism, it is a permanent lesson in power without justice.',
+    analogy:
+      'Power without justice is like a sword used as a ruler. It can impose a line, but it cannot make the line fair.',
+  },
+  'republic-norm-decay': {
+    title: 'The late Roman Republic',
+    summary:
+      'The Roman Republic did not fall in one moment. Ambition, emergency powers, faction, inequality, violence, and norm-breaking accumulated until familiar institutions could no longer contain personal power.',
+    analogy:
+      'Norms are like mortar between bricks. You notice them most after the wall starts moving.',
+  },
+  'revolution-legitimacy': {
+    title: 'The French Revolution',
+    summary:
+      'The French Revolution shows how fiscal crisis, inequality, legitimacy failure, ideology, war, and fear can interact. It is too large for one lesson, but it warns that broken legitimacy can make reform arrive late and violence arrive fast.',
+    analogy:
+      'Legitimacy is pressure in a pipe. Ignore the cracks long enough and repair becomes explosion control.',
+  },
+  'mobilization-trap': {
+    title: 'Europe in August 1914',
+    summary:
+      'The opening of World War I is often studied for alliances, mobilization timetables, honor, fear, and rigid plans. Leaders became trapped partly by systems they had built to move faster than judgment.',
+    analogy:
+      'A plan can become railroad tracks: useful while aimed correctly, dangerous when nobody can turn.',
+  },
+  'rivals-coalition': {
+    title: 'Lincoln’s wartime cabinet',
+    summary:
+      'Lincoln’s cabinet included rivals, strong egos, and competing views during civil war. The lesson is not sentimental unity; it is that a leader can use disagreement as information while still owning the final decision.',
+    analogy:
+      'A coalition is like a bridge made from different materials. Its strength depends on how the tensions are joined.',
+  },
+  'civil-rights-discipline': {
+    title: 'The U.S. civil rights movement',
+    summary:
+      'The civil rights movement combined moral argument, legal strategy, religious organizing, disciplined protest, media visibility, and enormous courage. Its history warns that moral power still requires strategy and sacrifice.',
+    analogy:
+      'Disciplined protest is like a lens focusing sunlight. Moral heat existed already; organization concentrated it.',
+  },
+  'reconstruction-unfinished': {
+    title: 'Reconstruction after the U.S. Civil War',
+    summary:
+      'Reconstruction showed that winning a war and building a just political order are different tasks. Constitutional change, federal enforcement, local violence, economic power, and abandoned commitments shaped what followed.',
+    analogy:
+      'Victory is opening a door. Institution-building is making sure people can safely live in the room beyond it.',
+  },
 };
 
 function buildLessonArticle(lesson) {
@@ -443,6 +576,9 @@ export const domains = [
   'Systems',
   'Technology/Future',
   'Philosophy',
+  'Self-Help',
+  'Literature',
+  'History',
 ];
 
 export const philosophySchools = [
@@ -1035,6 +1171,234 @@ export const sourceCards = [
     application: 'Ask what experience would confirm, revise, or disconfirm a belief.',
     tags: ['pragmatism', 'inquiry', 'truth'],
   },
+  {
+    id: 'src-atomic-habits',
+    title: 'Atomic Habits',
+    author: 'James Clear',
+    domain: 'Self-Help',
+    coreArgument: 'Small repeated behaviors compound when they are tied to identity, cues, environment, and feedback.',
+    usefulIdea: 'Ask what kind of person a repeated action trains you to become.',
+    blindSpot: 'Habit advice can underplay trauma, poverty, disability, and environments people do not control.',
+    opposingView: 'Structural approaches argue that systems and incentives often matter more than private discipline.',
+    application: 'Choose one tiny repeatable action that casts a vote for the identity you want.',
+    tags: ['habits', 'identity', 'behavior'],
+  },
+  {
+    id: 'src-seven-habits',
+    title: 'The 7 Habits of Highly Effective People',
+    author: 'Stephen R. Covey',
+    domain: 'Self-Help',
+    coreArgument: 'Effectiveness begins with character, proactivity, priorities, mutual benefit, listening, and renewal.',
+    usefulIdea: 'Work first where you have responsibility and influence rather than rehearsing helplessness.',
+    blindSpot: 'Proactivity language can be misused to blame people for constraints they did not create.',
+    opposingView: 'Power-aware traditions stress collective action and institutional reform alongside personal agency.',
+    application: 'List one concern you cannot control and one action inside your influence.',
+    tags: ['agency', 'priorities', 'character'],
+  },
+  {
+    id: 'src-deep-work',
+    title: 'Deep Work',
+    author: 'Cal Newport',
+    domain: 'Self-Help',
+    coreArgument: 'High-value cognitive work needs protected attention in a distracted environment.',
+    usefulIdea: 'Attention is a scarce production asset, not a casual mood.',
+    blindSpot: 'Not every role or life stage allows long uninterrupted blocks.',
+    opposingView: 'Relational and operational work often requires responsiveness, availability, and interruption handling.',
+    application: 'Protect one short block for a real thinking task and remove the default interruption.',
+    tags: ['focus', 'attention', 'work'],
+  },
+  {
+    id: 'src-power-of-habit',
+    title: 'The Power of Habit',
+    author: 'Charles Duhigg',
+    domain: 'Self-Help',
+    coreArgument: 'Habits often run through cue, routine, and reward loops that can be studied and redesigned.',
+    usefulIdea: 'Find the loop before trying to overpower the behavior.',
+    blindSpot: 'The habit-loop frame can oversimplify addiction, mental health, and social pressure.',
+    opposingView: 'Clinical and social models argue that some behaviors require care, treatment, or changed conditions.',
+    application: 'Name the cue, routine, and reward for one repeated behavior.',
+    tags: ['habit loop', 'behavior', 'change'],
+  },
+  {
+    id: 'src-mindset',
+    title: 'Mindset',
+    author: 'Carol Dweck',
+    domain: 'Self-Help',
+    coreArgument: 'People learn better when ability is treated as developable through effort, strategy, feedback, and time.',
+    usefulIdea: 'Praise process and strategy, not fixed identity.',
+    blindSpot: 'Growth mindset can become hollow if people lack instruction, resources, or fair opportunity.',
+    opposingView: 'Equity-focused educators warn against telling people to try harder while leaving barriers intact.',
+    application: 'Replace one fixed-label statement with a practice-focused statement.',
+    tags: ['learning', 'mindset', 'practice'],
+  },
+  {
+    id: 'src-grit',
+    title: 'Grit',
+    author: 'Angela Duckworth',
+    domain: 'Self-Help',
+    coreArgument: 'Long-term effort and commitment matter when attached to meaningful goals and deliberate practice.',
+    usefulIdea: 'Persistence needs purpose, feedback, and a reason to continue.',
+    blindSpot: 'Grit can be used to romanticize overwork or ignore bad strategy.',
+    opposingView: 'Adaptive leadership argues that quitting or pivoting can be wisdom when reality changes.',
+    application: 'Ask whether your persistence still serves the mission or only your pride.',
+    tags: ['persistence', 'purpose', 'practice'],
+  },
+  {
+    id: 'src-frankenstein',
+    title: 'Frankenstein',
+    author: 'Mary Shelley',
+    domain: 'Literature',
+    coreArgument: 'Creation without responsibility can produce suffering that ambition refuses to own.',
+    usefulIdea: 'A leader is responsible for downstream consequences, not only brilliant beginnings.',
+    blindSpot: 'The novel is not a simple anti-science tract; it is also about abandonment, recognition, and moral isolation.',
+    opposingView: 'Innovation traditions argue that risk is unavoidable and must be managed rather than feared.',
+    application: 'For one project, name who could be harmed if the creator walks away.',
+    tags: ['novel', 'technology', 'responsibility'],
+  },
+  {
+    id: 'src-pride-prejudice',
+    title: 'Pride and Prejudice',
+    author: 'Jane Austen',
+    domain: 'Literature',
+    coreArgument: 'Social judgment is distorted by pride, first impressions, status, and selective evidence.',
+    usefulIdea: 'Good judgment often requires revising your first read of a person.',
+    blindSpot: 'The social world of the novel is constrained by class, gender, and inheritance in ways modern readers must notice.',
+    opposingView: 'Decision theorists warn that revision should still be evidence-based, not just emotional reversal.',
+    application: 'Identify one person you may have reduced to a first impression.',
+    tags: ['novel', 'judgment', 'perception'],
+  },
+  {
+    id: 'src-moby-dick',
+    title: 'Moby-Dick',
+    author: 'Herman Melville',
+    domain: 'Literature',
+    coreArgument: 'Obsession can turn leadership into a private crusade that endangers everyone attached to it.',
+    usefulIdea: 'A mission can become corrupt when it serves ego more than reality.',
+    blindSpot: 'The novel is symbolically dense and resists one tidy moral.',
+    opposingView: 'Great endeavors sometimes require unusual fixation, sacrifice, and refusal to quit.',
+    application: 'Ask whether the mission still serves people or now serves your fixation.',
+    tags: ['novel', 'obsession', 'mission'],
+  },
+  {
+    id: 'src-les-miserables',
+    title: 'Les Miserables',
+    author: 'Victor Hugo',
+    domain: 'Literature',
+    coreArgument: 'Law, mercy, poverty, conscience, and redemption collide in ways simple rule-following cannot resolve.',
+    usefulIdea: 'Justice needs humanity or it becomes mechanical cruelty.',
+    blindSpot: 'Mercy can become sentimental if it avoids responsibility, victims, or repair.',
+    opposingView: 'Rule-of-law traditions warn that personal mercy cannot replace institutions and standards.',
+    application: 'Ask whether a rule is protecting justice or only protecting itself.',
+    tags: ['novel', 'justice', 'mercy'],
+  },
+  {
+    id: 'src-brothers-karamazov',
+    title: 'The Brothers Karamazov',
+    author: 'Fyodor Dostoevsky',
+    domain: 'Literature',
+    coreArgument: 'Human beings carry moral complexity, rationalization, faith, doubt, desire, and responsibility together.',
+    usefulIdea: 'Do not flatten people into a single motive when conscience and appetite are both at work.',
+    blindSpot: 'The novel’s religious and philosophical frame should be read as a world of argument, not as a management manual.',
+    opposingView: 'Operational leadership sometimes needs action before complete moral interpretation is possible.',
+    application: 'Name the competing motives in one conflict before judging it too quickly.',
+    tags: ['novel', 'conscience', 'complexity'],
+  },
+  {
+    id: 'src-odyssey',
+    title: 'The Odyssey',
+    author: 'Homeric epic tradition',
+    domain: 'Literature',
+    coreArgument: 'Survival, cunning, temptation, loyalty, violence, and homecoming test whether a person remembers their purpose.',
+    usefulIdea: 'Strategy matters because it helps a leader return to what the struggle was for.',
+    blindSpot: 'The epic reflects ancient honor, hierarchy, and violence that should not be imported uncritically.',
+    opposingView: 'Modern ethics may reject heroic models that excuse domination or revenge.',
+    application: 'Ask what home, duty, or purpose your strategy is meant to serve.',
+    tags: ['epic', 'purpose', 'strategy'],
+  },
+  {
+    id: 'src-thucydides',
+    title: 'History of the Peloponnesian War',
+    author: 'Thucydides',
+    domain: 'History',
+    coreArgument: 'Fear, honor, interest, rhetoric, plague, faction, and power shaped the war between Athens and Sparta.',
+    usefulIdea: 'Power politics without moral restraint corrodes both victim and victor.',
+    blindSpot: 'Thucydides is analytical and selective, not a complete moral encyclopedia of ancient Greece.',
+    opposingView: 'Idealist traditions argue that law, institutions, and norms can restrain power more than realism admits.',
+    application: 'When using leverage, ask what norm you are teaching others to use later.',
+    tags: ['history', 'war', 'power'],
+  },
+  {
+    id: 'src-roman-republic',
+    title: 'The Roman Republic',
+    author: 'Historical case synthesis',
+    domain: 'History',
+    coreArgument: 'Republican institutions can weaken through inequality, emergency powers, faction, military loyalty, and norm decay.',
+    usefulIdea: 'Institutions fail gradually before they fail suddenly.',
+    blindSpot: 'Ancient Rome should not be treated as a one-to-one map for modern democracies.',
+    opposingView: 'Material historians emphasize economics and military structures over elite virtue alone.',
+    application: 'Notice which norm is being broken because the immediate win feels worth it.',
+    tags: ['history', 'republic', 'institutions'],
+  },
+  {
+    id: 'src-french-revolution',
+    title: 'The French Revolution',
+    author: 'Historical case synthesis',
+    domain: 'History',
+    coreArgument: 'Legitimacy crisis, inequality, fiscal strain, ideology, war, and fear can turn reform pressure into revolutionary rupture.',
+    usefulIdea: 'Late reform is more dangerous than early repair.',
+    blindSpot: 'The revolution contains many phases and factions; simple hero-villain readings mislead.',
+    opposingView: 'Conservative readings stress order; radical readings stress justice delayed by entrenched power.',
+    application: 'Ask what grievance will become harder to resolve if ignored another year.',
+    tags: ['history', 'revolution', 'legitimacy'],
+  },
+  {
+    id: 'src-guns-august',
+    title: 'The Guns of August',
+    author: 'Barbara W. Tuchman',
+    domain: 'History',
+    coreArgument: 'The opening of World War I shows how plans, alliances, assumptions, and honor can trap leaders in escalation.',
+    usefulIdea: 'Systems designed for speed can outrun reflection.',
+    blindSpot: 'The book is influential narrative history, not the final word on World War I causation.',
+    opposingView: 'Other historians weigh long-term imperial, military, and domestic causes differently.',
+    application: 'Identify which plan would be hard to stop once triggered.',
+    tags: ['history', 'war', 'escalation'],
+  },
+  {
+    id: 'src-team-rivals',
+    title: 'Team of Rivals',
+    author: 'Doris Kearns Goodwin',
+    domain: 'History',
+    coreArgument: 'Lincoln’s leadership is often studied for coalition-building, political timing, patience, and moral decision under civil war pressure.',
+    usefulIdea: 'Rivals can become sources of information and legitimacy when managed with purpose.',
+    blindSpot: 'Great-person narratives can understate institutions, movements, and ordinary people.',
+    opposingView: 'Social historians emphasize broader anti-slavery organizing, military realities, and structural forces.',
+    application: 'Invite one serious critic into the decision process without surrendering judgment.',
+    tags: ['history', 'lincoln', 'coalition'],
+  },
+  {
+    id: 'src-civil-rights',
+    title: 'The U.S. Civil Rights Movement',
+    author: 'Historical case synthesis',
+    domain: 'History',
+    coreArgument: 'Moral clarity became politically powerful through organizing, legal strategy, disciplined protest, media visibility, and local courage.',
+    usefulIdea: 'Justice movements need both moral argument and operational discipline.',
+    blindSpot: 'Movement history is broad and contested; no single leader or tactic explains it all.',
+    opposingView: 'Some traditions argue that disruptive pressure, not persuasion alone, moved institutions.',
+    application: 'Pair one moral claim with one concrete organizing mechanism.',
+    tags: ['history', 'justice', 'organizing'],
+  },
+  {
+    id: 'src-reconstruction',
+    title: 'Reconstruction',
+    author: 'Historical case synthesis',
+    domain: 'History',
+    coreArgument: 'After the U.S. Civil War, constitutional change, federal power, racial violence, economics, and political will shaped the unfinished work of freedom.',
+    usefulIdea: 'Winning a conflict does not automatically build the institutions needed for justice afterward.',
+    blindSpot: 'Reconstruction is often oversimplified; it requires attention to federal, state, local, racial, and economic dynamics.',
+    opposingView: 'Different historians debate the weight of policy design, white resistance, economic structure, and political abandonment.',
+    application: 'After a victory, ask what institution must exist so the win survives.',
+    tags: ['history', 'institutions', 'justice'],
+  },
 ];
 
 const lessonSpecs = [
@@ -1096,6 +1460,25 @@ const lessonSpecs = [
   ['buddhist-impermanence', 'Practice With Impermanence', 'Philosophy', ['src-buddhist-philosophy'], 'Buddhist philosophy teaches that clinging to what changes creates suffering and distorts perception.', 'A role, relationship, or plan is changing and you keep trying to freeze it.', ['Deny the change', 'Notice craving and respond clearly', 'Detach from everyone', 'Force the old version back'], 'Name what is changing, what you are clinging to, and what compassionate action remains.', 'Did accepting change make me passive or clearer?', 'Impermanence can sharpen attention and compassion.', 'Do not use detachment to become indifferent to harm or responsibility.'],
   ['existential-choice', 'Own the Choice You Are Making', 'Philosophy', ['src-existentialism'], 'Existentialism insists that avoiding choice is still a choice, and that freedom brings responsibility.', 'You keep delaying a decision because no option feels pure.', ['Pretend delay is neutral', 'Name the choice inside the delay', 'Blame the situation only', 'Let others absorb the cost'], 'Write the decision you are making by not deciding.', 'What responsibility have I been hiding inside uncertainty?', 'Meaning is shaped by owned action under uncertainty.', 'Do not turn existential freedom into self-absorption; other people bear consequences too.'],
   ['pragmatic-truth', 'Test Ideas by Consequences', 'Philosophy', ['src-pragmatism'], 'Pragmatism treats ideas as commitments tested through experience, consequences, and disciplined inquiry.', 'A beautiful theory keeps failing in practice.', ['Protect the theory', 'Study consequences and revise', 'Reject all principles', 'Declare victory'], 'Ask what experience would confirm, revise, or disconfirm this belief.', 'What did reality teach that the theory missed?', 'Ideas become wiser when they stay answerable to experience.', 'Do not reduce truth to whatever is convenient or popular in the short term.'],
+  ['habit-identity', 'Build Identity Through Reps', 'Self-Help', ['src-atomic-habits', 'src-power-of-habit'], 'Popular habit books converge on a useful point: repeated behavior is identity training. The question is not only what you did today, but what kind of person the repetition is making easier to become.', 'You want to become disciplined but keep designing huge resets that collapse after three days.', ['Write a grand new plan', 'Choose one tiny repeatable rep', 'Wait for motivation', 'Buy another tool'], 'Pick one two-minute behavior and attach it to a clear cue for seven days.', 'What identity did this tiny rep train?', 'Small repeated actions compound when they are clear enough to repeat.', 'Do not use habit language to blame people for constraints, illness, grief, or environments they cannot control.'],
+  ['proactive-circle', 'Work Your Circle of Influence', 'Self-Help', ['src-seven-habits', 'src-stoicism'], 'A future leader needs the self-help idea of agency without turning it into denial. Separate concern from influence, then act where responsibility is real.', 'You are angry about a large institutional problem but your day is disappearing into rumination.', ['Ruminate harder', 'Name one influence-zone action', 'Pretend the problem is fine', 'Attack someone nearby'], 'Draw two circles: concern and influence. Put one action in the influence circle.', 'Did I convert concern into responsible action?', 'Agency grows when attention moves from complaint to stewardship.', 'Do not use proactivity to excuse unjust systems or tell harmed people that everything is their fault.'],
+  ['deep-work-protection', 'Protect Deep Work', 'Self-Help', ['src-deep-work', 'src-meditations'], 'Deep work is the self-help version of guarding the mind as a strategic asset. Serious judgment requires protected attention, especially when noise is profitable to everyone except the person trying to think.', 'You need to make a hard decision but keep checking messages every few minutes.', ['Multitask through it', 'Protect one focused block', 'Ask others to decide', 'Keep refreshing messages'], 'Set a 30-minute block with one question, no notifications, and a written output.', 'What changed when attention was protected?', 'Protected attention increases the quality of thought.', 'Do not impose deep-work rules on people whose roles require responsiveness without redesigning their workload.'],
+  ['growth-mindset-practice', 'Make Ability Trainable', 'Self-Help', ['src-mindset'], 'Growth mindset is useful when it becomes practice design, not empty positivity. The leader’s move is to connect effort, strategy, feedback, and support.', 'A teammate says they are simply bad at presenting.', ['Agree with the label', 'Design one practice rep with feedback', 'Give vague encouragement', 'Take over forever'], 'Replace one fixed label with a practice plan: rep, feedback, next attempt.', 'Did the practice plan make improvement believable?', 'Ability becomes more trainable when practice is specific.', 'Do not say “growth mindset” while ignoring real barriers, weak instruction, or unfair opportunity.'],
+  ['grit-with-direction', 'Pair Grit With Direction', 'Self-Help', ['src-grit', 'src-rumelt'], 'Grit matters only when persistence serves a worthy direction. Leaders need the courage to continue and the humility to pivot when evidence changes.', 'You keep pushing a project because quitting would embarrass you.', ['Push harder', 'Review mission, evidence, and pivot options', 'Quit everything', 'Hide the data'], 'Write what would justify continuing, changing course, or stopping.', 'Is my persistence serving purpose or ego?', 'Persistence becomes wisdom when paired with feedback and direction.', 'Do not romanticize endurance when people are being harmed or the strategy is plainly broken.'],
+  ['keystone-habit', 'Find the Keystone Habit', 'Self-Help', ['src-power-of-habit', 'src-switch'], 'A keystone habit is a repeated practice that improves other behaviors because it changes cues, energy, identity, or environment. Leaders should look for leverage, not just more rules.', 'Your evenings keep falling apart and sleep, reading, and planning all suffer.', ['Fix everything at once', 'Change the one evening cue that affects the rest', 'Shame yourself', 'Ignore the pattern'], 'Find one upstream behavior that makes two other good behaviors easier.', 'What downstream behaviors changed from one upstream habit?', 'Good habit design changes the system around behavior.', 'Do not treat all human difficulty as a habit problem; some problems require help, care, or structural change.'],
+  ['frankenstein-responsibility', 'Own What You Create', 'Literature', ['src-frankenstein', 'src-ai-literacy'], 'Frankenstein is essential leadership reading because it separates brilliance from responsibility. Creating something powerful does not end the moment it works; responsibility begins when consequences reach other people.', 'You launch an automation that saves time but quietly creates errors for another team.', ['Celebrate the launch only', 'Own the downstream consequences', 'Blame users', 'Hide the issue'], 'For one project, name maintenance, harm, and accountability before launch.', 'Who lives with the consequences of what I create?', 'Creation requires stewardship after invention.', 'Do not use innovation language to escape accountability for foreseeable harm.'],
+  ['first-impressions', 'Revise First Impressions', 'Literature', ['src-pride-prejudice', 'src-kahneman'], 'Pride and Prejudice trains a leader to distrust easy social certainty. First impressions may contain signal, but status, attraction, resentment, and ego can make weak evidence feel complete.', 'You decide a new colleague is arrogant after one meeting.', ['Freeze the judgment', 'Seek more evidence and context', 'Gossip about it', 'Overcorrect and trust blindly'], 'Write your first impression, then write what evidence could revise it.', 'What did I assume before I had enough evidence?', 'Social judgment improves when it stays revisable.', 'Do not confuse open-mindedness with ignoring repeated harmful behavior.'],
+  ['obsession-narrows-vision', 'Do Not Let Mission Become Obsession', 'Literature', ['src-moby-dick', 'src-rumelt'], 'Moby-Dick is a warning about a leader whose private fixation captures a collective mission. The leadership question is whether the goal still serves reality and people, or whether people now serve the leader’s obsession.', 'You keep escalating a failing initiative because it has become your signature project.', ['Escalate again', 'Ask whether the mission still serves people', 'Silence critics', 'Rename the failure success'], 'Ask one critic what cost your fixation may be hiding.', 'Where has mission become ego?', 'Great focus needs correction mechanisms.', 'Do not call obsession vision when others are paying the price.'],
+  ['mercy-and-justice', 'Hold Mercy and Justice Together', 'Literature', ['src-les-miserables', 'src-manipulation'], 'Les Miserables gives leaders a moral workout: law matters, but law without mercy can become inhuman; mercy matters, but mercy without responsibility can become evasion.', 'Someone broke a rule for understandable reasons and the policy says the penalty is automatic.', ['Apply the rule blindly', 'Consider justice, mercy, repair, and precedent', 'Ignore the rule completely', 'Punish harder to look fair'], 'Name the rule, the human context, the repair need, and the precedent.', 'Did I preserve both humanity and standards?', 'Wise judgment asks what justice is for.', 'Do not use mercy selectively for favorites or justice selectively for outsiders.'],
+  ['moral-complexity', 'Read Motives in Layers', 'Literature', ['src-brothers-karamazov', 'src-haidt'], 'The Brothers Karamazov trains patience with moral complexity. Leaders often misread conflict because they want one clean motive when people are usually mixtures of fear, pride, love, belief, appetite, and conscience.', 'Two partners accuse each other of bad faith and both seem partly right.', ['Pick one villain fast', 'Map the layered motives and responsibilities', 'Avoid judgment forever', 'Treat all motives as equal'], 'Write three possible motives and one responsibility for each side.', 'Did complexity improve judgment or become avoidance?', 'Layered motives make repair more realistic.', 'Do not use complexity to excuse cruelty or avoid consequences.'],
+  ['return-to-purpose', 'Return to Purpose After Winning', 'Literature', ['src-odyssey', 'src-meditations'], 'The Odyssey is not just adventure; it is a test of whether cunning and survival still point back toward home, duty, and order. Leaders can win tactics and still forget what the journey was for.', 'You achieve a major goal and immediately chase the next conquest without repairing relationships.', ['Chase the next win', 'Return to purpose and repair', 'Celebrate only yourself', 'Pretend no one helped'], 'After one win, write what must be restored, thanked, or repaired.', 'What purpose should success return me to?', 'Strategy should serve a home worth returning to.', 'Do not use heroic struggle to justify neglecting people who carried the cost.'],
+  ['melian-power', 'Study Power Without Justice', 'History', ['src-thucydides', 'src-prince'], 'The Melian Dialogue is a cold education in what power sounds like when it stops answering to justice. A future leader must understand realism without becoming owned by it.', 'You have leverage over a weaker party and can force a favorable deal.', ['Use maximum pressure', 'Ask what norm this use of power teaches', 'Pretend power is irrelevant', 'Hide the asymmetry'], 'Before using leverage, write what precedent your action creates.', 'Would I accept this norm if I were weaker?', 'Power analysis must be paired with moral restraint.', 'Do not quote realism as permission to abandon justice.'],
+  ['republic-norm-decay', 'Notice Norm Decay Early', 'History', ['src-roman-republic', 'src-prince'], 'The Roman Republic teaches that institutions are not only laws; they are habits, limits, expectations, and restraint. Norm decay often looks useful before it looks catastrophic.', 'Your group wants to bypass a rule because this case feels urgent and politically convenient.', ['Bypass it quietly', 'Name the norm and the precedent', 'Attack anyone objecting', 'Pretend rules never bend'], 'Ask what would happen if your opponents used the same exception.', 'What norm am I weakening for a short-term win?', 'Institutions depend on repeated restraint.', 'Do not worship norms that protect injustice, but do not casually destroy guardrails for convenience.'],
+  ['revolution-legitimacy', 'Repair Legitimacy Before Rupture', 'History', ['src-french-revolution', 'src-harvard-adaptive'], 'The French Revolution warns that legitimacy can decay faster than rulers believe. When grievance, inequality, fiscal stress, and contempt accumulate, reform may arrive too late to control the form of change.', 'People in your organization no longer believe leadership listens or sacrifices fairly.', ['Dismiss the anger', 'Repair legitimacy with visible sacrifice and reform', 'Tighten control only', 'Offer slogans'], 'Name one legitimate grievance and one visible repair action.', 'What would make authority believable again?', 'Legitimacy is maintained by repair before rupture.', 'Do not use fear of disorder to silence legitimate demands for justice.'],
+  ['mobilization-trap', 'Do Not Let Plans Trap Judgment', 'History', ['src-guns-august', 'src-fifth-discipline'], 'August 1914 is a lesson in systems that move faster than leaders can rethink. Mobilization plans, alliances, fear, and honor created momentum that became hard to stop.', 'A launch plan has many automated commitments and reversing course would embarrass several leaders.', ['Let the plan run', 'Install a pause point for judgment', 'Deny the risk', 'Blame the calendar'], 'Add one explicit stop-check before a plan becomes irreversible.', 'Where could momentum outrun judgment?', 'Plans need brakes as much as engines.', 'Do not hide behind process when human beings will bear the cost.'],
+  ['rivals-coalition', 'Use Rivals Without Losing Command', 'History', ['src-team-rivals', 'src-team-teams'], 'Lincoln’s cabinet is a useful study in turning rivalry into information, legitimacy, and execution. The skill is not liking disagreement; it is governing it without surrendering the decision.', 'You avoid a talented critic because they challenge your authority.', ['Exclude them', 'Give them a defined role in the decision', 'Let them dominate', 'Only consult loyalists'], 'Invite one critic to pressure-test a plan with clear decision rights.', 'Did rivalry improve the decision?', 'Strong coalitions can include controlled tension.', 'Do not stage-manage dissent as decoration after the decision is already closed.'],
+  ['civil-rights-discipline', 'Pair Moral Clarity With Discipline', 'History', ['src-civil-rights', 'src-crucial'], 'The civil rights movement shows that moral clarity becomes more powerful when joined to training, legal strategy, narrative discipline, coalition work, and courage.', 'Your group has a just complaint but no plan beyond outrage.', ['Post outrage only', 'Pair the moral claim with disciplined strategy', 'Drop the claim', 'Attack internal questions'], 'Write the moral claim, audience, tactic, risk, and next organizing step.', 'Did discipline strengthen the moral claim?', 'Justice work needs both conscience and craft.', 'Do not use discipline language to make oppressed people endlessly patient with harm.'],
+  ['reconstruction-unfinished', 'Build Institutions After Victory', 'History', ['src-reconstruction', 'src-adp-622'], 'Reconstruction teaches that victory is not the same as durable justice. After a win, leaders must build enforcement, incentives, protection, memory, and institutions that can survive backlash.', 'Your reform passes, but the old incentives and hostile actors remain in place.', ['Declare victory', 'Build the institution that protects the win', 'Move on immediately', 'Trust goodwill alone'], 'After one win, name the enforcement, ownership, and review mechanism.', 'What makes this victory durable?', 'A just outcome needs institutions that can carry it.', 'Do not confuse symbolic victory with lived protection.'],
 ];
 
 export const microLessons = lessonSpecs.map((spec, index) => {

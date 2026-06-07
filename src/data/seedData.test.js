@@ -31,4 +31,15 @@ describe('seed lesson articles', () => {
       expect(lesson.articleParagraphs.join(' ')).toContain('Historical example:');
     }
   });
+
+  it('includes self-help, literature, and history expansion tracks', () => {
+    for (const domain of ['Self-Help', 'Literature', 'History']) {
+      expect(domains).toContain(domain);
+      expect(microLessons.filter((lesson) => lesson.domain === domain).length).toBeGreaterThanOrEqual(6);
+    }
+
+    expect(microLessons.find((lesson) => lesson.slug === 'habit-identity')?.sourceBasis).toContain('Atomic Habits');
+    expect(microLessons.find((lesson) => lesson.slug === 'frankenstein-responsibility')?.sourceBasis).toContain('Frankenstein');
+    expect(microLessons.find((lesson) => lesson.slug === 'melian-power')?.sourceBasis).toContain('History of the Peloponnesian War');
+  });
 });

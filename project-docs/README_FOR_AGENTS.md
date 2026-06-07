@@ -32,9 +32,9 @@ Lessons are intentionally more than summaries. They should teach a future leader
 
 ## Curriculum Shape
 
-Seeded content lives in `src/data/seedData.js`. The current curriculum includes leadership domains such as self-command, communication, influence, judgment, teams, ethics, power, conflict, systems, technology and future, plus philosophy.
+Seeded content lives in `src/data/seedData.js`. The current curriculum includes leadership domains such as self-command, communication, influence, judgment, teams, ethics, power, conflict, systems, technology and future, philosophy, self-help, literature, and history.
 
-Source cards represent books, public-domain classics, doctrine, research summaries, and historical cases. Lesson records connect to source IDs and can include:
+Source cards represent books, public-domain classics, popular self-help books, novels, doctrine, research summaries, and historical cases. Lesson records connect to source IDs and can include:
 
 - core idea
 - article paragraphs
