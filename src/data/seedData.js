@@ -1,5 +1,352 @@
 const isoToday = () => new Date().toISOString().slice(0, 10);
 
+const sourceTitle = (id) => sourceCards.find((source) => source.id === id)?.title || 'the source tradition';
+
+const historicalExamples = {
+  'ask-before-advise': {
+    title: 'Socrates in Athens',
+    summary:
+      'Plato’s dialogues present Socrates as a teacher who often used questions before assertions. Whether one treats the dialogues as philosophy, literature, or civic memory, the pattern is useful: questioning exposed assumptions before advice hardened into doctrine.',
+    analogy:
+      'Advice is like grabbing the steering wheel from a learner driver; a good question is more like turning on the dashboard lights so they can see the road themselves.',
+  },
+  'separate-impact-intent': {
+    title: 'The Cuban Missile Crisis',
+    summary:
+      'During the 1962 Cuban Missile Crisis, U.S. leaders had to interpret Soviet actions without assuming every signal had the same intention. The disciplined separation of observable moves, possible motives, and consequences helped create room for back-channel negotiation.',
+    analogy:
+      'Impact and intent are like smoke and the source of a fire: smoke tells you something is happening, but you still need to investigate before declaring what caused it.',
+  },
+  'decision-type': {
+    title: 'Apollo 13',
+    summary:
+      'After the Apollo 13 oxygen tank explosion in 1970, NASA had to separate urgent technical decisions from broader mission tradeoffs. Some choices needed immediate engineering action; others required careful coordination because the cost of being wrong was life or death.',
+    analogy:
+      'Decision process is like choosing a vehicle: a bicycle works for a short errand, but you do not cross an ocean on it.',
+  },
+  'hidden-rule': {
+    title: 'Toyota production learning',
+    summary:
+      'Toyota’s production system became famous partly because problems could be surfaced rather than hidden. The exact practices varied across plants and eras, but the leadership principle is stable: quality improves when people are permitted to name defects early.',
+    analogy:
+      'A hidden rule is like an invisible tripwire. People may look clumsy, but the real problem is that nobody marked the wire.',
+  },
+  'power-test': {
+    title: 'The Roman Republic’s fear of kingship',
+    summary:
+      'Roman political culture carried a long suspicion of concentrated personal rule. The details are complex, but the recurring lesson is clear: power without visible limits creates fear even when leaders claim necessity.',
+    analogy:
+      'Power is like a loaded tool in a shared room. It may be useful, but everyone needs to know where it points and who is allowed to touch it.',
+  },
+  'calm-is-contagious': {
+    title: 'George Washington at Newburgh',
+    summary:
+      'In 1783, George Washington addressed officers frustrated by unpaid compensation. His restraint and appeal to shared duty helped prevent a dangerous confrontation between the army and civilian authority.',
+    analogy:
+      'A leader’s mood is like the temperature in a room. People may not notice the thermostat, but they feel the air.',
+  },
+  'technical-adaptive': {
+    title: 'The British abolition campaign',
+    summary:
+      'The long campaign against the British slave trade required more than a legal technicality. Activists, politicians, religious groups, and public opinion had to shift norms, incentives, and political will over time.',
+    analogy:
+      'A technical fix is changing a lightbulb; an adaptive challenge is teaching the whole building to stop overloading the circuit.',
+  },
+  'criteria-first': {
+    title: 'Civil service reform',
+    summary:
+      'Civil service reforms in the United States and Britain aimed to reduce patronage by using more standardized criteria for public roles. The systems were imperfect, but the reform logic was that public judgment improves when offices are not simply rewards for friends.',
+    analogy:
+      'Criteria are like a ruler placed on the table before measuring. If you pick the ruler afterward, it is too easy to choose the one that gives your favorite answer.',
+  },
+  'interests-not-positions': {
+    title: 'Camp David Accords',
+    summary:
+      'The 1978 Camp David negotiations were not solved by pretending Egypt and Israel had the same position. Progress required attention to deeper interests: security, sovereignty, recognition, and political survival.',
+    analogy:
+      'Positions are the sticker price; interests are why the buyer and seller came to the market in the first place.',
+  },
+  'legitimacy-control': {
+    title: 'Augustus and Roman legitimacy',
+    summary:
+      'Augustus held extraordinary power, but he wrapped that power in restored institutions, public order, and familiar Roman forms. Historians debate the balance between republic and monarchy, but the case shows how raw control seeks legitimacy to endure.',
+    analogy:
+      'Control is a lock on a door; legitimacy is people believing the building should have that door in the first place.',
+  },
+  'ai-verification': {
+    title: 'Early aviation checklists',
+    summary:
+      'Aviation safety improved as pilots and engineers adopted checklists for complex machines. The lesson transfers carefully to AI: complexity demands verification routines because fluent operation can hide fragile assumptions.',
+    analogy:
+      'AI output is like a confident intern with a huge library and no lived accountability. Useful, but not the final signer.',
+  },
+  'small-promise': {
+    title: 'Washington’s resignation of command',
+    summary:
+      'Washington’s resignation as commander in chief in 1783 strengthened trust because it made a public promise about civilian authority real. The act mattered because restraint became visible.',
+    analogy:
+      'Trust is built like masonry. Grand speeches are banners; kept promises are bricks.',
+  },
+  'feedback-example': {
+    title: 'After-action review tradition',
+    summary:
+      'Military and emergency-response teams often use after-action reviews to move from vague judgment to specific observation. The point is not blame first; it is learning what actually happened.',
+    analogy:
+      'Vague feedback is fog. A concrete example is a road sign.',
+  },
+  'productive-stress': {
+    title: 'The Meiji Restoration',
+    summary:
+      'Japan’s Meiji-era reforms involved intense pressure to adapt institutions, industry, military capacity, and education. The historical case is too complex for simple praise, but it shows that change requires pressure and scaffolding together.',
+    analogy:
+      'Productive stress is like training weight: enough resistance builds strength; too much causes injury.',
+  },
+  'speak-last': {
+    title: 'Abraham Lincoln’s cabinet',
+    summary:
+      'Lincoln’s cabinet included strong personalities and former rivals. Accounts differ in emphasis, but his leadership is often studied for how he listened, absorbed disagreement, and still owned final decisions.',
+    analogy:
+      'If the loudest instrument starts first, the orchestra tunes itself around it. Sometimes the conductor must listen before setting tempo.',
+  },
+  'diagnosis-before-goal': {
+    title: 'The Marshall Plan',
+    summary:
+      'The Marshall Plan was not merely a goal of “help Europe.” It diagnosed economic breakdown, political instability, and reconstruction needs after World War II, then aligned resources with that diagnosis.',
+    analogy:
+      'A goal without diagnosis is a prescription written before examining the patient.',
+  },
+  'boundary-next-step': {
+    title: 'Washington’s two-term precedent',
+    summary:
+      'Washington’s decision to leave office after two terms created a boundary around personal power before it was legally required. The precedent helped teach a young republic what restraint could look like.',
+    analogy:
+      'A boundary is a fence with a gate and a sign. If nobody knows where it is or what happens at the gate, it is just a wish.',
+  },
+  'map-feedback-loop': {
+    title: 'The Dust Bowl',
+    summary:
+      'The Dust Bowl emerged from drought interacting with farming practices, economic pressure, and ecological fragility. It is a classic reminder that repeated harm often comes from loops, not one villain.',
+    analogy:
+      'A feedback loop is like a microphone too close to a speaker. The screech is not one note; it is the system feeding itself.',
+  },
+  'charisma-character': {
+    title: 'Demagogues in democratic history',
+    summary:
+      'Ancient and modern democracies have repeatedly worried about charismatic figures who can mobilize crowds while weakening judgment. The point is not that charisma is bad; it is that attraction is not proof of character.',
+    analogy:
+      'Charisma is stage lighting. It can reveal substance, but it can also make a cardboard wall look solid.',
+  },
+  'agency-in-coaching': {
+    title: 'Booker T. Washington and institution-building',
+    summary:
+      'Whatever one thinks of Washington’s politics, his institution-building at Tuskegee emphasized capacity, skill, and self-sustaining development. Leadership was not only instruction; it was building capability.',
+    analogy:
+      'Solving every problem for someone is handing them fish; building capacity is teaching them how to repair the net.',
+  },
+  'moral-disagreement': {
+    title: 'The U.S. constitutional debates',
+    summary:
+      'The Federalist and Anti-Federalist debates were not only technical disagreements. They reflected competing fears and values: order, liberty, scale, representation, and concentrated power.',
+    analogy:
+      'A moral conflict is often two alarms ringing at once. The work is to identify what each alarm is trying to protect.',
+  },
+  'make-work-visible': {
+    title: 'Wartime operations rooms',
+    summary:
+      'Operations rooms in war and emergency management make work visible so dispersed actors can coordinate. The lesson transfers to ordinary leadership: visibility reduces guessing when it clarifies ownership and state.',
+    analogy:
+      'Visible work is like air traffic control. The point is not to stare at every plane; it is to prevent collisions.',
+  },
+  'two-way-door': {
+    title: 'Scientific experimentation',
+    summary:
+      'Scientific progress often depends on reversible tests, peer criticism, and revision. Leaders can borrow the discipline without pretending every human decision is a laboratory experiment.',
+    analogy:
+      'A reversible decision is a pencil sketch; an irreversible one is wet concrete.',
+  },
+  'listen-for-resistance': {
+    title: 'Public health resistance',
+    summary:
+      'Public health campaigns repeatedly show that resistance can signal distrust, misinformation, overload, or real tradeoffs. Treating all resistance as ignorance often makes adoption harder.',
+    analogy:
+      'Resistance is like noise in an engine. It may be annoying, but it can tell you where the system is under strain.',
+  },
+  'public-private-standard': {
+    title: 'Cincinnatus as civic myth',
+    summary:
+      'The Roman story of Cincinnatus, whether treated as history or civic legend, became a symbol of private restraint and public duty. The useful lesson is the standard it represented: power should not become personal appetite.',
+    analogy:
+      'Private habits are roots. The public tree eventually shows what has been growing underground.',
+  },
+  'objective-criteria': {
+    title: 'Arbitration and treaty practice',
+    summary:
+      'Diplomacy and arbitration often depend on standards that both sides can recognize, even when they dislike the result. Objective criteria do not remove conflict, but they can reduce pure ego contests.',
+    analogy:
+      'Criteria are the measuring tape both carpenters agree to use before arguing whether the table is level.',
+  },
+  'tell-the-tradeoff': {
+    title: 'Churchill’s wartime communication',
+    summary:
+      'Winston Churchill’s early wartime speeches did not promise easy victory. Whatever one thinks of his broader record, his communication is studied for naming danger while sustaining resolve.',
+    analogy:
+      'A hidden tradeoff is a bill slipped under the door. Eventually someone pays it, and trust falls when they learn it was hidden.',
+  },
+  'learning-after-error': {
+    title: 'Aviation safety culture',
+    summary:
+      'Modern aviation safety relies heavily on learning from incidents, near misses, and system conditions. Accountability remains, but the deeper aim is preventing recurrence rather than simply finding a person to shame.',
+    analogy:
+      'An error is a cracked tile. You can blame the foot that stepped there, or you can inspect why the floor keeps cracking.',
+  },
+  'least-privilege-life': {
+    title: 'Compartmentalization in security history',
+    summary:
+      'Military, intelligence, and computer-security practices all use compartmentalization to limit damage when something fails. The leadership translation is scoped trust: enough access to act, not enough to endanger the whole system unnecessarily.',
+    analogy:
+      'Least privilege is like watertight compartments on a ship. A leak is still bad, but it does not have to sink everything.',
+  },
+  'meaning-without-spin': {
+    title: 'Viktor Frankl after catastrophe',
+    summary:
+      'Frankl’s work is often remembered for meaning under suffering, but the careful lesson is not that suffering is good. It is that truthful meaning can help people endure what should still be named honestly.',
+    analogy:
+      'Meaning is a compass, not a blindfold. It should orient people without covering the terrain.',
+  },
+  'challenge-with-care': {
+    title: 'Quaker abolitionist organizing',
+    summary:
+      'Many abolitionist networks combined moral seriousness with community discipline and persuasion. The lesson is not politeness alone; it is the pairing of care for people with direct challenge to harm.',
+    analogy:
+      'Care without challenge is a soft chair that never lets someone stand. Challenge without care is a shove.',
+  },
+  'authority-pattern': {
+    title: 'Court politics across monarchies',
+    summary:
+      'Royal courts often rewarded flattery, fear, and indirect communication. The recurring pattern is that authority changes behavior around it, sometimes before the authority figure realizes it.',
+    analogy:
+      'Authority is gravity in a room. Even when invisible, it bends how people move.',
+  },
+  'context-before-delegation': {
+    title: 'Mission command',
+    summary:
+      'Mission command traditions emphasize intent, context, and disciplined initiative rather than mere task lists. The idea is that people can adapt when they understand the purpose and boundaries.',
+    analogy:
+      'Delegating without context is handing someone a map with no destination. They may move, but not necessarily toward the mission.',
+  },
+  'bias-check': {
+    title: 'Intelligence failures',
+    summary:
+      'Major intelligence failures are often studied for how confident stories can harden before contradictory signals are weighed. The lesson is not that intuition is useless, but that confidence needs challenge.',
+    analogy:
+      'A confident story is a bright flashlight. It helps you see one path while making the shadows around it deeper.',
+  },
+  'shape-the-path': {
+    title: 'Public sanitation reforms',
+    summary:
+      'Public health improvements often came from changing environments: clean water systems, waste removal, safer streets, and better defaults. Moral exhortation mattered less when the path itself changed.',
+    analogy:
+      'Willpower is pushing a boulder uphill; path design is laying a track.',
+  },
+  'productive-conflict': {
+    title: 'The Federal Convention',
+    summary:
+      'The U.S. Constitutional Convention involved sharp disagreement over representation, power, and structure. The result was imperfect and morally compromised, but it shows that consequential design required conflict, not shallow harmony.',
+    analogy:
+      'Productive conflict is like a forge. Heat can destroy, but controlled heat shapes metal.',
+  },
+  'calibrated-question': {
+    title: 'Shuttle diplomacy',
+    summary:
+      'Diplomats often use carefully framed questions to reveal constraints without forcing public humiliation. The method works when it creates room for problem solving rather than a trap.',
+    analogy:
+      'A calibrated question is a hinge. It opens a heavy door without kicking it down.',
+  },
+  'public-accountability': {
+    title: 'The Nuremberg principle',
+    summary:
+      'After World War II, the Nuremberg trials reinforced the idea that official authority does not erase accountability for choices. The broader leadership lesson is that power needs visible answerability.',
+    analogy:
+      'Accountability is a receipt for power. It shows who spent what, why, and with whose permission.',
+  },
+  'opposing-truths': {
+    title: 'Lincoln and emancipation timing',
+    summary:
+      'Lincoln’s decisions around emancipation involved moral urgency, constitutional argument, military timing, and political coalition. The history is contested, but it shows leadership under competing truths rather than simple slogans.',
+    analogy:
+      'Opposing truths are like two hands carrying a fragile object. Drop either hand and the object falls.',
+  },
+  'attention-budget': {
+    title: 'Monastic rules of attention',
+    summary:
+      'Religious and philosophical traditions have long treated attention as a moral discipline. Monastic rules, Stoic exercises, and study practices all recognized that attention shapes the person who acts.',
+    analogy:
+      'Attention is a treasury. Spend it carelessly and even a rich mind becomes poor.',
+  },
+  'source-of-resistance': {
+    title: 'Reform resistance in empires',
+    summary:
+      'Large reform efforts in empires and states often met resistance from groups protecting status, livelihood, identity, or security. Treating all resistance as evil misses useful diagnosis.',
+    analogy:
+      'Resistance is not one substance. It can be brake fluid, rust, or a warning light, and each calls for a different repair.',
+  },
+  'decision-record': {
+    title: 'Cabinet minutes and institutional memory',
+    summary:
+      'Governments and organizations keep minutes because memory is political and fragile. A decision record makes future learning possible by preserving what was known, chosen, and deferred.',
+    analogy:
+      'A decision record is a trail marker. It does not walk the path for you, but it helps future travelers know why the route bent.',
+  },
+  'technology-human-cost': {
+    title: 'Industrial Revolution labor',
+    summary:
+      'The Industrial Revolution produced enormous productivity while also disrupting labor, family life, cities, and political movements. Technology leadership must count human consequences alongside output.',
+    analogy:
+      'A new machine is a lever. It moves weight, but it also changes who stands where.',
+  },
+  'repair-after-harm': {
+    title: 'Truth and reconciliation processes',
+    summary:
+      'Truth and reconciliation efforts vary widely and are often incomplete, but they rest on a core idea: societies cannot repair what they refuse to name. Acknowledgment is not the whole repair, but it begins the work.',
+    analogy:
+      'Repair is not painting over a crack; it is finding the stress point and strengthening it.',
+  },
+  'coalition-map': {
+    title: 'Civil rights coalition-building',
+    summary:
+      'The U.S. civil rights movement involved churches, students, labor allies, legal strategists, local organizers, and national politicians. Coalition power came from aligning different interests around shared pressure and moral purpose.',
+    analogy:
+      'A coalition is a bridge made of different materials. Strength depends on how the pieces bear load together.',
+  },
+  'standard-of-truth': {
+    title: 'Watergate and institutional truth-seeking',
+    summary:
+      'The Watergate investigations showed the importance of records, journalism, courts, and congressional oversight when executive power concealed truth. The lesson is institutional as much as personal.',
+    analogy:
+      'Truth standards are load-bearing beams. Remove them quietly and the building may stand for a while, but it is no longer safe.',
+  },
+};
+
+function buildLessonArticle(lesson) {
+  const sourceNames = lesson.sourceIds.map(sourceTitle).join(', ');
+  const example = historicalExamples[lesson.slug] || {
+    title: 'Historical leadership pattern',
+    summary:
+      'Across history, leaders have repeatedly succeeded or failed based on whether they matched their method to the human reality in front of them. The details differ by era, but the durable pattern is that judgment, restraint, and clear process matter most when pressure rises.',
+    analogy:
+      'A leadership idea is like a tool in a workshop: useful when matched to the material, dangerous when swung at every problem the same way.',
+  };
+
+  return [
+    `${lesson.title} is not a slogan; it is a decision habit. This lesson draws on ${sourceNames}, but it is deliberately paraphrased rather than treated as a substitute for the original works. The core idea is simple: ${lesson.coreIdea}`,
+    `The leadership mistake this guards against is using one comfortable move for every situation. ${lesson.whatItGetsRight} At the same time, ${lesson.whatItMisses.toLowerCase()} A serious learner should hold the useful idea and the limitation together rather than turning either into doctrine.`,
+    `Historical example: ${example.title}. ${example.summary} The point is not that history gives an identical script for today. The point is that history gives tested patterns: people react to incentives, power changes what can be said, information arrives unevenly, and decisions carry second-order consequences.`,
+    `Analogy: ${example.analogy} In your own life, the practical question is not “do I understand this concept?” but “can I recognize the moment when this concept should change my behavior?” The practice rep is: ${lesson.practiceRep}`,
+    `Use the idea with discipline. ${lesson.opposingView} That opposing view may be right in some contexts, especially when urgency, safety, or formal authority matters more than dialogue. The fidelity rule for this lesson is to cite the source tradition, use the historical example as a pattern rather than proof, and avoid pretending one book or case settles every situation.`,
+    `Caution: ${lesson.ethicsCheck} A future leader needs power literacy, but power literacy should increase truthfulness, consent, accountability, and restraint. Review question: ${lesson.reviewPrompt}`,
+  ];
+}
+
 export const domains = [
   'Self-Command',
   'Communication',
@@ -478,6 +825,7 @@ export const microLessons = lessonSpecs.map((spec, index) => {
 
   return {
     id: `lesson-${slug}`,
+    slug,
     order: index + 1,
     title,
     domain,
@@ -496,15 +844,17 @@ export const microLessons = lessonSpecs.map((spec, index) => {
     minutes: 6 + (index % 7),
     difficulty: ['Beginner', 'Intermediate', 'Advanced'][index % 3],
     tags: [domain, index % 2 === 0 ? 'judgment' : 'practice', index % 3 === 0 ? 'ethics' : 'leadership'],
-    agentNotes: {
-      research: 'Source basis is paraphrased and attribution is retained.',
-      condense: 'Lesson is reduced to one usable leadership behavior.',
-      scenario: 'Scenario is workplace-ready and can transfer to family or community life.',
-      ethics: ethicsCheck,
-      reviewer: 'Copyright-safe paraphrase; read the original source for depth.',
-    },
+    articleParagraphs: null,
+    historicalExample: historicalExamples[slug] || null,
+    sourceBasis: sourceIds.map((id) => sourceTitle(id)),
+    fidelityNote:
+      'This reading is a copyright-safe synthesis. It paraphrases known leadership ideas, names the source basis, and uses history as an illustrative pattern rather than invented proof.',
   };
-});
+}).map((lesson) => ({
+  ...lesson,
+  articleParagraphs: buildLessonArticle(lesson),
+  minutes: Math.max(10, lesson.minutes + 5),
+}));
 
 export const createInitialState = () => ({
   schemaVersion: 1,

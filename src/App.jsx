@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   Archive,
   BookOpen,
   Brain,
@@ -13,7 +12,6 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Target,
   Trash2,
 } from 'lucide-react';
@@ -300,14 +298,12 @@ function TodayView({ state, stats, due, startSession, setSelectedLessonId, saveR
           <LessonPreview key={lesson.id} lesson={lesson} review={state.reviews[lesson.id]} onOpen={() => setSelectedLessonId(lesson.id)} />
         ))}
       </div>
-
-      <AgentSystemPanel />
     </section>
   );
 }
 
 function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote }) {
-  const [step, setStep] = useState('idea');
+  const [step, setStep] = useState('article');
   const [reflection, setReflection] = useState('');
   const sources = selectedLesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean);
   const sessionProgress = session ? `${session.currentIndex + 1} / ${session.lessonIds.length}` : 'Solo lesson';
@@ -324,22 +320,27 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCu
         </div>
 
         <div className="step-tabs">
-          {['idea', 'scenario', 'decision', 'reflection'].map((item) => (
+          {['article', 'scenario', 'decision', 'reflection'].map((item) => (
             <button key={item} className={step === item ? 'active' : ''} onClick={() => setStep(item)}>
               {item}
             </button>
           ))}
         </div>
 
-        {step === 'idea' && (
-          <div className="lesson-section">
-            <h3>Core idea</h3>
-            <p>{selectedLesson.coreIdea}</p>
+        {step === 'article' && (
+          <div className="article-section">
+            <p className="reading-meta">
+              Source basis: {selectedLesson.sourceBasis.join(', ')} · Historical lens: {selectedLesson.historicalExample?.title || 'Leadership history'}
+            </p>
+            <div className="article-body">
+              {selectedLesson.articleParagraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
             <div className="two-column">
               <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
-              <InfoBlock title="What it misses" text={selectedLesson.whatItMisses} />
+              <InfoBlock title="Fidelity note" text={selectedLesson.fidelityNote} />
             </div>
-            <InfoBlock title="Opposing view" text={selectedLesson.opposingView} />
           </div>
         )}
 
@@ -397,7 +398,7 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCu
       </div>
 
       <aside className="right-rail">
-        <AgentReview lesson={selectedLesson} />
+        <FidelityPanel lesson={selectedLesson} />
         <div className="source-panel">
           <p className="section-label">Source basis</p>
           {sources.map((source) => (
@@ -497,8 +498,6 @@ function ReviewView({ state, due, updateReview, setSelectedLessonId }) {
           </article>
         ))}
       </div>
-
-      <AgentSystemPanel />
     </section>
   );
 }
@@ -563,36 +562,21 @@ function LessonPreview({ lesson, review, onOpen }) {
   );
 }
 
-function AgentReview({ lesson }) {
+function FidelityPanel({ lesson }) {
   const rows = [
-    ['Research', lesson.agentNotes.research],
-    ['Condense', lesson.agentNotes.condense],
-    ['Scenario', lesson.agentNotes.scenario],
-    ['Ethics', lesson.agentNotes.ethics],
-    ['Reviewer', lesson.agentNotes.reviewer],
+    ['Source basis', lesson.sourceBasis.join(', ')],
+    ['History lens', lesson.historicalExample?.title || 'General leadership history'],
+    ['Analogy', lesson.historicalExample?.analogy || 'Pattern matched to context.'],
+    ['Caution', lesson.ethicsCheck],
+    ['Fidelity', lesson.fidelityNote],
   ];
   return (
-    <div className="agent-panel">
-      <p className="section-label">Agent review</p>
+    <div className="fidelity-panel">
+      <p className="section-label">Fidelity notes</p>
       {rows.map(([label, text]) => (
-        <div key={label} className="agent-row">
-          <span><Sparkles size={14} /> {label}</span>
+        <div key={label} className="fidelity-row">
+          <span>{label}</span>
           <p>{text}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AgentSystemPanel() {
-  return (
-    <div className="agent-system">
-      <p className="section-label">Content safety workflow</p>
-      {['Research Agent', 'Condense Agent', 'Scenario Agent', 'Ethics Agent', 'Reviewer Agent'].map((item) => (
-        <div key={item} className="system-row">
-          <Activity size={15} />
-          <span>{item}</span>
-          <strong>v1 label</strong>
         </div>
       ))}
     </div>
