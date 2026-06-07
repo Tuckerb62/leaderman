@@ -2,6 +2,12 @@
 
 Leaderman is a local-first leadership microlearning app: short lessons, scenario decisions, spaced review, source cards, and private reflections.
 
+## For AI Agents and Maintainers
+
+Start with `AGENTS.md`, then read `project-docs/README_FOR_AGENTS.md`.
+
+Source documentation lives in `project-docs/`. The tracked `docs/` folder is generated GitHub Pages output and can be replaced by `npm run build:pages`.
+
 ## Use It Online
 
 After GitHub Pages finishes deploying, open:
