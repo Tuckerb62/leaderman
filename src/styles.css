@@ -602,6 +602,19 @@ select:focus {
   padding: 14px;
 }
 
+.summary-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #4a443b;
+  line-height: 1.5;
+}
+
+.summary-list li {
+  padding-left: 2px;
+}
+
 .info-block span,
 .fidelity-row span,
 .source-card span,

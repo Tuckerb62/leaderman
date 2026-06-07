@@ -103,6 +103,8 @@ const domainArtwork = {
   'Self-Help': { mark: 'SH', accent: '#9aa476', secondary: '#586240' },
   Literature: { mark: 'LT', accent: '#a78b75', secondary: '#624a3e' },
   History: { mark: 'HS', accent: '#b09a6d', secondary: '#685334' },
+  'Novel Summaries': { mark: 'NV', accent: '#a78b75', secondary: '#624a3e' },
+  'World History': { mark: 'WH', accent: '#b09a6d', secondary: '#685334' },
 };
 
 function sourceInitials(label) {
@@ -133,6 +135,10 @@ function feedArtwork(lesson, sources) {
 function displayLessonTitle(state, lessonId) {
   if (!lessonId) return 'General';
   return state.lessons.find((lesson) => lesson.id === lessonId)?.title || 'General';
+}
+
+function isSummaryLesson(lesson) {
+  return lesson?.contentType === 'summary';
 }
 
 function withResume(current, patch) {
@@ -521,6 +527,7 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
 function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, onSkip, onSaveReflection, onOpenFull }) {
   const badge = reviewBadge(review);
   const artwork = feedArtwork(lesson, sources);
+  const summaryLesson = isSummaryLesson(lesson);
   const [decision, setDecision] = useState('');
   const [reflection, setReflection] = useState('');
   const gesture = useRef({ lastTapAt: 0, startX: 0, startY: 0, startedAt: 0 });
@@ -651,7 +658,11 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
         <p className="source-line">{artwork.sourceTitle}</p>
         {rated && <p className="rating-feedback">{rated.label}</p>}
 
-        {expanded && (
+        {expanded && summaryLesson && (
+          <SummaryLessonBody lesson={lesson} sources={sources} onOpenFull={onOpenFull} />
+        )}
+
+        {expanded && !summaryLesson && (
           <div className="feed-expanded">
             <div className="article-body">
               {lesson.articleParagraphs.map((paragraph) => (
@@ -724,6 +735,42 @@ function DecisionOptions({ lesson, selected, onSelect }) {
           text={lesson.reviewPrompt}
         />
       )}
+    </div>
+  );
+}
+
+function SummaryLessonBody({ lesson, sources, onOpenFull }) {
+  return (
+    <div className="feed-expanded summary-expanded">
+      <div className="article-body">
+        {lesson.articleParagraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+      <div className="two-column">
+        <InfoList title="Key points" items={lesson.summaryBullets || []} />
+        <InfoList title={lesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={lesson.timeline || []} />
+      </div>
+      <InfoList title="Themes to remember" items={lesson.themeNotes || []} />
+      <div className="source-grid">
+        {sources.map((source) => (
+          <SourceMini key={source.id} source={source} />
+        ))}
+      </div>
+      {onOpenFull && <button className="text-link" onClick={onOpenFull}>Open full summary →</button>}
+    </div>
+  );
+}
+
+function InfoList({ title, items }) {
+  return (
+    <div className="lesson-section">
+      <h3>{title}</h3>
+      <ul className="summary-list">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -803,14 +850,17 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
 }
 
 function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote }) {
-  const [step, setStep] = useState('article');
+  const summaryLesson = isSummaryLesson(selectedLesson);
+  const [step, setStep] = useState(() => (summaryLesson ? 'summary' : 'article'));
   const [reflection, setReflection] = useState('');
   const [decision, setDecision] = useState('');
   const [showFidelity, setShowFidelity] = useState(false);
   const sources = selectedLesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean);
   const sessionProgress = session ? `${session.currentIndex + 1} / ${session.lessonIds.length}` : 'Solo lesson';
+  const stepItems = summaryLesson ? ['summary', 'details', 'themes', 'notes'] : ['article', 'scenario', 'decision', 'reflection'];
 
   useEffect(() => {
+    setStep(isSummaryLesson(selectedLesson) ? 'summary' : 'article');
     setDecision('');
     setContextLessonId(selectedLesson.id);
   }, [selectedLesson.id, setContextLessonId]);
@@ -827,14 +877,53 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
         </div>
 
         <div className="step-tabs">
-          {['article', 'scenario', 'decision', 'reflection'].map((item) => (
+          {stepItems.map((item) => (
             <button key={item} className={step === item ? 'active' : ''} onClick={() => setStep(item)}>
               {item}
             </button>
           ))}
         </div>
 
-        {step === 'article' && (
+        {summaryLesson && step === 'summary' && (
+          <div className="article-section">
+            <p className="reading-meta">
+              Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
+            </p>
+            <div className="article-body">
+              {selectedLesson.articleParagraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {summaryLesson && step === 'details' && (
+          <div className="two-column">
+            <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
+            <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
+          </div>
+        )}
+
+        {summaryLesson && step === 'themes' && <InfoList title="Themes to remember" items={selectedLesson.themeNotes || []} />}
+
+        {summaryLesson && step === 'notes' && (
+          <div className="lesson-section">
+            <h3>Private notes</h3>
+            <p>Capture what you want to remember from this summary.</p>
+            <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private note you want to remember..." />
+            <button
+              className="secondary-button"
+              onClick={() => {
+                saveReflection(selectedLesson.id, reflection);
+                setReflection('');
+              }}
+            >
+              Save note
+            </button>
+          </div>
+        )}
+
+        {!summaryLesson && step === 'article' && (
           <div className="article-section">
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Historical lens: {selectedLesson.historicalExample?.title || 'Leadership history'}
@@ -851,7 +940,7 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
           </div>
         )}
 
-        {step === 'scenario' && (
+        {!summaryLesson && step === 'scenario' && (
           <div className="lesson-section">
             <h3>Scenario</h3>
             <p>{selectedLesson.scenario}</p>
@@ -859,9 +948,9 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
           </div>
         )}
 
-        {step === 'decision' && <DecisionOptions lesson={selectedLesson} selected={decision} onSelect={setDecision} />}
+        {!summaryLesson && step === 'decision' && <DecisionOptions lesson={selectedLesson} selected={decision} onSelect={setDecision} />}
 
-        {step === 'reflection' && (
+        {!summaryLesson && step === 'reflection' && (
           <div className="lesson-section">
             <h3>Reflection</h3>
             <p>{selectedLesson.reflectionPrompt}</p>
