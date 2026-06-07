@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   Brain,
-  Check,
   ChevronRight,
   Download,
   FileUp,
@@ -11,7 +10,6 @@ import {
   LineChart,
   MessageCircle,
   Play,
-  RotateCcw,
   ScrollText,
   Search,
   Send,
@@ -390,7 +388,7 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
         </div>
         <div className="feed-meta">
           <span>{dueCount} due · {lessons.length} cards</span>
-          <span>Swipe up for the next one</span>
+          <span>Right got it · left again · up skip · double tap deeper</span>
         </div>
       </header>
 
@@ -450,10 +448,87 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
   const artwork = feedArtwork(lesson, sources);
   const [decision, setDecision] = useState('');
   const [reflection, setReflection] = useState('');
+  const gesture = useRef({ lastTapAt: 0, startX: 0, startY: 0, startedAt: 0 });
   const cardStyle = {
     '--feed-accent': artwork.accent,
     '--feed-accent-2': artwork.secondary,
   };
+
+  function isInteractiveTarget(target) {
+    return target.closest('button, textarea, input, select, a, label, summary, details');
+  }
+
+  function moveToNextCard(card) {
+    const nextCard = card.nextElementSibling;
+    if (nextCard) {
+      window.setTimeout(() => nextCard.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+    }
+  }
+
+  function handleGestureStart(event) {
+    if (isInteractiveTarget(event.target)) return;
+    gesture.current = {
+      ...gesture.current,
+      startX: event.clientX,
+      startY: event.clientY,
+      startedAt: Date.now(),
+    };
+  }
+
+  function handleGestureEnd(event) {
+    if (isInteractiveTarget(event.target)) return;
+
+    const dx = event.clientX - gesture.current.startX;
+    const dy = event.clientY - gesture.current.startY;
+    const distance = Math.hypot(dx, dy);
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const swipeThreshold = 72;
+
+    if (distance >= swipeThreshold) {
+      if (expanded) return;
+      gesture.current.lastTapAt = 0;
+      if (absX > absY) {
+        onRate(dx > 0 ? 'know' : 'work');
+        return;
+      }
+      if (dy < 0) {
+        onSkip();
+        moveToNextCard(event.currentTarget);
+      }
+      return;
+    }
+
+    const now = Date.now();
+    if (now - gesture.current.lastTapAt < 320) {
+      gesture.current.lastTapAt = 0;
+      onExpand();
+      return;
+    }
+    gesture.current.lastTapAt = now;
+  }
+
+  function handleGestureKeyDown(event) {
+    if (isInteractiveTarget(event.target)) return;
+    if (expanded && event.key !== 'Enter') return;
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      onRate('know');
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      onRate('work');
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      onSkip();
+      moveToNextCard(event.currentTarget);
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onExpand();
+    }
+  }
 
   if (rated?.compact) {
     return (
@@ -471,7 +546,15 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
   }
 
   return (
-    <article className={expanded ? 'feed-card expanded' : 'feed-card'} style={cardStyle}>
+    <article
+      className={expanded ? 'feed-card expanded' : 'feed-card'}
+      style={cardStyle}
+      tabIndex={0}
+      onPointerDown={handleGestureStart}
+      onPointerUp={handleGestureEnd}
+      onKeyDown={handleGestureKeyDown}
+      aria-label={`${lesson.title}. Swipe right for got it, left for again, up to skip, or double tap to go deeper.`}
+    >
       <div className="feed-backdrop" aria-hidden="true">
         <span className="feed-backdrop-mark">{artwork.mark}</span>
         <span className="feed-backdrop-source">{artwork.sourceTitle}</span>
@@ -526,19 +609,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
           </div>
         )}
 
-        <div className="feed-actions">
-          <button className="quiet-button" onClick={() => onRate('know')}>
-            <Check size={15} />
-            Got it
-          </button>
-          <button className="quiet-button" onClick={() => onRate('work')}>
-            <RotateCcw size={15} />
-            Again
-          </button>
-          <button className="quiet-button" onClick={onSkip}>Skip</button>
-          <button className="text-link" onClick={onExpand}>{expanded ? 'Collapse' : 'Go deeper →'}</button>
-        </div>
-        {!expanded && <span className="swipe-hint">Swipe up</span>}
+        {!expanded && <span className="swipe-hint">Right got it · left again · up skip · double tap deeper</span>}
       </div>
     </article>
   );
