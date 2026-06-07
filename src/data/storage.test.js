@@ -20,6 +20,17 @@ describe('storage import', () => {
     expect(parsed.sources.length).toBeGreaterThan(25);
   });
 
+  it('keeps current seeded curriculum when importing older backups', () => {
+    const backup = createInitialState();
+    backup.lessons = backup.lessons.filter((lesson) => lesson.domain !== 'Philosophy');
+    backup.sources = backup.sources.filter((source) => source.domain !== 'Philosophy');
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.lessons.some((lesson) => lesson.slug === 'stoic-control')).toBe(true);
+    expect(parsed.sources.some((source) => source.id === 'src-stoicism')).toBe(true);
+  });
+
   it('rejects unrelated JSON', () => {
     expect(() => parseImportedState(JSON.stringify({ hello: 'world' }))).toThrow('Leaderman backup');
   });

@@ -325,6 +325,90 @@ const historicalExamples = {
     analogy:
       'Truth standards are load-bearing beams. Remove them quietly and the building may stand for a while, but it is no longer safe.',
   },
+  'stoic-control': {
+    title: 'Epictetus under empire',
+    summary:
+      'Epictetus lived in the Roman world and taught that freedom begins with disciplined judgment about what is and is not up to us. His life is often used carefully as an example of inner agency under external constraint.',
+    analogy:
+      'Stoic control is like sorting tools before a storm: you cannot command the weather, but you can decide what you carry and how you stand.',
+  },
+  'stoic-memento-mori': {
+    title: 'Marcus Aurelius on campaign',
+    summary:
+      'Marcus Aurelius wrote much of what became Meditations while carrying imperial responsibility and military pressure. The repeated attention to mortality was not gloom; it was a way to keep ambition, irritation, and fear in proportion.',
+    analogy:
+      'Memento mori is a ruler held against urgency. It does not make life smaller; it reveals which demands are actually large.',
+  },
+  'stoic-view-from-above': {
+    title: 'Roman cosmopolitan imagination',
+    summary:
+      'Stoic writers often asked people to imagine themselves as citizens of a wider whole rather than prisoners of local insult or status. That mental widening helped shrink vanity and strengthen duty.',
+    analogy:
+      'The view from above is like climbing a hill before judging a traffic jam: the pattern becomes clearer when your ego is not stuck inside one car.',
+  },
+  'virtue-as-habit': {
+    title: 'Aristotle’s polis and character',
+    summary:
+      'Aristotle wrote about virtue as cultivated through habit, education, and practical judgment inside a community. The historical setting differs sharply from modern life, but the basic insight remains: character is trained by repeated action.',
+    analogy:
+      'Virtue is not a trophy in a case; it is a path worn into the ground by walking it many times.',
+  },
+  'plato-cave': {
+    title: 'Athenian democracy and philosophical suspicion',
+    summary:
+      'Plato wrote after Athens had condemned Socrates and after democratic politics had shown both power and volatility. The cave image warns leaders that what a group treats as obvious may be only shadow.',
+    analogy:
+      'The cave is like mistaking a dashboard warning light for the whole engine. The signal matters, but it is not the full reality.',
+  },
+  'epicurean-enough': {
+    title: 'Epicurus and the garden',
+    summary:
+      'Epicurus taught in a community remembered as the Garden, where philosophy focused on friendship, moderation, and freedom from needless fear. The school is often misread as indulgence, but its deeper pattern is disciplined enoughness.',
+    analogy:
+      'Epicurean enoughness is like clearing apps from a crowded phone: the device becomes more useful when fewer things steal power.',
+  },
+  'cynic-freedom-from-status': {
+    title: 'Diogenes confronting convention',
+    summary:
+      'Stories about Diogenes are part history, part philosophical theater, but they consistently mock status, luxury, and social pretense. Cynicism asks what remains when applause no longer controls you.',
+    analogy:
+      'Cynic freedom is like taking off a costume you forgot you were wearing. The first shock is embarrassment; the second is relief.',
+  },
+  'confucian-ritual': {
+    title: 'Confucius and social repair',
+    summary:
+      'Confucius taught during political disorder and treated ritual, learning, and humane conduct as ways to repair relationships and government. Ritual was not empty performance when rightly understood; it trained attention to roles, respect, and obligation.',
+    analogy:
+      'Ritual is like the grammar of social life. You can speak without grammar, but shared form helps people understand and trust one another.',
+  },
+  'daoist-wu-wei': {
+    title: 'Daoist suspicion of over-control',
+    summary:
+      'Daoist texts such as the Dao De Jing often warn that forced order can create disorder. Wu wei is not laziness; it is action so well fitted to reality that it does not fight the grain.',
+    analogy:
+      'Wu wei is like steering a canoe with the current instead of thrashing against the river until everyone is exhausted.',
+  },
+  'buddhist-impermanence': {
+    title: 'The Buddha’s renunciation story',
+    summary:
+      'Traditional accounts describe the Buddha confronting sickness, aging, death, and renunciation. Whatever one’s religious view, the philosophical pattern is powerful: denial of impermanence distorts desire and judgment.',
+    analogy:
+      'Impermanence is like weather. You do not become wise by pretending it will not change; you become wise by learning how to travel through change.',
+  },
+  'existential-choice': {
+    title: 'Existentialism after European crisis',
+    summary:
+      'Existentialist writers worked in the shadow of war, occupation, alienation, and modern uncertainty. They insisted that refusing to choose is still a choice, and that meaning requires responsibility.',
+    analogy:
+      'Existential choice is like signing your name in wet cement. Even hesitation leaves a mark.',
+  },
+  'pragmatic-truth': {
+    title: 'American pragmatism and democratic experiment',
+    summary:
+      'Pragmatists such as William James and John Dewey treated ideas as instruments tested in experience. In democratic life, this made inquiry, education, revision, and consequences central.',
+    analogy:
+      'Pragmatism is like testing a bridge by engineering standards and real traffic, not by admiring the blueprint alone.',
+  },
 };
 
 function buildLessonArticle(lesson) {
@@ -358,6 +442,80 @@ export const domains = [
   'Conflict',
   'Systems',
   'Technology/Future',
+  'Philosophy',
+];
+
+export const philosophySchools = [
+  {
+    id: 'stoicism',
+    name: 'Stoicism',
+    era: 'Hellenistic and Roman',
+    summary: 'Train judgment, attention, courage, and restraint by separating what depends on you from what does not.',
+    lessonSlugs: ['stoic-control', 'stoic-memento-mori', 'stoic-view-from-above'],
+  },
+  {
+    id: 'virtue-ethics',
+    name: 'Aristotelian Virtue Ethics',
+    era: 'Classical Greek',
+    summary: 'Build character through repeated action, practical wisdom, and the search for the fitting mean between extremes.',
+    lessonSlugs: ['virtue-as-habit'],
+  },
+  {
+    id: 'platonism',
+    name: 'Platonism',
+    era: 'Classical Greek',
+    summary: 'Question appearances, educate desire, and ask what truth, justice, and the good require beyond popularity.',
+    lessonSlugs: ['plato-cave'],
+  },
+  {
+    id: 'epicureanism',
+    name: 'Epicureanism',
+    era: 'Hellenistic Greek',
+    summary: 'Seek stable contentment by reducing vain desires, fearing less, and valuing friendship, moderation, and peace.',
+    lessonSlugs: ['epicurean-enough'],
+  },
+  {
+    id: 'cynicism',
+    name: 'Cynicism',
+    era: 'Hellenistic Greek',
+    summary: 'Use simplicity and shameless honesty to expose status games, convention, and false need.',
+    lessonSlugs: ['cynic-freedom-from-status'],
+  },
+  {
+    id: 'confucianism',
+    name: 'Confucianism',
+    era: 'Classical Chinese',
+    summary: 'Treat leadership as cultivated character expressed through ritual, duty, family, education, and humane conduct.',
+    lessonSlugs: ['confucian-ritual'],
+  },
+  {
+    id: 'daoism',
+    name: 'Daoism',
+    era: 'Classical Chinese',
+    summary: 'Learn when less force creates better order, and when over-control makes systems brittle.',
+    lessonSlugs: ['daoist-wu-wei'],
+  },
+  {
+    id: 'buddhist-philosophy',
+    name: 'Buddhist Philosophy',
+    era: 'Ancient Indian and global traditions',
+    summary: 'Study impermanence, craving, attention, compassion, and the causes of suffering without turning insight into passivity.',
+    lessonSlugs: ['buddhist-impermanence'],
+  },
+  {
+    id: 'existentialism',
+    name: 'Existentialism',
+    era: 'Modern European',
+    summary: 'Own choice, responsibility, anxiety, and meaning when no system can make the decision for you.',
+    lessonSlugs: ['existential-choice'],
+  },
+  {
+    id: 'pragmatism',
+    name: 'Pragmatism',
+    era: 'Modern American',
+    summary: 'Judge ideas by their consequences, revise through experience, and treat truth-seeking as disciplined inquiry.',
+    lessonSlugs: ['pragmatic-truth'],
+  },
 ];
 
 export const sourceCards = [
@@ -757,6 +915,126 @@ export const sourceCards = [
     application: 'Identify the one account or system whose failure would hurt most, then strengthen it.',
     tags: ['security', 'risk', 'resilience'],
   },
+  {
+    id: 'src-stoicism',
+    title: 'Stoicism',
+    author: 'Epictetus, Seneca, Marcus Aurelius',
+    domain: 'Philosophy',
+    coreArgument: 'Human freedom grows when judgment, desire, and action are disciplined around what is actually within one’s power.',
+    usefulIdea: 'Separate control from concern, then act with courage, justice, temperance, and practical wisdom.',
+    blindSpot: 'Stoicism can be misused as emotional suppression or passive acceptance of injustice.',
+    opposingView: 'Romantic and relational traditions argue that emotion, attachment, and vulnerability can carry truth.',
+    application: 'Use Stoic exercises to regulate attention before high-pressure action.',
+    tags: ['stoicism', 'control', 'virtue'],
+  },
+  {
+    id: 'src-aristotle-ethics',
+    title: 'Nicomachean Ethics',
+    author: 'Aristotle',
+    domain: 'Philosophy',
+    coreArgument: 'A good life is formed by virtue, habit, practical wisdom, and action aimed at human flourishing.',
+    usefulIdea: 'Character is built through repeated choices until good action becomes more stable.',
+    blindSpot: 'Aristotle’s social world included exclusions and assumptions that modern readers must not inherit uncritically.',
+    opposingView: 'Rule-based ethics argues that habit and judgment need firmer universal principles.',
+    application: 'Choose one virtue and practice its concrete middle between deficiency and excess.',
+    tags: ['virtue', 'aristotle', 'character'],
+  },
+  {
+    id: 'src-plato-republic',
+    title: 'The Republic',
+    author: 'Plato',
+    domain: 'Philosophy',
+    coreArgument: 'Justice requires ordering the soul and city toward truth rather than appetite, illusion, or popularity.',
+    usefulIdea: 'Leaders must question appearances and educate desire before claiming wisdom.',
+    blindSpot: 'Plato’s political model can become anti-democratic and overly controlling if treated as a blueprint.',
+    opposingView: 'Democratic and pragmatic traditions distrust philosopher-rule and prefer open correction.',
+    application: 'Ask what shadow or appearance people may be mistaking for reality.',
+    tags: ['plato', 'truth', 'justice'],
+  },
+  {
+    id: 'src-epicureanism',
+    title: 'Epicurean Philosophy',
+    author: 'Epicurus and later Epicureans',
+    domain: 'Philosophy',
+    coreArgument: 'Peace comes from reducing vain desire, fearing death less, and valuing friendship, moderation, and simple pleasures.',
+    usefulIdea: 'Not every desire deserves obedience; many forms of enough are more stable than conquest.',
+    blindSpot: 'Withdrawal from public ambition can become avoidance when duty calls for action.',
+    opposingView: 'Civic traditions argue that responsible people cannot retreat entirely from public life.',
+    application: 'Notice one desire that promises status but creates anxiety.',
+    tags: ['epicureanism', 'desire', 'enough'],
+  },
+  {
+    id: 'src-cynicism',
+    title: 'Cynicism',
+    author: 'Diogenes and Cynic tradition',
+    domain: 'Philosophy',
+    coreArgument: 'Freedom comes from needing less approval, luxury, and convention than society teaches people to need.',
+    usefulIdea: 'Status games lose power when a person can live without their rewards.',
+    blindSpot: 'Contempt for convention can become cruelty, theatrical rebellion, or refusal of real responsibility.',
+    opposingView: 'Confucian and civic traditions argue that forms, roles, and manners can preserve care.',
+    application: 'Ask which status signal is quietly governing your behavior.',
+    tags: ['cynicism', 'status', 'freedom'],
+  },
+  {
+    id: 'src-confucianism',
+    title: 'Confucian Philosophy',
+    author: 'Confucius, Mencius, Xunzi',
+    domain: 'Philosophy',
+    coreArgument: 'Good order begins with cultivated character, humane conduct, ritual propriety, education, and rightly held roles.',
+    usefulIdea: 'Leadership is moral formation expressed through relationships and daily conduct.',
+    blindSpot: 'Role ethics can become rigid hierarchy if reciprocity, humanity, and correction disappear.',
+    opposingView: 'Liberal traditions worry that strong role obligations can suppress individual freedom.',
+    application: 'Treat one routine interaction as character training, not mere etiquette.',
+    tags: ['confucianism', 'ritual', 'roles'],
+  },
+  {
+    id: 'src-daoism',
+    title: 'Daoism',
+    author: 'Dao De Jing, Zhuangzi',
+    domain: 'Philosophy',
+    coreArgument: 'Wise action fits the grain of reality and often uses less force, less ego, and less over-management.',
+    usefulIdea: 'Not every problem improves when a leader grips harder.',
+    blindSpot: 'Non-forcing can be misread as passivity in moments that require protection or decision.',
+    opposingView: 'Legalist and command traditions argue that order often needs clear rules and enforcement.',
+    application: 'Find one place where removing friction would work better than adding pressure.',
+    tags: ['daoism', 'wu wei', 'systems'],
+  },
+  {
+    id: 'src-buddhist-philosophy',
+    title: 'Buddhist Philosophy',
+    author: 'Early Buddhist and later traditions',
+    domain: 'Philosophy',
+    coreArgument: 'Suffering is tied to craving, ignorance, impermanence, and mistaken attachment to fixed self or conditions.',
+    usefulIdea: 'Attention, compassion, and acceptance of change can reduce reactive leadership.',
+    blindSpot: 'Detachment can be misread as indifference or social withdrawal.',
+    opposingView: 'Activist traditions stress that inner liberation must connect to outer responsibility.',
+    application: 'Notice one attachment that makes a changing situation harder to see clearly.',
+    tags: ['buddhism', 'impermanence', 'attention'],
+  },
+  {
+    id: 'src-existentialism',
+    title: 'Existentialism',
+    author: 'Kierkegaard, Nietzsche, Sartre, Camus, de Beauvoir',
+    domain: 'Philosophy',
+    coreArgument: 'Human beings must choose, act, and make meaning under uncertainty, anxiety, freedom, and responsibility.',
+    usefulIdea: 'Avoiding choice does not remove responsibility; it usually hides it.',
+    blindSpot: 'Existential language can become self-absorption if severed from obligations to others.',
+    opposingView: 'Religious and virtue traditions argue that meaning is discovered or cultivated, not invented alone.',
+    application: 'Name the choice you are making by not choosing.',
+    tags: ['existentialism', 'choice', 'meaning'],
+  },
+  {
+    id: 'src-pragmatism',
+    title: 'Pragmatism',
+    author: 'William James, Charles Peirce, John Dewey',
+    domain: 'Philosophy',
+    coreArgument: 'Ideas should be tested by experience, consequences, inquiry, and their power to help people navigate reality.',
+    usefulIdea: 'Treat beliefs as working commitments that must stay open to correction.',
+    blindSpot: 'Pragmatism can become shallow expediency if truth is reduced to whatever works right now.',
+    opposingView: 'Platonist and realist traditions insist that truth cannot be only usefulness.',
+    application: 'Ask what experience would confirm, revise, or disconfirm a belief.',
+    tags: ['pragmatism', 'inquiry', 'truth'],
+  },
 ];
 
 const lessonSpecs = [
@@ -806,6 +1084,18 @@ const lessonSpecs = [
   ['repair-after-harm', 'Repair After Harm', 'Ethics', ['src-nvc', 'src-fearless'], 'Leadership is tested after harm. Repair requires acknowledgment, changed behavior, and sometimes restitution.', 'Your decision caused avoidable extra work for others.', ['Explain intent only', 'Acknowledge impact and repair', 'Wait for it to fade', 'Blame ambiguity'], 'Say what happened, what you own, and what will change.', 'Did I repair trust or only defend myself?', 'Intent does not erase impact.', 'Do not perform apology without changing behavior.'],
   ['coalition-map', 'Map the Coalition', 'Influence', ['src-prince', 'src-getting-yes'], 'Change depends on supporters, blockers, undecideds, and the interests behind each. Mapping prevents naive persuasion.', 'You need approval across multiple groups.', ['Pitch everyone the same way', 'Map interests and influence', 'Only convince your allies', 'Avoid blockers'], 'List allies, blockers, undecideds, and their interests.', 'Who needs a different argument or assurance?', 'Influence is partly coalition design.', 'Coalition work should not become secrecy or manipulation.'],
   ['standard-of-truth', 'Protect the Standard of Truth', 'Power', ['src-adp-622', 'src-manipulation'], 'Once leaders reward convenient falsehoods, the system learns to hide reality. Truth standards are infrastructure.', 'A report flatters your plan but omits risks.', ['Use it anyway', 'Ask for risks to be restored', 'Punish the analyst', 'Ignore details'], 'Publicly reward one inconvenient truth.', 'Did people learn that truth is safe?', 'Leaders get the information they reward.', 'Do not demand honesty then punish its consequences.'],
+  ['stoic-control', 'Control What Is Yours', 'Philosophy', ['src-stoicism', 'src-enchiridion'], 'Stoicism begins by separating what depends on your judgment and action from what belongs to fortune, other people, or events already in motion.', 'A public criticism lands before an important decision.', ['Control the criticism', 'Control your next judgment and action', 'Pretend it does not hurt', 'Retaliate quickly'], 'Write two columns: what is mine to govern, and what is only mine to respond to.', 'Did I spend energy on action or on trying to command reality?', 'Stoic control is not control of the world; it is disciplined authorship of your response.', 'Do not use Stoicism to accept injustice that you have a duty and ability to resist.'],
+  ['stoic-memento-mori', 'Remember Death Without Becoming Dark', 'Philosophy', ['src-stoicism', 'src-meditations'], 'Memento mori uses mortality to put ambition, fear, resentment, and distraction back into proportion.', 'You are furious about a slight that will not matter next year.', ['Nurse the slight', 'Use mortality to resize it', 'Withdraw from everything', 'Win the status exchange'], 'Ask whether this will matter at the end of life, then choose the honorable action now.', 'Did mortality make me clearer, kinder, or more disciplined?', 'Remembering death can clarify what deserves attention.', 'Do not use mortality to become numb, fatalistic, or careless with other people’s pain.'],
+  ['stoic-view-from-above', 'Take the View From Above', 'Philosophy', ['src-stoicism', 'src-meditations'], 'The view from above is a Stoic imagination exercise that widens perspective beyond ego, insult, and local status.', 'A small office conflict feels like the whole world.', ['Zoom into the insult', 'Widen the frame', 'Dismiss everyone involved', 'Avoid the decision'], 'Imagine the conflict from the scale of the city, country, history, and human life.', 'What changed when I reduced my ego’s camera angle?', 'Perspective can shrink vanity without shrinking responsibility.', 'Do not use distance as an excuse to avoid care or repair.'],
+  ['virtue-as-habit', 'Make Virtue a Habit', 'Philosophy', ['src-aristotle-ethics'], 'Aristotle treats character as something trained by repeated action, practical judgment, and the search for the fitting response.', 'You want to become courageous but keep avoiding difficult conversations.', ['Wait to feel courageous', 'Practice one measured courageous act', 'Swing into recklessness', 'Call avoidance prudence'], 'Choose one virtue and practice it in a small visible action today.', 'Which repeated action is shaping my character?', 'Virtue becomes reliable through practice.', 'Do not mistake habit for goodness if the habit serves vanity or domination.'],
+  ['plato-cave', 'Leave the Cave of Appearances', 'Philosophy', ['src-plato-republic'], 'Plato’s cave warns that groups can mistake shadows, popularity, and habit for reality.', 'Everyone agrees a project is healthy because the dashboard looks good.', ['Trust the shadows', 'Ask what the numbers hide', 'Punish doubt', 'Ignore evidence'], 'Ask what unseen reality might sit behind a visible signal.', 'What appearance did I treat as truth?', 'Leadership requires suspicion of easy appearances.', 'Do not turn suspicion into arrogance or contempt for ordinary people.'],
+  ['epicurean-enough', 'Know What Is Enough', 'Philosophy', ['src-epicureanism'], 'Epicurean philosophy teaches that many desires create anxiety because they are vain, competitive, or limitless.', 'You keep accepting status work that destroys sleep and friendship.', ['Pursue more status', 'Define enough', 'Reject all ambition', 'Hide the exhaustion'], 'Name one desire that creates more anxiety than value.', 'What became easier when I wanted less?', 'Enoughness can be a form of strategic freedom.', 'Do not use simplicity to abandon duties or people who depend on you.'],
+  ['cynic-freedom-from-status', 'Question the Status Game', 'Philosophy', ['src-cynicism'], 'Cynicism asks what social convention, luxury, or approval is secretly controlling your freedom.', 'You are about to make a decision mainly because it looks impressive.', ['Chase the signal', 'Ask what need is real', 'Mock everyone', 'Perform rebellion'], 'Identify one status signal and ask what would happen if you stopped serving it.', 'Which approval system owns me more than I admit?', 'Freedom grows when false needs lose authority.', 'Do not confuse honest simplicity with cruelty, contempt, or performative rebellion.'],
+  ['confucian-ritual', 'Use Ritual to Train Respect', 'Philosophy', ['src-confucianism'], 'Confucian thought treats ritual and role as ways to train attention, respect, duty, and humane conduct.', 'A recurring meeting has become careless and disrespectful.', ['Ignore the form', 'Redesign the ritual to show respect and purpose', 'Demand warmth without structure', 'Cancel all formality'], 'Make one routine interaction more respectful through a clear opening, turn-taking rule, or closing.', 'Did form improve care rather than replace it?', 'Ritual can make values repeatable.', 'Do not let roles become rigid hierarchy without humanity, reciprocity, or correction.'],
+  ['daoist-wu-wei', 'Lead With Less Force', 'Philosophy', ['src-daoism'], 'Daoist wu wei means fitting action to reality so the leader stops fighting the grain of the situation.', 'You keep adding rules to a process that people already find brittle.', ['Add another rule', 'Remove friction and let the system breathe', 'Do nothing forever', 'Blame people'], 'Find one place where less force would create more order.', 'What improved when I stopped over-controlling?', 'Sometimes the best intervention is removing the intervention that created resistance.', 'Do not use non-force as a mask for cowardice when protection or decision is required.'],
+  ['buddhist-impermanence', 'Practice With Impermanence', 'Philosophy', ['src-buddhist-philosophy'], 'Buddhist philosophy teaches that clinging to what changes creates suffering and distorts perception.', 'A role, relationship, or plan is changing and you keep trying to freeze it.', ['Deny the change', 'Notice craving and respond clearly', 'Detach from everyone', 'Force the old version back'], 'Name what is changing, what you are clinging to, and what compassionate action remains.', 'Did accepting change make me passive or clearer?', 'Impermanence can sharpen attention and compassion.', 'Do not use detachment to become indifferent to harm or responsibility.'],
+  ['existential-choice', 'Own the Choice You Are Making', 'Philosophy', ['src-existentialism'], 'Existentialism insists that avoiding choice is still a choice, and that freedom brings responsibility.', 'You keep delaying a decision because no option feels pure.', ['Pretend delay is neutral', 'Name the choice inside the delay', 'Blame the situation only', 'Let others absorb the cost'], 'Write the decision you are making by not deciding.', 'What responsibility have I been hiding inside uncertainty?', 'Meaning is shaped by owned action under uncertainty.', 'Do not turn existential freedom into self-absorption; other people bear consequences too.'],
+  ['pragmatic-truth', 'Test Ideas by Consequences', 'Philosophy', ['src-pragmatism'], 'Pragmatism treats ideas as commitments tested through experience, consequences, and disciplined inquiry.', 'A beautiful theory keeps failing in practice.', ['Protect the theory', 'Study consequences and revise', 'Reject all principles', 'Declare victory'], 'Ask what experience would confirm, revise, or disconfirm this belief.', 'What did reality teach that the theory missed?', 'Ideas become wiser when they stay answerable to experience.', 'Do not reduce truth to whatever is convenient or popular in the short term.'],
 ];
 
 export const microLessons = lessonSpecs.map((spec, index) => {

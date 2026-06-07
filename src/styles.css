@@ -302,7 +302,8 @@ h3 {
 
 .today-grid,
 .review-grid,
-.progress-grid {
+.progress-grid,
+.philosophy-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
   gap: 18px;
@@ -318,7 +319,10 @@ h3 {
 .review-stack,
 .progress-hero,
 .signal-panel,
-.reflection-panel {
+.reflection-panel,
+.philosophy-hero,
+.stoic-track,
+.school-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -334,7 +338,10 @@ h3 {
 .review-stack,
 .progress-hero,
 .signal-panel,
-.reflection-panel {
+.reflection-panel,
+.philosophy-hero,
+.stoic-track,
+.school-card {
   padding: 20px;
 }
 
@@ -389,6 +396,7 @@ h3 {
 
 .lesson-preview span,
 .source-card span,
+.school-card span,
 .session-chip {
   width: fit-content;
   border-radius: 999px;
@@ -848,6 +856,137 @@ input:focus {
   color: var(--subtle);
 }
 
+.philosophy-grid {
+  grid-template-columns: minmax(0, 1fr) 390px;
+}
+
+.philosophy-hero {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  background:
+    linear-gradient(135deg, rgba(22, 138, 99, 0.09), transparent 48%),
+    var(--surface);
+}
+
+.philosophy-hero h2 {
+  max-width: 760px;
+}
+
+.philosophy-hero p,
+.stoic-track > p,
+.school-card p,
+.stoic-track-row p {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.philosophy-hero p {
+  max-width: 800px;
+  margin: 14px 0 0;
+}
+
+.philosophy-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.school-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.school-card {
+  display: grid;
+  min-height: 220px;
+  align-content: space-between;
+  gap: 16px;
+}
+
+.school-card.featured {
+  border-color: rgba(22, 138, 99, 0.34);
+  background: #f7fbf8;
+}
+
+.school-card h3 {
+  margin: 12px 0 8px;
+  font-size: 1.08rem;
+}
+
+.school-lessons {
+  display: grid;
+  gap: 8px;
+}
+
+.school-lesson-button,
+.stoic-track-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+  color: var(--ink);
+}
+
+.school-lesson-button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  text-align: left;
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.school-lesson-button:hover,
+.stoic-track-row:hover {
+  border-color: var(--line-strong);
+}
+
+.stoic-track {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.stoic-track-list {
+  display: grid;
+  gap: 10px;
+}
+
+.stoic-track-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 12px;
+  min-height: 94px;
+  padding: 12px;
+  text-align: left;
+}
+
+.stoic-track-row > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--charcoal);
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.stoic-track-row p {
+  margin: 5px 0 0;
+  font-size: 0.84rem;
+}
+
 .empty-copy {
   color: var(--muted);
   line-height: 1.5;
@@ -865,7 +1004,7 @@ input:focus {
   }
 
   .nav-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .sidebar-card {
@@ -876,8 +1015,19 @@ input:focus {
   .library-grid,
   .today-grid,
   .review-grid,
-  .progress-grid {
+  .progress-grid,
+  .philosophy-grid,
+  .school-grid {
     grid-template-columns: 1fr;
+  }
+
+  .philosophy-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .philosophy-actions {
+    justify-content: flex-start;
   }
 
   .lesson-strip {
@@ -920,8 +1070,10 @@ input:focus {
   }
 
   .option-card,
-  .queue-row {
+  .queue-row,
+  .stoic-track-row {
     align-items: flex-start;
+    display: flex;
     flex-direction: column;
   }
 

@@ -48,9 +48,20 @@ export function parseImportedState(text) {
   if (parsed?.schemaVersion !== 1 || !Array.isArray(parsed.lessons)) {
     throw new Error('This does not look like a Leaderman backup.');
   }
+  const seeded = createInitialState();
   return {
-    ...loadState(),
+    ...seeded,
     ...parsed,
+    sources: seeded.sources,
+    lessons: seeded.lessons,
+    reviews: {
+      ...seeded.reviews,
+      ...(parsed.reviews || {}),
+    },
+    settings: {
+      ...seeded.settings,
+      ...(parsed.settings || {}),
+    },
     exportedAt: undefined,
   };
 }

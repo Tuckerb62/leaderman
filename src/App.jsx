@@ -10,12 +10,13 @@ import {
   LineChart,
   Play,
   RotateCcw,
+  ScrollText,
   Search,
   ShieldCheck,
   Target,
   Trash2,
 } from 'lucide-react';
-import { createInitialState, domains } from './data/seedData.js';
+import { createInitialState, domains, philosophySchools } from './data/seedData.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { nextReviewState, todayKey } from './logic/reviewScheduler.js';
 import { dueLessons, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
@@ -23,6 +24,7 @@ import { dueLessons, progressStats, recommendedLessons, sourceById, weakDomains 
 const navItems = [
   { id: 'today', label: 'Today', icon: Target },
   { id: 'learn', label: 'Learn', icon: Brain },
+  { id: 'philosophy', label: 'Philosophy', icon: ScrollText },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'review', label: 'Review', icon: RotateCcw },
   { id: 'progress', label: 'Progress', icon: LineChart },
@@ -34,10 +36,28 @@ const ratingCopy = {
   work: 'Needs work',
 };
 
+function queryParam(name) {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+function initialView() {
+  const requestedView = queryParam('view');
+  const requestedLesson = queryParam('lesson');
+  if (requestedLesson) return 'learn';
+  return navItems.some((item) => item.id === requestedView) ? requestedView : 'today';
+}
+
+function initialLessonId(state) {
+  const requestedLesson = queryParam('lesson');
+  const matchingLesson = state.lessons.find((lesson) => lesson.slug === requestedLesson || lesson.id === requestedLesson);
+  return matchingLesson?.id || recommendedLessons(state, 1)[0]?.id;
+}
+
 export default function App() {
   const [state, setState] = useState(() => loadState());
-  const [view, setView] = useState('today');
-  const [selectedLessonId, setSelectedLessonId] = useState(() => recommendedLessons(loadState(), 1)[0]?.id);
+  const [view, setView] = useState(() => initialView());
+  const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(loadState()));
   const [session, setSession] = useState(null);
 
   useEffect(() => saveState(state), [state]);
@@ -220,6 +240,7 @@ export default function App() {
 
         {view === 'today' && <TodayView {...commonProps} stats={stats} due={due} />}
         {view === 'learn' && <LearnView {...commonProps} />}
+        {view === 'philosophy' && <PhilosophyView {...commonProps} setView={setView} />}
         {view === 'library' && <LibraryView {...commonProps} />}
         {view === 'review' && <ReviewView {...commonProps} due={due} />}
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
@@ -232,6 +253,7 @@ function viewTitle(view) {
   return {
     today: 'Tonight’s briefing',
     learn: 'Training session',
+    philosophy: 'Philosophy schools',
     library: 'Knowledge library',
     review: 'Review queue',
     progress: 'Progress signal',
@@ -297,6 +319,90 @@ function TodayView({ state, stats, due, startSession, setSelectedLessonId, saveR
         {featured.map((lesson) => (
           <LessonPreview key={lesson.id} lesson={lesson} review={state.reviews[lesson.id]} onOpen={() => setSelectedLessonId(lesson.id)} />
         ))}
+      </div>
+    </section>
+  );
+}
+
+function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
+  const lessonBySlug = new Map(state.lessons.map((lesson) => [lesson.slug, lesson]));
+  const philosophyLessons = state.lessons.filter((lesson) => lesson.domain === 'Philosophy');
+  const stoicSchool = philosophySchools.find((school) => school.id === 'stoicism');
+  const stoicLessons = stoicSchool.lessonSlugs.map((slug) => lessonBySlug.get(slug)).filter(Boolean);
+
+  function openLesson(lessonId) {
+    setSelectedLessonId(lessonId);
+    setView('learn');
+  }
+
+  return (
+    <section className="philosophy-grid">
+      <div className="philosophy-hero">
+        <div>
+          <p className="section-label">Philosophy as leadership practice</p>
+          <h2>Schools of thought for judgment, restraint, courage, and meaning.</h2>
+          <p>
+            Philosophy here is not trivia or quote collecting. Each school is treated as a training lens:
+            a way to read pressure, desire, status, duty, suffering, truth, and action before power magnifies them.
+          </p>
+        </div>
+        <div className="philosophy-actions">
+          <Metric label="Schools" value={philosophySchools.length} />
+          <Metric label="Lessons" value={philosophyLessons.length} />
+          <button className="primary-button" onClick={() => startSession(stoicLessons.map((lesson) => lesson.id))}>
+            <Play size={16} />
+            Start Stoicism track
+          </button>
+        </div>
+      </div>
+
+      <div className="stoic-track">
+        <div className="panel-head">
+          <div>
+            <p className="section-label">Featured track</p>
+            <h2>Stoicism</h2>
+          </div>
+          <ScrollText className="panel-icon" size={28} />
+        </div>
+        <p>
+          Start here if you want a practical operating system for self-command: control what is yours,
+          remember mortality, and widen the frame before ego takes the wheel.
+        </p>
+        <div className="stoic-track-list">
+          {stoicLessons.map((lesson, index) => (
+            <button key={lesson.id} className="stoic-track-row" onClick={() => openLesson(lesson.id)}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div>
+                <strong>{lesson.title}</strong>
+                <p>{lesson.coreIdea}</p>
+              </div>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="school-grid">
+        {philosophySchools.map((school) => {
+          const lessons = school.lessonSlugs.map((slug) => lessonBySlug.get(slug)).filter(Boolean);
+          return (
+            <article key={school.id} className={school.id === 'stoicism' ? 'school-card featured' : 'school-card'}>
+              <div>
+                <span>{school.era}</span>
+                <h3>{school.name}</h3>
+                <p>{school.summary}</p>
+              </div>
+              <div className="school-lessons">
+                {lessons.map((lesson) => (
+                  <button key={lesson.id} className="school-lesson-button" onClick={() => openLesson(lesson.id)}>
+                    {lesson.title}
+                    <ChevronRight size={14} />
+                  </button>
+                ))}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
