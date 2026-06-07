@@ -22,7 +22,7 @@ import {
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
-import { DEFAULT_AI_SETTINGS, askOpenAI, requiresClientApiKey } from './logic/aiClient.js';
+import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askOpenAI, requiresClientApiKey } from './logic/aiClient.js';
 import { nextReviewState, todayKey } from './logic/reviewScheduler.js';
 import { dueLessons, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
 
@@ -428,6 +428,9 @@ function AiCoachView({ selectedLesson }) {
   const [keychainKey, setKeychainKey] = useState('');
   const [isSavingKeychain, setIsSavingKeychain] = useState(false);
   const endpointNeedsKey = requiresClientApiKey(settings.endpoint);
+  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
+  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
+  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
 
   function refreshServerStatus() {
     if (endpointNeedsKey) {
@@ -466,6 +469,15 @@ function AiCoachView({ selectedLesson }) {
   function updateSettings(nextSettings) {
     setSettings(nextSettings);
     saveAiSettings(nextSettings);
+  }
+
+  function updateModelSelection(modelId) {
+    if (modelId === 'custom') {
+      setUseCustomModel(true);
+      return;
+    }
+    setUseCustomModel(false);
+    updateSettings({ ...settings, model: modelId });
   }
 
   function saveKey() {
@@ -703,10 +715,30 @@ function AiCoachView({ selectedLesson }) {
 
         <div className="ai-field">
           <label htmlFor="ai-model">Model</label>
-          <input
+          <select
             id="ai-model"
+            value={modelSelectValue}
+            onChange={(event) => updateModelSelection(event.target.value)}
+          >
+            {AI_MODEL_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+            <option value="custom">Custom model</option>
+          </select>
+          <p className="field-help">
+            {selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}
+          </p>
+        </div>
+
+        <div className={modelSelectValue === 'custom' ? 'ai-field' : 'ai-field hidden-field'}>
+          <label htmlFor="ai-custom-model">Custom model ID</label>
+          <input
+            id="ai-custom-model"
             value={settings.model}
-            onChange={(event) => updateSettings({ ...settings, model: event.target.value })}
+            onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })}
+            placeholder="gpt-..."
           />
         </div>
 

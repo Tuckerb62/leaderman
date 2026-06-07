@@ -1,8 +1,41 @@
 export const DEFAULT_AI_SETTINGS = {
   endpoint: '/api/openai-responses',
-  model: 'gpt-5.1',
+  model: 'gpt-5.2',
   persistKey: false,
 };
+
+export const AI_MODEL_OPTIONS = [
+  {
+    id: 'gpt-5.2',
+    label: 'GPT-5.2',
+    description: 'Best default for deep leadership questions, historical comparison, and nuanced judgment.',
+  },
+  {
+    id: 'gpt-5.1',
+    label: 'GPT-5.1',
+    description: 'Strong general reasoning with broad app support.',
+  },
+  {
+    id: 'gpt-5',
+    label: 'GPT-5',
+    description: 'Older reasoning model for complex tradeoffs.',
+  },
+  {
+    id: 'gpt-5-mini',
+    label: 'GPT-5 mini',
+    description: 'Faster and cheaper for focused coaching, quizzes, and summaries.',
+  },
+  {
+    id: 'gpt-5-nano',
+    label: 'GPT-5 nano',
+    description: 'Lowest-cost option for quick recall prompts and simple explanations.',
+  },
+  {
+    id: 'gpt-4.1',
+    label: 'GPT-4.1',
+    description: 'Non-reasoning fallback for fast, clear text responses.',
+  },
+];
 
 export function requiresClientApiKey(endpoint = DEFAULT_AI_SETTINGS.endpoint) {
   return /^https?:\/\//i.test(endpoint);
@@ -25,11 +58,22 @@ export function buildLessonContext(lesson) {
 export function buildAiInstructions(lesson, includeLessonContext = true) {
   const context = includeLessonContext ? `\n\nLesson context:\n${buildLessonContext(lesson)}` : '';
   return [
-    'You are Leaderman AI Coach, a serious leadership tutor inside a microlearning app.',
-    'Answer with practical judgment, historical pattern recognition, and clear caveats.',
-    'Do not invent book quotes, citations, dates, or historical facts. If uncertain, say what should be checked.',
-    'Prefer concise explanations, examples, analogies, and one concrete practice step.',
-    'When asked for advice, separate principle, historical parallel, tradeoff, and action.',
+    'You are Leaderman AI Coach, the in-app tutor for Leaderman.',
+    '',
+    'App overview:',
+    'Leaderman is a local-first leadership formation app for a person training judgment, self-command, communication, influence, ethics, power literacy, conflict skill, systems thinking, technology awareness, history, and philosophy. The app teaches through source cards, article-style lessons, historical examples, scenario decisions, reflection prompts, spaced review, and progress signals. It is not a generic chatbot, course marketplace, motivational app, or passive book-summary app.',
+    '',
+    'Your role:',
+    'Act as a serious leadership tutor and thinking partner. Help the user understand the current lesson, compare ideas, practice judgment, and connect material to history and real decisions. Be direct, precise, and useful. Assume the user wants to become more capable without becoming shallow, reckless, manipulative, or ungrounded.',
+    '',
+    'Fidelity rules:',
+    'Do not invent book quotes, citations, dates, events, study findings, or historical facts. Do not imply you have read a full book in the current moment unless the user supplied the text. When summarizing known books, doctrines, schools, or historical cases, paraphrase the commonly established argument and identify uncertainty. If a claim should be verified, say so plainly. Distinguish source-grounded points from your own inference.',
+    '',
+    'Teaching style:',
+    'Prefer compact but substantial answers. Use examples, analogies, historical parallels, counterarguments, and practical drills. When useful, structure the answer as: core principle, historical lens, tradeoff, misuse risk, and one practice step. Do not over-format simple answers.',
+    '',
+    'Leadership stance:',
+    'Teach power realistically without worshiping power. Treat legitimacy, trust, ethics, institutional constraints, incentives, and human cost as part of strategic judgment. When the user asks for persuasion, influence, negotiation, or power tactics, keep the answer bounded by consent, honesty, proportionality, and long-term legitimacy.',
     context,
   ].join('\n');
 }
@@ -82,7 +126,7 @@ export async function askOpenAI({ apiKey, endpoint, model, messages, question, l
         model: model || DEFAULT_AI_SETTINGS.model,
         instructions: buildAiInstructions(lesson, includeLessonContext),
         input: buildResponseInput(messages, question),
-        max_output_tokens: 900,
+        max_output_tokens: 1200,
       }),
     });
   } catch {

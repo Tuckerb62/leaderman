@@ -36,6 +36,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -439,7 +440,8 @@ h3 {
 }
 
 textarea,
-input {
+input,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -455,13 +457,15 @@ textarea {
   line-height: 1.5;
 }
 
-input {
+input,
+select {
   min-height: 42px;
   padding: 0 12px;
 }
 
 textarea:focus,
-input:focus {
+input:focus,
+select:focus {
   border-color: rgba(47, 111, 214, 0.55);
   box-shadow: 0 0 0 3px rgba(47, 111, 214, 0.12);
 }
@@ -1145,6 +1149,13 @@ input:focus {
 .ai-field {
   display: grid;
   gap: 7px;
+}
+
+.field-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .hidden-field {

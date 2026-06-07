@@ -153,6 +153,10 @@ flowchart LR
 
 The default endpoint is `/api/openai-responses`. That only works when using the private local server. On GitHub Pages, the app can still run without AI, or the user can configure a direct HTTPS endpoint and provide a key in the browser.
 
+The selected model is stored with AI settings. Curated model choices and descriptions live in `AI_MODEL_OPTIONS`; `DEFAULT_AI_SETTINGS.model` sets the default. The UI also supports a custom model ID.
+
+The API request body includes a centralized `instructions` prompt. It gives the AI an overview of Leaderman, defines the tutor role, requires factual caveats, asks for examples and practical drills, and includes current lesson context when enabled.
+
 ## Build Outputs
 
 `npm run build` creates `dist/` for local preview and private server use.
@@ -182,4 +186,3 @@ For UI changes, also run a build:
 ```bash
 npm run build
 ```
-

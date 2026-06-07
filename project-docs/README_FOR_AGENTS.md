@@ -68,13 +68,15 @@ The AI Coach has two operating modes:
 - Private local server mode: the frontend calls `/api/openai-responses`. `scripts/local-ai-server.mjs` reads the OpenAI key from `OPENAI_API_KEY` or macOS Keychain and proxies the request to the OpenAI Responses API. The browser never receives the key.
 - Direct browser mode: the frontend can call a full HTTPS endpoint directly and attach a pasted API key in the browser. This is convenient but exposes the key to that browser environment and should remain a fallback for personal use only.
 
+The AI Coach also includes a model selector. Curated options live in `AI_MODEL_OPTIONS` in `src/logic/aiClient.js`, and the default model lives in `DEFAULT_AI_SETTINGS`. Keep the custom model option available so the user can try newer or account-specific model IDs without a code change.
+
 The private server also exposes:
 
 - `GET /api/ai-health`: tells the app whether a key is configured and whether it came from environment or Keychain.
 - `POST /api/openai-responses`: local proxy to OpenAI Responses API.
 - `POST /api/save-openai-key`: saves a pasted key to macOS Keychain, allowed only when the server is bound to `127.0.0.1` or `localhost`.
 
-AI prompts are assembled in `src/logic/aiClient.js`. They instruct the model not to invent quotes, citations, dates, or historical facts. Keep this guardrail strong if the AI feature changes.
+AI prompts are assembled in `src/logic/aiClient.js`. Every request should include the Leaderman app overview, the tutor role, factuality rules, teaching style, leadership stance, and optional current-lesson context. Keep these guardrails strong if the AI feature changes.
 
 ## Install and Hosting Options
 
@@ -100,4 +102,3 @@ Use `project-docs/` for maintainable source docs:
 - `project-docs/ARCHITECTURE.md`: implementation map and data flow.
 - `project-docs/OPERATIONS.md`: run, build, deploy, app install, and troubleshooting commands.
 - `project-docs/SECURITY_AND_PRIVACY.md`: privacy model and key-handling rules.
-

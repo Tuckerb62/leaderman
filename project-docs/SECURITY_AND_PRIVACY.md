@@ -67,6 +67,8 @@ When the app runs from GitHub Pages:
 
 It does not write chat transcripts to disk. It forwards the request body to OpenAI and returns the response to the browser.
 
+The request body includes the selected model, the user's question, recent chat turns, optional current-lesson context, and the centralized Leaderman tutor instructions. Do not include API keys, local backups, or unrelated private files in this body.
+
 When run with `--host 0.0.0.0`, the server is reachable by other devices on the same local network. This is useful for personal phone and iPad use, but it should be treated as local network exposure.
 
 ## Service Worker and PWA
@@ -84,4 +86,3 @@ If changing the service worker, verify that the app still loads after a refresh 
 - Add source references and uncertainty notes when expanding curriculum.
 - Keep generated GitHub Pages output separate from source documentation.
 - Re-check this document before changing storage, AI, import/export, service worker, publishing, or desktop launcher behavior.
-

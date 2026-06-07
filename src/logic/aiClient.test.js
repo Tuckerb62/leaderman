@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { buildAiInstructions, buildResponseInput, extractResponseText, requiresClientApiKey } from './aiClient.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  AI_MODEL_OPTIONS,
+  DEFAULT_AI_SETTINGS,
+  askOpenAI,
+  buildAiInstructions,
+  buildResponseInput,
+  extractResponseText,
+  requiresClientApiKey,
+} from './aiClient.js';
 
 const lesson = {
   title: 'Control What Is Yours',
@@ -12,13 +20,25 @@ const lesson = {
   reviewPrompt: 'Stoic control is disciplined authorship of your response.',
 };
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('ai client helpers', () => {
   it('builds lesson-grounded instructions without asking the model to invent facts', () => {
     const instructions = buildAiInstructions(lesson, true);
 
+    expect(instructions).toContain('Leaderman is a local-first leadership formation app');
+    expect(instructions).toContain('source cards, article-style lessons, historical examples');
     expect(instructions).toContain('Control What Is Yours');
     expect(instructions).toContain('Epictetus under empire');
     expect(instructions).toContain('Do not invent book quotes');
+    expect(instructions).toContain('Distinguish source-grounded points from your own inference');
+  });
+
+  it('offers curated model choices with the default model included', () => {
+    expect(AI_MODEL_OPTIONS.map((option) => option.id)).toContain(DEFAULT_AI_SETTINGS.model);
+    expect(AI_MODEL_OPTIONS[0].id).toBe(DEFAULT_AI_SETTINGS.model);
   });
 
   it('builds recent chat input for the Responses API', () => {
@@ -56,5 +76,29 @@ describe('ai client helpers', () => {
   it('only requires browser-held keys for absolute API endpoints', () => {
     expect(requiresClientApiKey('/api/openai-responses')).toBe(false);
     expect(requiresClientApiKey('https://api.openai.com/v1/responses')).toBe(true);
+  });
+
+  it('sends the Leaderman overview and chosen model in the OpenAI request body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: 'Answer.' }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await askOpenAI({
+      apiKey: '',
+      endpoint: '/api/openai-responses',
+      model: 'gpt-5-mini',
+      messages: [],
+      question: 'Explain legitimacy.',
+      lesson,
+      includeLessonContext: true,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.model).toBe('gpt-5-mini');
+    expect(body.instructions).toContain('Leaderman is a local-first leadership formation app');
+    expect(body.instructions).toContain('Do not invent book quotes');
+    expect(body.instructions).toContain('Control What Is Yours');
   });
 });
