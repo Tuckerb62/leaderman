@@ -2,22 +2,27 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   BookOpen,
+  Bot,
   Brain,
   ChevronRight,
   Download,
   FileUp,
+  KeyRound,
   Library,
   LineChart,
   Play,
   RotateCcw,
   ScrollText,
   Search,
+  Send,
   ShieldCheck,
   Target,
   Trash2,
 } from 'lucide-react';
+import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
+import { askOpenAI } from './logic/aiClient.js';
 import { nextReviewState, todayKey } from './logic/reviewScheduler.js';
 import { dueLessons, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
 
@@ -25,6 +30,7 @@ const navItems = [
   { id: 'today', label: 'Today', icon: Target },
   { id: 'learn', label: 'Learn', icon: Brain },
   { id: 'philosophy', label: 'Philosophy', icon: ScrollText },
+  { id: 'ai', label: 'AI Coach', icon: Bot },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'review', label: 'Review', icon: RotateCcw },
   { id: 'progress', label: 'Progress', icon: LineChart },
@@ -206,7 +212,7 @@ export default function App() {
 
         <div className="sidebar-card">
           <span className="eyebrow">Local only</span>
-          <p>No account, no cloud, no AI calls. Your notes stay in this browser.</p>
+          <p>No account or cloud sync. AI calls happen only when you add a key and ask.</p>
           <div className="backup-row">
             <button className="icon-button" onClick={() => exportState(state)} title="Export backup">
               <Download size={16} />
@@ -241,6 +247,7 @@ export default function App() {
         {view === 'today' && <TodayView {...commonProps} stats={stats} due={due} />}
         {view === 'learn' && <LearnView {...commonProps} />}
         {view === 'philosophy' && <PhilosophyView {...commonProps} setView={setView} />}
+        {view === 'ai' && <AiCoachView {...commonProps} />}
         {view === 'library' && <LibraryView {...commonProps} />}
         {view === 'review' && <ReviewView {...commonProps} due={due} />}
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
@@ -254,6 +261,7 @@ function viewTitle(view) {
     today: 'Tonight’s briefing',
     learn: 'Training session',
     philosophy: 'Philosophy schools',
+    ai: 'AI Coach',
     library: 'Knowledge library',
     review: 'Review queue',
     progress: 'Progress signal',
@@ -404,6 +412,234 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function AiCoachView({ selectedLesson }) {
+  const [settings, setSettings] = useState(() => loadAiSettings());
+  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
+  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [includeLessonContext, setIncludeLessonContext] = useState(true);
+  const [isAsking, setIsAsking] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  function updateSettings(nextSettings) {
+    setSettings(nextSettings);
+    saveAiSettings(nextSettings);
+  }
+
+  function saveKey() {
+    if (!draftKey.trim()) return;
+    saveApiKey(draftKey.trim(), settings.persistKey);
+    setSettings({ ...settings, apiKey: draftKey.trim(), hasStoredKey: true });
+    setNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
+  }
+
+  function removeKey() {
+    clearApiKey();
+    setDraftKey('');
+    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
+    setNotice('API key cleared.');
+  }
+
+  async function askQuestion(prompt = question) {
+    const cleanQuestion = prompt.trim();
+    if (!cleanQuestion || isAsking) return;
+    if (!settings.apiKey && !draftKey.trim()) {
+      setNotice('Add your API key first.');
+      return;
+    }
+
+    const userMessage = {
+      id: `ai-user-${crypto.randomUUID()}`,
+      role: 'user',
+      content: cleanQuestion,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
+    setQuestion('');
+    setIsAsking(true);
+    setNotice('');
+
+    try {
+      const answer = await askOpenAI({
+        apiKey: settings.apiKey || draftKey.trim(),
+        endpoint: settings.endpoint,
+        model: settings.model,
+        messages,
+        question: cleanQuestion,
+        lesson: selectedLesson,
+        includeLessonContext,
+      });
+      setMessages([
+        ...nextMessages,
+        {
+          id: `ai-assistant-${crypto.randomUUID()}`,
+          role: 'assistant',
+          content: answer,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } catch (error) {
+      setMessages([
+        ...nextMessages,
+        {
+          id: `ai-error-${crypto.randomUUID()}`,
+          role: 'assistant',
+          content: `I could not get an answer: ${error.message}`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsAsking(false);
+    }
+  }
+
+  const quickPrompts = [
+    'Explain this lesson with a historical example and a modern example.',
+    'Quiz me on this lesson with three questions.',
+    'Give me a practice drill I can do tonight.',
+    'What would a Stoic, Machiavellian, and Confucian leader each notice here?',
+  ];
+
+  return (
+    <section className="ai-grid">
+      <div className="ai-chat-panel">
+        <div className="panel-head">
+          <div>
+            <p className="section-label">Ask while you learn</p>
+            <h2>Question the material, pressure-test ideas, and ask for examples.</h2>
+          </div>
+          <Bot className="panel-icon" size={30} />
+        </div>
+
+        <div className="ai-context-strip">
+          <div>
+            <span>Current context</span>
+            <strong>{selectedLesson?.title || 'No lesson selected'}</strong>
+            <p>{selectedLesson?.coreIdea || 'Open a lesson to give the coach better context.'}</p>
+          </div>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={includeLessonContext}
+              onChange={(event) => setIncludeLessonContext(event.target.checked)}
+            />
+            Include lesson context
+          </label>
+        </div>
+
+        <div className="quick-prompt-row">
+          {quickPrompts.map((prompt) => (
+            <button key={prompt} className="quick-prompt" onClick={() => askQuestion(prompt)} disabled={isAsking}>
+              {prompt}
+            </button>
+          ))}
+        </div>
+
+        <div className="ai-message-list" aria-live="polite">
+          {messages.length === 0 && (
+            <div className="ai-empty">
+              <strong>No AI conversation yet.</strong>
+              <p>Ask for clarification, historical parallels, drills, counterarguments, or a sharper explanation of the current lesson.</p>
+            </div>
+          )}
+          {messages.map((message) => (
+            <article key={message.id} className={message.role === 'user' ? 'ai-message user' : 'ai-message assistant'}>
+              <span>{message.role === 'user' ? 'You' : 'AI Coach'}</span>
+              <p>{message.content}</p>
+            </article>
+          ))}
+          {isAsking && <p className="ai-thinking">Thinking...</p>}
+        </div>
+
+        <div className="ai-composer">
+          <textarea
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Ask about a concept, source, historical case, scenario, or decision you are facing..."
+          />
+          <button className="primary-button" onClick={() => askQuestion()} disabled={isAsking || !question.trim()}>
+            <Send size={16} />
+            Ask AI
+          </button>
+        </div>
+      </div>
+
+      <aside className="ai-settings-panel">
+        <div className="panel-head">
+          <div>
+            <p className="section-label">API setup</p>
+            <h2>Your key</h2>
+          </div>
+          <KeyRound className="panel-icon" size={28} />
+        </div>
+
+        <div className="ai-field">
+          <label htmlFor="ai-key">OpenAI API key</label>
+          <input
+            id="ai-key"
+            type="password"
+            value={draftKey}
+            onChange={(event) => setDraftKey(event.target.value)}
+            placeholder="sk-..."
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="ai-field">
+          <label htmlFor="ai-model">Model</label>
+          <input
+            id="ai-model"
+            value={settings.model}
+            onChange={(event) => updateSettings({ ...settings, model: event.target.value })}
+          />
+        </div>
+
+        <div className="ai-field">
+          <label htmlFor="ai-endpoint">Endpoint</label>
+          <input
+            id="ai-endpoint"
+            value={settings.endpoint}
+            onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })}
+          />
+        </div>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={settings.persistKey}
+            onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
+          />
+          Remember key in this browser
+        </label>
+
+        <div className="ai-settings-actions">
+          <button className="primary-button" onClick={saveKey}>
+            Save key
+          </button>
+          <button className="secondary-button" onClick={removeKey}>
+            Clear key
+          </button>
+        </div>
+
+        {notice && <p className="settings-notice">{notice}</p>}
+
+        <div className="security-note">
+          <strong>Storage note</strong>
+          <p>
+            A website cannot write to macOS Keychain directly. Session mode keeps the key until the tab session ends;
+            remember mode stores it in this browser only. Do not use this on a shared device.
+          </p>
+        </div>
+
+        <button className="secondary-button wide" onClick={() => setMessages([])}>
+          Clear chat
+        </button>
+      </aside>
     </section>
   );
 }
