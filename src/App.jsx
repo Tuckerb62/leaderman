@@ -368,10 +368,7 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
   const [expandedId, setExpandedId] = useState(null);
   const [ratedCards, setRatedCards] = useState({});
   const [feedIds] = useState(() => feedQueue(state, 100).map((lesson) => lesson.id));
-  const initialDueIds = useRef(feedIds.filter((lessonId) => isDue(state.reviews[lessonId])));
   const lessons = useMemo(() => feedIds.map((lessonId) => state.lessons.find((lesson) => lesson.id === lessonId)).filter(Boolean), [feedIds, state.lessons]);
-  const dueCount = lessons.filter((lesson) => isDue(state.reviews[lesson.id])).length;
-  const allInitialDueRated = initialDueIds.current.length > 0 && initialDueIds.current.every((id) => ratedCards[id]);
 
   function openFullLesson(lessonId) {
     setSelectedLessonId(lessonId);
@@ -381,19 +378,6 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
 
   return (
     <section className="feed-view">
-      <header className="feed-header">
-        <div>
-          <p className="date-line">{formatDateLine()}</p>
-          <h1>Feed</h1>
-        </div>
-        <div className="feed-meta">
-          <span>{dueCount} due · {lessons.length} cards</span>
-          <span>Right got it · left again · up skip · double tap deeper</span>
-        </div>
-      </header>
-
-      {allInitialDueRated && <p className="feed-note">You are caught up on reviews. The rest is exploration.</p>}
-
       <div className="feed-stack">
         {lessons.map((lesson) => (
           <FeedCard
