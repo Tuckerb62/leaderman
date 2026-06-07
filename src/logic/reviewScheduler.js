@@ -1,4 +1,5 @@
 export const todayKey = () => new Date().toISOString().slice(0, 10);
+export const MAX_INTERVAL_DAYS = 90;
 
 export function addDays(dateKey, days) {
   const date = new Date(`${dateKey}T12:00:00`);
@@ -32,6 +33,7 @@ export function nextReviewState(review, rating, nowKey = todayKey()) {
     known += 1;
     ease = Math.min(5, ease + 0.25);
     intervalDays = intervalDays === 0 ? 2 : Math.ceil(intervalDays * ease);
+    intervalDays = Math.min(MAX_INTERVAL_DAYS, intervalDays);
     dueAt = addDays(nowKey, intervalDays);
     status = intervalDays >= 14 ? 'strong' : 'reviewing';
   }

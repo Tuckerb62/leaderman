@@ -37,7 +37,7 @@ The safest app flow is:
 npm run local:ai
 ```
 
-Then save the key through the AI Coach Keychain setup area. The browser sends the key once to the local Mac server at `/api/save-openai-key`, and the server stores it in macOS Keychain.
+Then save the key through the floating AI panel's Keychain setup area. The browser sends the key once to the local Mac server at `/api/save-openai-key`, and the server stores it in macOS Keychain.
 
 `/api/save-openai-key` refuses to run when the server is bound to `0.0.0.0`, because that mode is intended for phone or iPad access over the local network.
 

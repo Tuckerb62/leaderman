@@ -1,45 +1,46 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Archive,
-  BookOpen,
   Bot,
+  BookOpen,
   Brain,
+  Check,
   ChevronRight,
   Download,
   FileUp,
-  KeyRound,
+  Layers,
   Library,
   LineChart,
+  MessageCircle,
   Play,
   RotateCcw,
   ScrollText,
   Search,
   Send,
-  ShieldCheck,
-  Target,
+  Settings,
   Trash2,
+  X,
 } from 'lucide-react';
+import { clearAiChat, loadAiChat, saveAiChat } from './data/aiChatStorage.js';
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askOpenAI, requiresClientApiKey } from './logic/aiClient.js';
-import { nextReviewState, todayKey } from './logic/reviewScheduler.js';
-import { dueLessons, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
+import { isDue, nextReviewState, todayKey } from './logic/reviewScheduler.js';
+import { feedQueue, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
+import { markStudied, sessionMinutes } from './logic/studyProgress.js';
 
 const navItems = [
-  { id: 'today', label: 'Today', icon: Target },
+  { id: 'feed', label: 'Feed', icon: Layers },
   { id: 'learn', label: 'Learn', icon: Brain },
   { id: 'philosophy', label: 'Philosophy', icon: ScrollText },
-  { id: 'ai', label: 'AI Coach', icon: Bot },
   { id: 'library', label: 'Library', icon: Library },
-  { id: 'review', label: 'Review', icon: RotateCcw },
   { id: 'progress', label: 'Progress', icon: LineChart },
 ];
 
 const ratingCopy = {
-  know: 'Know it',
-  later: 'Review later',
-  work: 'Needs work',
+  know: 'Got it',
+  later: 'Later',
+  work: 'Again',
 };
 
 function queryParam(name) {
@@ -51,7 +52,7 @@ function initialView() {
   const requestedView = queryParam('view');
   const requestedLesson = queryParam('lesson');
   if (requestedLesson) return 'learn';
-  return navItems.some((item) => item.id === requestedView) ? requestedView : 'today';
+  return navItems.some((item) => item.id === requestedView) ? requestedView : 'feed';
 }
 
 function initialLessonId(state) {
@@ -60,39 +61,96 @@ function initialLessonId(state) {
   return matchingLesson?.id || recommendedLessons(state, 1)[0]?.id;
 }
 
+function viewTitle(view) {
+  return {
+    feed: 'Feed',
+    learn: 'Learn',
+    philosophy: 'Philosophy',
+    library: 'Library',
+    progress: 'Progress',
+  }[view];
+}
+
+function formatDateLine() {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+}
+
+function formatInterval(days) {
+  if (days <= 0) return 'Back today';
+  if (days === 1) return 'Back tomorrow';
+  if (days < 14) return `Back in ${days} days`;
+  if (days < 60) return `Back in ${Math.round(days / 7)} weeks`;
+  return `Back in ${Math.round(days / 30)} months`;
+}
+
+function formatTimer(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+}
+
+function reviewBadge(review) {
+  if (!review || review.attempts === 0) return { label: 'new', tone: 'new' };
+  if (review.status === 'needs-work') return { label: 'due now', tone: 'urgent' };
+  if (review.status === 'strong') return { label: 'strong', tone: 'strong' };
+  if (isDue(review)) return { label: 'due', tone: 'due' };
+  const today = new Date(`${todayKey()}T12:00:00`);
+  const due = new Date(`${review.dueAt}T12:00:00`);
+  const days = Math.max(1, Math.round((due - today) / 86400000));
+  return { label: `in ${days}d`, tone: 'later' };
+}
+
+function displayLessonTitle(state, lessonId) {
+  if (!lessonId) return 'General';
+  return state.lessons.find((lesson) => lesson.id === lessonId)?.title || 'General';
+}
+
 export default function App() {
   const [state, setState] = useState(() => loadState());
   const [view, setView] = useState(() => initialView());
   const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(loadState()));
   const [session, setSession] = useState(null);
+  const [sessionSummary, setSessionSummary] = useState('');
+  const [contextLessonId, setContextLessonId] = useState(null);
 
   useEffect(() => saveState(state), [state]);
 
   const stats = useMemo(() => progressStats(state), [state]);
-  const due = useMemo(() => dueLessons(state), [state]);
   const selectedLesson = state.lessons.find((lesson) => lesson.id === selectedLessonId) || state.lessons[0];
+  const aiContextLesson = state.lessons.find((lesson) => lesson.id === contextLessonId) || selectedLesson;
+
+  function markCurrentStudied(current) {
+    return {
+      ...current,
+      settings: markStudied(current.settings),
+    };
+  }
 
   function updateReview(lessonId, rating) {
     const lesson = state.lessons.find((item) => item.id === lessonId);
-    setState((current) => ({
-      ...current,
-      reviews: {
-        ...current.reviews,
-        [lessonId]: nextReviewState(current.reviews[lessonId], rating),
-      },
-      reflections:
-        rating === 'work'
-          ? [
-              {
-                id: `reflection-${crypto.randomUUID()}`,
-                lessonId,
-                text: `Flagged "${lesson?.title}" for more practice.`,
-                createdAt: new Date().toISOString(),
-              },
-              ...current.reflections,
-            ].slice(0, 80)
-          : current.reflections,
-    }));
+    setState((current) => {
+      const next = markCurrentStudied(current);
+      return {
+        ...next,
+        reviews: {
+          ...next.reviews,
+          [lessonId]: nextReviewState(next.reviews[lessonId], rating),
+        },
+        reflections:
+          rating === 'work'
+            ? [
+                {
+                  id: `reflection-${crypto.randomUUID()}`,
+                  lessonId,
+                  text: `Flagged "${lesson?.title}" for more practice.`,
+                  createdAt: new Date().toISOString(),
+                },
+                ...next.reflections,
+              ].slice(0, 100)
+            : next.reflections,
+      };
+    });
   }
 
   function startSession(lessonIds = recommendedLessons(state, 5).map((lesson) => lesson.id)) {
@@ -105,6 +163,7 @@ export default function App() {
     };
     setSession(nextSession);
     setSelectedLessonId(lessonIds[0]);
+    setContextLessonId(lessonIds[0]);
     setView('learn');
   }
 
@@ -119,40 +178,55 @@ export default function App() {
     };
     const nextIndex = session.currentIndex + 1;
     if (nextIndex >= session.lessonIds.length) {
+      const endedAt = new Date().toISOString();
       const finished = {
         id: session.id,
         startedAt: session.startedAt,
-        endedAt: new Date().toISOString(),
+        endedAt,
         lessonIds: session.lessonIds,
         results: nextResults,
-        minutes: session.lessonIds.length * 6,
+        minutes: sessionMinutes(session.startedAt, endedAt),
       };
-      setState((current) => ({
-        ...current,
-        sessions: [finished, ...current.sessions].slice(0, 120),
-      }));
+      const projectedSettings = markStudied(state.settings);
+      setState((current) => {
+        const next = markCurrentStudied(current);
+        return {
+          ...next,
+          sessions: [finished, ...next.sessions].slice(0, 10),
+        };
+      });
       setSession(null);
-      setView('progress');
+      setSessionSummary(
+        `Session done. ${nextResults.know} got it · ${nextResults.later} later · ${nextResults.work} again · streak ${projectedSettings.streakDays || 1} days.`,
+      );
+      window.setTimeout(() => {
+        setSessionSummary('');
+        setView('progress');
+      }, 2400);
       return;
     }
     setSession({ ...session, currentIndex: nextIndex, results: nextResults });
     setSelectedLessonId(session.lessonIds[nextIndex]);
+    setContextLessonId(session.lessonIds[nextIndex]);
   }
 
   function saveReflection(lessonId, text) {
     if (!text.trim()) return;
-    setState((current) => ({
-      ...current,
-      reflections: [
-        {
-          id: `reflection-${crypto.randomUUID()}`,
-          lessonId,
-          text: text.trim(),
-          createdAt: new Date().toISOString(),
-        },
-        ...current.reflections,
-      ].slice(0, 100),
-    }));
+    setState((current) => {
+      const next = markCurrentStudied(current);
+      return {
+        ...next,
+        reflections: [
+          {
+            id: `reflection-${crypto.randomUUID()}`,
+            lessonId,
+            text: text.trim(),
+            createdAt: new Date().toISOString(),
+          },
+          ...next.reflections,
+        ].slice(0, 100),
+      };
+    });
   }
 
   function saveLessonNote(lessonId, note) {
@@ -171,10 +245,21 @@ export default function App() {
     setState(parseImportedState(text));
   }
 
+  function resetLocalData() {
+    if (window.confirm('Reset all local Leaderman progress, notes, and reflections on this device?')) {
+      setState(createInitialState());
+      setSession(null);
+      setSessionSummary('');
+      setView('feed');
+    }
+  }
+
   const commonProps = {
     state,
     selectedLesson,
     setSelectedLessonId,
+    setContextLessonId,
+    setView,
     startSession,
     updateReview,
     rateCurrentLesson,
@@ -187,11 +272,7 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">L</div>
-          <div>
-            <p>Leaderman</p>
-            <span>Leadership Formation</span>
-          </div>
+          <p>Leaderman</p>
         </div>
 
         <nav className="nav-list" aria-label="Primary">
@@ -210,62 +291,45 @@ export default function App() {
           })}
         </nav>
 
-        <div className="sidebar-card">
-          <span className="eyebrow">Local only</span>
-          <p>No account or cloud sync. AI calls happen only when you add a key and ask.</p>
-          <div className="backup-row">
-            <button className="icon-button" onClick={() => exportState(state)} title="Export backup">
-              <Download size={16} />
-            </button>
-            <label className="icon-button" title="Import backup">
-              <FileUp size={16} />
-              <input type="file" accept="application/json" onChange={(event) => importBackup(event.target.files?.[0])} />
-            </label>
-            <button className="icon-button" onClick={() => setState(createInitialState())} title="Reset local data">
-              <Trash2 size={16} />
-            </button>
-          </div>
+        <div className="backup-row compact">
+          <button className="icon-button" onClick={() => exportState(state)} title="Export backup">
+            <Download size={16} />
+          </button>
+          <label className="icon-button" title="Import backup">
+            <FileUp size={16} />
+            <input type="file" accept="application/json" onChange={(event) => importBackup(event.target.files?.[0])} />
+          </label>
+          <button className="icon-button" onClick={resetLocalData} title="Reset local data">
+            <Trash2 size={16} />
+          </button>
         </div>
       </aside>
 
-      <main className="main-shell">
-        <header className="topbar">
-          <div>
-            <p className="date-line">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())}</p>
-            <h1>{viewTitle(view)}</h1>
-          </div>
-          <div className="top-actions">
-            <Metric label="Due" value={stats.due} />
-            <Metric label="Mastery" value={`${stats.mastery}%`} />
-            <button className="primary-button" onClick={() => startSession()}>
+      <main className={view === 'feed' ? 'main-shell feed-main' : 'main-shell'}>
+        {view !== 'feed' && (
+          <header className="topbar">
+            <div>
+              <p className="date-line">{formatDateLine()}</p>
+              <h1>{viewTitle(view)}</h1>
+            </div>
+            <button className="secondary-button" onClick={() => startSession()}>
               <Play size={16} />
-              Start session
+              Session
             </button>
-          </div>
-        </header>
+          </header>
+        )}
 
-        {view === 'today' && <TodayView {...commonProps} stats={stats} due={due} />}
+        {sessionSummary && <div className="session-summary">{sessionSummary}</div>}
+        {view === 'feed' && <FeedView {...commonProps} />}
         {view === 'learn' && <LearnView {...commonProps} />}
-        {view === 'philosophy' && <PhilosophyView {...commonProps} setView={setView} />}
-        {view === 'ai' && <AiCoachView {...commonProps} />}
+        {view === 'philosophy' && <PhilosophyView {...commonProps} />}
         {view === 'library' && <LibraryView {...commonProps} />}
-        {view === 'review' && <ReviewView {...commonProps} due={due} />}
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
       </main>
+
+      <FloatingAiPanel lesson={aiContextLesson} />
     </div>
   );
-}
-
-function viewTitle(view) {
-  return {
-    today: 'Tonight’s briefing',
-    learn: 'Training session',
-    philosophy: 'Philosophy schools',
-    ai: 'AI Coach',
-    library: 'Knowledge library',
-    review: 'Review queue',
-    progress: 'Progress signal',
-  }[view];
 }
 
 function Metric({ label, value }) {
@@ -277,64 +341,206 @@ function Metric({ label, value }) {
   );
 }
 
-function TodayView({ state, stats, due, startSession, setSelectedLessonId, saveReflection }) {
-  const featured = recommendedLessons(state, 3);
-  const [quickNote, setQuickNote] = useState('');
+function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, setContextLessonId, setView }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const [sessionStart] = useState(() => Date.now());
+  const [elapsed, setElapsed] = useState(0);
+  const [ratedCards, setRatedCards] = useState({});
+  const [feedIds] = useState(() => feedQueue(state).map((lesson) => lesson.id));
+  const initialDueIds = useRef(feedIds.filter((lessonId) => isDue(state.reviews[lessonId])));
+  const lessons = useMemo(() => feedIds.map((lessonId) => state.lessons.find((lesson) => lesson.id === lessonId)).filter(Boolean), [feedIds, state.lessons]);
+  const dueCount = lessons.filter((lesson) => isDue(state.reviews[lesson.id])).length;
+  const allInitialDueRated = initialDueIds.current.length > 0 && initialDueIds.current.every((id) => ratedCards[id]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setElapsed(Date.now() - sessionStart), 1000);
+    return () => window.clearInterval(interval);
+  }, [sessionStart]);
+
+  function openFullLesson(lessonId) {
+    setSelectedLessonId(lessonId);
+    setContextLessonId(lessonId);
+    setView('learn');
+  }
 
   return (
-    <section className="today-grid">
-      <div className="focus-panel">
-        <div className="panel-head">
-          <div>
-            <p className="section-label">Tonight’s focus</p>
-            <h2>{state.settings.currentFocus}</h2>
-          </div>
-          <ShieldCheck className="panel-icon" size={28} />
+    <section className="feed-view">
+      <header className="feed-header">
+        <div>
+          <p className="date-line">{formatDateLine()}</p>
+          <h1>Feed</h1>
         </div>
-        <p className="focus-copy">
-          Train decision quality, power literacy, and ethical influence with short lessons, scenarios, and recall reps.
-        </p>
-        <div className="stat-row">
-          <Metric label="Due reviews" value={due.length} />
-          <Metric label="Lessons touched" value={stats.completed} />
-          <Metric label="Minutes" value={stats.minutes} />
+        <div className="feed-meta">
+          <span>{formatTimer(elapsed)}</span>
+          <span>{dueCount} due · {lessons.length} cards</span>
         </div>
-        <button className="primary-button wide" onClick={() => startSession(featured.map((lesson) => lesson.id))}>
-          <Play size={16} />
-          Run 3-card briefing
-        </button>
-      </div>
+      </header>
 
-      <div className="quick-panel">
-        <p className="section-label">Reflection capture</p>
-        <textarea
-          value={quickNote}
-          onChange={(event) => setQuickNote(event.target.value)}
-          placeholder="Capture a leadership observation, decision, or situation from today..."
-        />
-        <button
-          className="secondary-button"
-          onClick={() => {
-            saveReflection(featured[0]?.id || state.lessons[0].id, quickNote);
-            setQuickNote('');
-          }}
-        >
-          Save reflection
-        </button>
-      </div>
+      {elapsed >= 1200000 && <p className="feed-note">20 minutes. Good session.</p>}
+      {allInitialDueRated && <p className="feed-note">You are caught up on reviews. The rest is exploration.</p>}
 
-      <div className="lesson-strip">
-        {featured.map((lesson) => (
-          <LessonPreview key={lesson.id} lesson={lesson} review={state.reviews[lesson.id]} onOpen={() => setSelectedLessonId(lesson.id)} />
+      <div className="feed-stack">
+        {lessons.map((lesson) => (
+          <FeedCard
+            key={lesson.id}
+            lesson={lesson}
+            review={state.reviews[lesson.id]}
+            sources={lesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean)}
+            expanded={expandedId === lesson.id}
+            rated={ratedCards[lesson.id]}
+            onExpand={() => {
+              const nextId = expandedId === lesson.id ? null : lesson.id;
+              setExpandedId(nextId);
+              if (nextId) setContextLessonId(nextId);
+            }}
+            onRate={(rating) => {
+              const nextReview = nextReviewState(state.reviews[lesson.id], rating);
+              setRatedCards((current) => ({
+                ...current,
+                [lesson.id]: {
+                  rating,
+                  label: rating === 'know' ? formatInterval(nextReview.intervalDays) : 'Back today',
+                },
+              }));
+              updateReview(lesson.id, rating);
+              window.setTimeout(() => {
+                setRatedCards((current) => ({
+                  ...current,
+                  [lesson.id]: {
+                    ...(current[lesson.id] || {}),
+                    compact: true,
+                  },
+                }));
+              }, 1500);
+            }}
+            onSkip={() =>
+              setRatedCards((current) => ({
+                ...current,
+                [lesson.id]: { rating: 'skip', label: 'Skipped', compact: true },
+              }))
+            }
+            onSaveReflection={(text) => saveReflection(lesson.id, text)}
+            onOpenFull={() => openFullLesson(lesson.id)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
+function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, onSkip, onSaveReflection, onOpenFull }) {
+  const badge = reviewBadge(review);
+  const [decision, setDecision] = useState('');
+  const [reflection, setReflection] = useState('');
+
+  if (rated?.compact) {
+    return (
+      <article className="feed-card rated-line">
+        <span>{lesson.title}</span>
+        <small>{rated.rating === 'know' ? 'got it' : rated.rating === 'work' ? 'again' : 'skipped'}</small>
+      </article>
+    );
+  }
+
+  return (
+    <article className={expanded ? 'feed-card expanded' : 'feed-card'}>
+      <div className="feed-card-head">
+        <span className="domain-tag">{lesson.domain}</span>
+        <span className={`status-badge ${badge.tone}`}>{badge.label}</span>
+      </div>
+      <h2>{lesson.title}</h2>
+      <p className="core-idea">{lesson.coreIdea}</p>
+      {rated && <p className="rating-feedback">{rated.label}</p>}
+
+      {expanded && (
+        <div className="feed-expanded">
+          <div className="article-body">
+            {lesson.articleParagraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          <div className="two-column">
+            <InfoBlock title="What it gets right" text={lesson.whatItGetsRight} />
+            <InfoBlock title="Fidelity note" text={lesson.fidelityNote} />
+          </div>
+          <div className="lesson-section">
+            <h3>Scenario</h3>
+            <p>{lesson.scenario}</p>
+            <InfoBlock title="Practice rep" text={lesson.practiceRep} />
+          </div>
+          <DecisionOptions lesson={lesson} selected={decision} onSelect={setDecision} />
+          <div className="lesson-section">
+            <h3>Reflection</h3>
+            <p>{lesson.reflectionPrompt}</p>
+            <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private answer you want to remember..." />
+            <button
+              className="secondary-button"
+              onClick={() => {
+                onSaveReflection(reflection);
+                setReflection('');
+              }}
+            >
+              Save reflection
+            </button>
+          </div>
+          <div className="source-grid">
+            {sources.map((source) => (
+              <SourceMini key={source.id} source={source} />
+            ))}
+          </div>
+          <button className="text-link" onClick={onOpenFull}>Open full lesson →</button>
+        </div>
+      )}
+
+      <div className="feed-actions">
+        <button className="quiet-button" onClick={() => onRate('know')}>
+          <Check size={15} />
+          Got it
+        </button>
+        <button className="quiet-button" onClick={() => onRate('work')}>
+          <RotateCcw size={15} />
+          Again
+        </button>
+        <button className="quiet-button" onClick={onSkip}>Skip</button>
+        <button className="text-link" onClick={onExpand}>{expanded ? 'Collapse' : 'Go deeper →'}</button>
+      </div>
+    </article>
+  );
+}
+
+function DecisionOptions({ lesson, selected, onSelect }) {
+  const answered = Boolean(selected);
+  return (
+    <div className="lesson-section">
+      <h3>Decision options</h3>
+      <div className="option-list">
+        {lesson.decisionOptions.map((option) => {
+          const isSelected = selected === option;
+          const isPreferred = answered && option === lesson.preferredOption;
+          return (
+            <button
+              key={option}
+              className={isPreferred ? 'option-card preferred' : isSelected ? 'option-card selected' : 'option-card'}
+              onClick={() => onSelect(option)}
+            >
+              {option}
+              {isPreferred && <span>best first move</span>}
+            </button>
+          );
+        })}
+      </div>
+      {answered && (
+        <InfoBlock
+          title={selected === lesson.preferredOption ? 'Why it works' : `Preferred move: ${lesson.preferredOption}`}
+          text={lesson.reviewPrompt}
+        />
+      )}
+    </div>
+  );
+}
+
 function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   const lessonBySlug = new Map(state.lessons.map((lesson) => [lesson.slug, lesson]));
-  const philosophyLessons = state.lessons.filter((lesson) => lesson.domain === 'Philosophy');
   const stoicSchool = philosophySchools.find((school) => school.id === 'stoicism');
   const stoicLessons = stoicSchool.lessonSlugs.map((slug) => lessonBySlug.get(slug)).filter(Boolean);
 
@@ -354,24 +560,15 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
             a way to read pressure, desire, status, duty, suffering, truth, and action before power magnifies them.
           </p>
         </div>
-        <div className="philosophy-actions">
-          <Metric label="Schools" value={philosophySchools.length} />
-          <Metric label="Lessons" value={philosophyLessons.length} />
-          <button className="primary-button" onClick={() => startSession(stoicLessons.map((lesson) => lesson.id))}>
-            <Play size={16} />
-            Start Stoicism track
-          </button>
-        </div>
+        <button className="primary-button" onClick={() => startSession(stoicLessons.map((lesson) => lesson.id))}>
+          <Play size={16} />
+          Start Stoicism track
+        </button>
       </div>
 
       <div className="stoic-track">
-        <div className="panel-head">
-          <div>
-            <p className="section-label">Featured track</p>
-            <h2>Stoicism</h2>
-          </div>
-          <ScrollText className="panel-icon" size={28} />
-        </div>
+        <p className="section-label">Featured track</p>
+        <h2>Stoicism</h2>
         <p>
           Start here if you want a practical operating system for self-command: control what is yours,
           remember mortality, and widen the frame before ego takes the wheel.
@@ -416,410 +613,25 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   );
 }
 
-function AiCoachView({ selectedLesson }) {
-  const [settings, setSettings] = useState(() => loadAiSettings());
-  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
-  const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [includeLessonContext, setIncludeLessonContext] = useState(true);
-  const [isAsking, setIsAsking] = useState(false);
-  const [notice, setNotice] = useState('');
-  const [serverStatus, setServerStatus] = useState('checking');
-  const [keychainKey, setKeychainKey] = useState('');
-  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
-  const endpointNeedsKey = requiresClientApiKey(settings.endpoint);
-  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
-  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
-  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
-
-  function refreshServerStatus() {
-    if (endpointNeedsKey) {
-      setServerStatus('direct');
-      return;
-    }
-    setServerStatus('checking');
-    fetch('/api/ai-health')
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
-      .then((payload) => setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key'))
-      .catch(() => setServerStatus('offline'));
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    if (endpointNeedsKey) {
-      setServerStatus('direct');
-      return () => {
-        cancelled = true;
-      };
-    }
-    setServerStatus('checking');
-    fetch('/api/ai-health')
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
-      .then((payload) => {
-        if (!cancelled) setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
-      })
-      .catch(() => {
-        if (!cancelled) setServerStatus('offline');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [endpointNeedsKey, settings.endpoint]);
-
-  function updateSettings(nextSettings) {
-    setSettings(nextSettings);
-    saveAiSettings(nextSettings);
-  }
-
-  function updateModelSelection(modelId) {
-    if (modelId === 'custom') {
-      setUseCustomModel(true);
-      return;
-    }
-    setUseCustomModel(false);
-    updateSettings({ ...settings, model: modelId });
-  }
-
-  function saveKey() {
-    if (!draftKey.trim()) return;
-    saveApiKey(draftKey.trim(), settings.persistKey);
-    setSettings({ ...settings, apiKey: draftKey.trim(), hasStoredKey: true });
-    setNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
-  }
-
-  function removeKey() {
-    clearApiKey();
-    setDraftKey('');
-    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
-    setNotice('API key cleared.');
-  }
-
-  async function saveKeychainKey() {
-    const cleanKey = keychainKey.trim();
-    if (!cleanKey || isSavingKeychain) return;
-    setIsSavingKeychain(true);
-    setNotice('');
-    try {
-      const response = await fetch('/api/save-openai-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: cleanKey }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error?.message || 'Could not save the key.');
-      }
-      setKeychainKey('');
-      setNotice('API key saved to macOS Keychain.');
-      refreshServerStatus();
-    } catch (error) {
-      setNotice(error.message);
-    } finally {
-      setIsSavingKeychain(false);
-    }
-  }
-
-  async function askQuestion(prompt = question) {
-    const cleanQuestion = prompt.trim();
-    if (!cleanQuestion || isAsking) return;
-    if (endpointNeedsKey && !settings.apiKey && !draftKey.trim()) {
-      setNotice('Add your API key first.');
-      return;
-    }
-    if (!endpointNeedsKey && serverStatus !== 'ready') {
-      setNotice('Start the private local AI server first, then try again.');
-      return;
-    }
-
-    const userMessage = {
-      id: `ai-user-${crypto.randomUUID()}`,
-      role: 'user',
-      content: cleanQuestion,
-      createdAt: new Date().toISOString(),
-    };
-    const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
-    setQuestion('');
-    setIsAsking(true);
-    setNotice('');
-
-    try {
-      const answer = await askOpenAI({
-        apiKey: endpointNeedsKey ? settings.apiKey || draftKey.trim() : '',
-        endpoint: settings.endpoint,
-        model: settings.model,
-        messages,
-        question: cleanQuestion,
-        lesson: selectedLesson,
-        includeLessonContext,
-      });
-      setMessages([
-        ...nextMessages,
-        {
-          id: `ai-assistant-${crypto.randomUUID()}`,
-          role: 'assistant',
-          content: answer,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-    } catch (error) {
-      setMessages([
-        ...nextMessages,
-        {
-          id: `ai-error-${crypto.randomUUID()}`,
-          role: 'assistant',
-          content: `I could not get an answer: ${error.message}`,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setIsAsking(false);
-    }
-  }
-
-  const quickPrompts = [
-    'Explain this lesson with a historical example and a modern example.',
-    'Quiz me on this lesson with three questions.',
-    'Give me a practice drill I can do tonight.',
-    'What would a Stoic, Machiavellian, and Confucian leader each notice here?',
-  ];
-
-  return (
-    <section className="ai-grid">
-      <div className="ai-chat-panel">
-        <div className="panel-head">
-          <div>
-            <p className="section-label">Ask while you learn</p>
-            <h2>Question the material, pressure-test ideas, and ask for examples.</h2>
-          </div>
-          <Bot className="panel-icon" size={30} />
-        </div>
-
-        <div className="ai-context-strip">
-          <div>
-            <span>Current context</span>
-            <strong>{selectedLesson?.title || 'No lesson selected'}</strong>
-            <p>{selectedLesson?.coreIdea || 'Open a lesson to give the coach better context.'}</p>
-          </div>
-          <label className="toggle-row">
-            <input
-              type="checkbox"
-              checked={includeLessonContext}
-              onChange={(event) => setIncludeLessonContext(event.target.checked)}
-            />
-            Include lesson context
-          </label>
-        </div>
-
-        <div className="quick-prompt-row">
-          {quickPrompts.map((prompt) => (
-            <button key={prompt} className="quick-prompt" onClick={() => askQuestion(prompt)} disabled={isAsking}>
-              {prompt}
-            </button>
-          ))}
-        </div>
-
-        <div className="ai-message-list" aria-live="polite">
-          {messages.length === 0 && (
-            <div className="ai-empty">
-              <strong>No AI conversation yet.</strong>
-              <p>Ask for clarification, historical parallels, drills, counterarguments, or a sharper explanation of the current lesson.</p>
-            </div>
-          )}
-          {messages.map((message) => (
-            <article key={message.id} className={message.role === 'user' ? 'ai-message user' : 'ai-message assistant'}>
-              <span>{message.role === 'user' ? 'You' : 'AI Coach'}</span>
-              <p>{message.content}</p>
-            </article>
-          ))}
-          {isAsking && <p className="ai-thinking">Thinking...</p>}
-        </div>
-
-        <div className="ai-composer">
-          <textarea
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Ask about a concept, source, historical case, scenario, or decision you are facing..."
-          />
-          <button className="primary-button" onClick={() => askQuestion()} disabled={isAsking || !question.trim()}>
-            <Send size={16} />
-            Ask AI
-          </button>
-        </div>
-      </div>
-
-      <aside className="ai-settings-panel">
-        <div className="panel-head">
-          <div>
-            <p className="section-label">API setup</p>
-            <h2>{endpointNeedsKey ? 'Browser key' : 'Private server'}</h2>
-          </div>
-          <KeyRound className="panel-icon" size={28} />
-        </div>
-
-        <div className={endpointNeedsKey ? 'server-status direct' : `server-status ${serverStatus}`}>
-          <span>{endpointNeedsKey ? 'Direct mode' : 'Local server'}</span>
-          <strong>{serverStatusLabel(serverStatus, endpointNeedsKey)}</strong>
-          <p>{serverStatusCopy(serverStatus, endpointNeedsKey)}</p>
-        </div>
-
-        <div className="mode-row">
-          <button
-            className={!endpointNeedsKey ? 'secondary-button active-mode' : 'secondary-button'}
-            onClick={() => updateSettings({ ...settings, endpoint: DEFAULT_AI_SETTINGS.endpoint })}
-          >
-            Use private server
-          </button>
-          <button
-            className={endpointNeedsKey ? 'secondary-button active-mode' : 'secondary-button'}
-            onClick={() => updateSettings({ ...settings, endpoint: 'https://api.openai.com/v1/responses' })}
-          >
-            Use browser key
-          </button>
-        </div>
-
-        <div className={endpointNeedsKey ? 'keychain-save hidden-field' : 'keychain-save'}>
-          <div className="ai-field">
-            <label htmlFor="keychain-key">Save key to Mac Keychain</label>
-            <input
-              id="keychain-key"
-              type="password"
-              value={keychainKey}
-              onChange={(event) => setKeychainKey(event.target.value)}
-              placeholder="Paste once, save to Keychain"
-              autoComplete="off"
-              disabled={serverStatus === 'offline'}
-            />
-          </div>
-          <button
-            className="primary-button wide"
-            onClick={saveKeychainKey}
-            disabled={!keychainKey.trim() || isSavingKeychain || serverStatus === 'offline'}
-          >
-            {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
-          </button>
-          <p>Use this once on your Mac. The app sends the key only to the local server at this address.</p>
-        </div>
-
-        <div className={endpointNeedsKey ? 'ai-field' : 'ai-field hidden-field'}>
-          <label htmlFor="ai-key">OpenAI API key</label>
-          <input
-            id="ai-key"
-            type="password"
-            value={draftKey}
-            onChange={(event) => setDraftKey(event.target.value)}
-            placeholder="sk-..."
-            autoComplete="off"
-          />
-        </div>
-
-        <div className="ai-field">
-          <label htmlFor="ai-model">Model</label>
-          <select
-            id="ai-model"
-            value={modelSelectValue}
-            onChange={(event) => updateModelSelection(event.target.value)}
-          >
-            {AI_MODEL_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-            <option value="custom">Custom model</option>
-          </select>
-          <p className="field-help">
-            {selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}
-          </p>
-        </div>
-
-        <div className={modelSelectValue === 'custom' ? 'ai-field' : 'ai-field hidden-field'}>
-          <label htmlFor="ai-custom-model">Custom model ID</label>
-          <input
-            id="ai-custom-model"
-            value={settings.model}
-            onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })}
-            placeholder="gpt-..."
-          />
-        </div>
-
-        <div className="ai-field">
-          <label htmlFor="ai-endpoint">Endpoint</label>
-          <input
-            id="ai-endpoint"
-            value={settings.endpoint}
-            onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })}
-          />
-        </div>
-
-        <label className={endpointNeedsKey ? 'toggle-row' : 'toggle-row hidden-field'}>
-          <input
-            type="checkbox"
-            checked={settings.persistKey}
-            onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
-            disabled={!endpointNeedsKey}
-          />
-          Remember key in this browser
-        </label>
-
-        <div className={endpointNeedsKey ? 'ai-settings-actions' : 'ai-settings-actions hidden-field'}>
-          <button className="primary-button" onClick={saveKey}>
-            Save key
-          </button>
-          <button className="secondary-button" onClick={removeKey}>
-            Clear key
-          </button>
-        </div>
-
-        {notice && <p className="settings-notice">{notice}</p>}
-
-        <div className="security-note">
-          <strong>Storage note</strong>
-          <p>
-            Recommended mode is private server: the key stays on your Mac in Keychain or an environment variable.
-            Browser key mode is available for hosted use, but it puts the key inside the browser.
-          </p>
-        </div>
-
-        <button className="secondary-button wide" onClick={() => setMessages([])}>
-          Clear chat
-        </button>
-      </aside>
-    </section>
-  );
-}
-
-function serverStatusLabel(status, directMode) {
-  if (directMode) return 'Browser will call OpenAI directly';
-  return {
-    checking: 'Checking...',
-    ready: 'Ready',
-    'missing-key': 'Server running, key missing',
-    offline: 'Not running',
-  }[status] || 'Unknown';
-}
-
-function serverStatusCopy(status, directMode) {
-  if (directMode) return 'Use this only if you accept storing or typing the key in this browser.';
-  return {
-    checking: 'Looking for the private Leaderman server on this device.',
-    ready: 'Your browser will ask your Mac server. The API key is not stored in the website.',
-    'missing-key': 'Run the Keychain setup once, or start the server with OPENAI_API_KEY.',
-    offline: 'Run npm run local:ai from the Leaderman folder, then reload this page.',
-  }[status] || 'Server status is unknown.';
-}
-
-function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote }) {
+function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote }) {
   const [step, setStep] = useState('article');
   const [reflection, setReflection] = useState('');
+  const [decision, setDecision] = useState('');
+  const [showFidelity, setShowFidelity] = useState(false);
   const sources = selectedLesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean);
   const sessionProgress = session ? `${session.currentIndex + 1} / ${session.lessonIds.length}` : 'Solo lesson';
+
+  useEffect(() => {
+    setDecision('');
+    setContextLessonId(selectedLesson.id);
+  }, [selectedLesson.id, setContextLessonId]);
 
   return (
     <section className="learn-grid">
       <div className="lesson-panel">
         <div className="lesson-header">
           <div>
-            <p className="section-label">{selectedLesson.domain} · {selectedLesson.minutes} min · {selectedLesson.difficulty}</p>
+            <p className="section-label">{selectedLesson.domain}</p>
             <h2>{selectedLesson.title}</h2>
           </div>
           <span className="session-chip">{sessionProgress}</span>
@@ -858,20 +670,7 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCu
           </div>
         )}
 
-        {step === 'decision' && (
-          <div className="lesson-section">
-            <h3>Decision options</h3>
-            <div className="option-list">
-              {selectedLesson.decisionOptions.map((option) => (
-                <button key={option} className={option === selectedLesson.preferredOption ? 'option-card preferred' : 'option-card'}>
-                  {option}
-                  {option === selectedLesson.preferredOption && <span>best first move</span>}
-                </button>
-              ))}
-            </div>
-            <InfoBlock title="Review card" text={selectedLesson.reviewPrompt} />
-          </div>
-        )}
+        {step === 'decision' && <DecisionOptions lesson={selectedLesson} selected={decision} onSelect={setDecision} />}
 
         {step === 'reflection' && (
           <div className="lesson-section">
@@ -892,32 +691,46 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCu
 
         <div className="rating-bar">
           <button className="success-button" onClick={() => (session ? rateCurrentLesson('know') : updateReview(selectedLesson.id, 'know'))}>
-            {ratingCopy.know}
+            Know it
           </button>
           <button className="secondary-button" onClick={() => (session ? rateCurrentLesson('later') : updateReview(selectedLesson.id, 'later'))}>
-            {ratingCopy.later}
+            Review later
           </button>
           <button className="warning-button" onClick={() => (session ? rateCurrentLesson('work') : updateReview(selectedLesson.id, 'work'))}>
-            {ratingCopy.work}
+            Needs work
           </button>
         </div>
       </div>
 
       <aside className="right-rail">
-        <FidelityPanel lesson={selectedLesson} />
-        <div className="source-panel">
-          <p className="section-label">Source basis</p>
-          {sources.map((source) => (
-            <SourceMini key={source.id} source={source} />
-          ))}
-        </div>
+        <button className="secondary-button wide" onClick={() => setShowFidelity((current) => !current)}>
+          {showFidelity ? 'Hide sources & fidelity' : 'Show sources & fidelity'}
+        </button>
+        {showFidelity && (
+          <>
+            <FidelityPanel lesson={selectedLesson} />
+            <div className="source-panel">
+              <p className="section-label">Source basis</p>
+              {sources.map((source) => (
+                <SourceMini key={source.id} source={source} />
+              ))}
+            </div>
+          </>
+        )}
         <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
       </aside>
 
       <div className="queue-panel">
         <p className="section-label">Next lessons</p>
         {recommendedLessons(state, 8).map((lesson) => (
-          <button key={lesson.id} className={lesson.id === selectedLesson.id ? 'queue-row active' : 'queue-row'} onClick={() => setSelectedLessonId(lesson.id)}>
+          <button
+            key={lesson.id}
+            className={lesson.id === selectedLesson.id ? 'queue-row active' : 'queue-row'}
+            onClick={() => {
+              setSelectedLessonId(lesson.id);
+              setContextLessonId(lesson.id);
+            }}
+          >
             <span>{lesson.title}</span>
             <small>{lesson.domain}</small>
           </button>
@@ -927,13 +740,19 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCu
   );
 }
 
-function LibraryView({ state, selectedLesson, setSelectedLessonId }) {
+function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLessonId, setView }) {
   const [query, setQuery] = useState('');
   const [domain, setDomain] = useState('All');
   const filteredLessons = state.lessons.filter((lesson) => {
     const text = `${lesson.title} ${lesson.domain} ${lesson.coreIdea} ${lesson.tags.join(' ')}`.toLowerCase();
     return (domain === 'All' || lesson.domain === domain) && text.includes(query.toLowerCase());
   });
+
+  function openLesson(lessonId) {
+    setSelectedLessonId(lessonId);
+    setContextLessonId(lessonId);
+    setView('learn');
+  }
 
   return (
     <section className="library-grid">
@@ -951,7 +770,7 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId }) {
         </div>
         <div className="library-list">
           {filteredLessons.map((lesson) => (
-            <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => setSelectedLessonId(lesson.id)}>
+            <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openLesson(lesson.id)}>
               <div>
                 <strong>{lesson.title}</strong>
                 <p>{lesson.coreIdea}</p>
@@ -977,64 +796,30 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId }) {
   );
 }
 
-function ReviewView({ state, due, updateReview, setSelectedLessonId }) {
-  return (
-    <section className="review-grid">
-      <div className="review-stack">
-        <div className="panel-head">
-          <div>
-            <p className="section-label">Due today</p>
-            <h2>{due.length ? `${due.length} cards waiting` : 'No reviews due'}</h2>
-          </div>
-          <Archive className="panel-icon" />
-        </div>
-        {due.length === 0 && <p className="empty-copy">Your queue is clear. Start a new session from Today to keep building reps.</p>}
-        {due.map((lesson) => (
-          <article key={lesson.id} className="review-card">
-            <button className="review-title" onClick={() => setSelectedLessonId(lesson.id)}>
-              <strong>{lesson.title}</strong>
-              <ChevronRight size={16} />
-            </button>
-            <p>{lesson.reviewPrompt}</p>
-            <div className="rating-bar compact">
-              <button className="success-button" onClick={() => updateReview(lesson.id, 'know')}>Know it</button>
-              <button className="secondary-button" onClick={() => updateReview(lesson.id, 'later')}>Review later</button>
-              <button className="warning-button" onClick={() => updateReview(lesson.id, 'work')}>Needs work</button>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function ProgressView({ state, stats, startSession }) {
-  const weak = weakDomains(state);
+  const weak = weakDomains(state).filter((item) => item.needsWork > 0).slice(0, 5);
   return (
     <section className="progress-grid">
       <div className="progress-hero">
         <p className="section-label">Local progress</p>
-        <h2>{stats.completed} lessons touched</h2>
-        <p>Mastery here means repeated contact with ideas under recall, scenario judgment, and reflection.</p>
-        <div className="stat-row">
-          <Metric label="Recall wins" value={stats.known} />
-          <Metric label="Needs work" value={stats.needsWork} />
-          <Metric label="Study minutes" value={stats.minutes} />
+        <div className="progress-metrics">
+          <Metric label="Streak" value={stats.streakDays} />
+          <Metric label="Lessons touched" value={stats.completed} />
+          <Metric label="Mastery" value={`${stats.mastery}%`} />
         </div>
         <button className="primary-button" onClick={() => startSession()}>
           <Play size={16} />
-          Continue training
+          Continue
         </button>
       </div>
 
       <div className="signal-panel">
-        <p className="section-label">Weak domains</p>
-        {weak.length === 0 && <p className="empty-copy">No weak domains yet. Mark a few cards to generate a signal.</p>}
-        {weak.slice(0, 8).map((item) => (
-          <div key={item.domain} className="domain-signal">
+        <p className="section-label">Weak areas</p>
+        {weak.length === 0 && <p className="empty-copy">No weak areas yet.</p>}
+        {weak.map((item) => (
+          <div key={item.domain} className="weak-row">
             <span>{item.domain}</span>
-            <div className="bar"><i style={{ width: `${Math.min(100, 18 + item.needsWork * 18)}%` }} /></div>
-            <strong>{item.needsWork}</strong>
+            <small>{item.needsWorkRate}% needs work</small>
           </div>
         ))}
       </div>
@@ -1042,29 +827,300 @@ function ProgressView({ state, stats, startSession }) {
       <div className="reflection-panel">
         <p className="section-label">Recent reflections</p>
         {state.reflections.length === 0 && <p className="empty-copy">Your saved reflections will appear here.</p>}
-        {state.reflections.slice(0, 8).map((reflection) => {
-          const lesson = state.lessons.find((item) => item.id === reflection.lessonId);
-          return (
-            <article key={reflection.id} className="reflection-row">
-              <strong>{lesson?.title || 'General reflection'}</strong>
-              <p>{reflection.text}</p>
-              <small>{new Date(reflection.createdAt).toLocaleString()}</small>
-            </article>
-          );
-        })}
+        {state.reflections.slice(0, 8).map((reflection) => (
+          <article key={reflection.id} className="reflection-row">
+            <strong>{displayLessonTitle(state, reflection.lessonId)}</strong>
+            <p>{reflection.text}</p>
+            <small>{new Date(reflection.createdAt).toLocaleString()}</small>
+          </article>
+        ))}
       </div>
     </section>
   );
 }
 
-function LessonPreview({ lesson, review, onOpen }) {
+function FloatingAiPanel({ lesson }) {
+  const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState(() => loadAiSettings());
+  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
+  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState(() => loadAiChat());
+  const [isAsking, setIsAsking] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [serverStatus, setServerStatus] = useState('checking');
+  const [keychainKey, setKeychainKey] = useState('');
+  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
+  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
+  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
+  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
+  const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
+    ? DEFAULT_AI_SETTINGS.endpoint
+    : settings.endpoint === DEFAULT_AI_SETTINGS.endpoint
+      ? 'https://api.openai.com/v1/responses'
+      : settings.endpoint;
+  const endpointNeedsKey = requiresClientApiKey(effectiveEndpoint);
+
+  useEffect(() => saveAiChat(messages), [messages]);
+
+  function refreshServerStatus() {
+    setServerStatus('checking');
+    fetch('/api/ai-health')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
+      .then((payload) => setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key'))
+      .catch(() => setServerStatus('offline'));
+  }
+
+  useEffect(() => refreshServerStatus(), []);
+
+  function updateSettings(nextSettings) {
+    setSettings(nextSettings);
+    saveAiSettings(nextSettings);
+  }
+
+  function updateModelSelection(modelId) {
+    if (modelId === 'custom') {
+      setUseCustomModel(true);
+      return;
+    }
+    setUseCustomModel(false);
+    updateSettings({ ...settings, model: modelId });
+  }
+
+  function saveBrowserKey() {
+    if (!draftKey.trim()) return;
+    saveApiKey(draftKey.trim(), settings.persistKey);
+    setSettings({ ...settings, apiKey: draftKey.trim(), hasStoredKey: true });
+    setNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
+  }
+
+  function removeBrowserKey() {
+    clearApiKey();
+    setDraftKey('');
+    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
+    setNotice('API key cleared.');
+  }
+
+  async function saveKeychainKey() {
+    const cleanKey = keychainKey.trim();
+    if (!cleanKey || isSavingKeychain) return;
+    setIsSavingKeychain(true);
+    setNotice('');
+    try {
+      const response = await fetch('/api/save-openai-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: cleanKey }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the key.');
+      setKeychainKey('');
+      setNotice('API key saved to macOS Keychain.');
+      refreshServerStatus();
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setIsSavingKeychain(false);
+    }
+  }
+
+  async function askQuestion() {
+    const cleanQuestion = question.trim();
+    if (!cleanQuestion || isAsking) return;
+    if (serverStatus === 'missing-key') {
+      setNotice('Private server is running, but no key is saved yet.');
+      setSettingsOpen(true);
+      return;
+    }
+    if (endpointNeedsKey && !settings.apiKey && !draftKey.trim()) {
+      setNotice('Add your API key first.');
+      setSettingsOpen(true);
+      return;
+    }
+
+    const userMessage = {
+      id: `ai-user-${crypto.randomUUID()}`,
+      role: 'user',
+      content: cleanQuestion,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
+    setQuestion('');
+    setIsAsking(true);
+    setNotice('');
+
+    try {
+      const answer = await askOpenAI({
+        apiKey: endpointNeedsKey ? settings.apiKey || draftKey.trim() : '',
+        endpoint: effectiveEndpoint,
+        model: settings.model,
+        messages,
+        question: cleanQuestion,
+        lesson,
+        includeLessonContext: true,
+      });
+      setMessages([
+        ...nextMessages,
+        {
+          id: `ai-assistant-${crypto.randomUUID()}`,
+          role: 'assistant',
+          content: answer,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } catch (error) {
+      setMessages([
+        ...nextMessages,
+        {
+          id: `ai-error-${crypto.randomUUID()}`,
+          role: 'assistant',
+          content: `I could not get an answer: ${error.message}`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsAsking(false);
+    }
+  }
+
   return (
-    <button className="lesson-preview" onClick={onOpen}>
-      <span>{lesson.domain}</span>
-      <strong>{lesson.title}</strong>
-      <p>{lesson.coreIdea}</p>
-      <small>{review?.status || 'new'} · due {review?.dueAt || todayKey()}</small>
-    </button>
+    <>
+      <button className="ai-float-button" onClick={() => setOpen(true)} aria-label="Open AI Coach">
+        <MessageCircle size={21} />
+      </button>
+      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close AI Coach" />}
+      <aside className={open ? 'floating-ai open' : 'floating-ai'} aria-hidden={!open}>
+        <div className="floating-ai-head">
+          <div>
+            <span>AI Coach</span>
+            <strong>{lesson?.title || 'Current lesson'}</strong>
+          </div>
+          <div className="ai-head-actions">
+            <button className="icon-button light" onClick={() => setSettingsOpen((current) => !current)} title="AI settings">
+              <Settings size={16} />
+            </button>
+            <button
+              className="icon-button light"
+              onClick={() => {
+                clearAiChat();
+                setMessages([]);
+              }}
+              title="Clear chat"
+            >
+              <Trash2 size={16} />
+            </button>
+            <button className="icon-button light" onClick={() => setOpen(false)} title="Close">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {settingsOpen && (
+          <div className="ai-settings-drawer">
+            <div className={`server-status ${serverStatus}`}>
+              <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
+              <p>{serverStatus === 'ready' ? 'Your Mac server will make the API call.' : serverStatus === 'missing-key' ? 'Save a key to Keychain on this Mac.' : 'The local server was not found, so the browser will call OpenAI directly.'}</p>
+            </div>
+            {serverStatus !== 'offline' && (
+              <div className="ai-field">
+                <label htmlFor="keychain-key">Save key to Mac Keychain</label>
+                <input
+                  id="keychain-key"
+                  type="password"
+                  value={keychainKey}
+                  onChange={(event) => setKeychainKey(event.target.value)}
+                  placeholder="Paste once, save to Keychain"
+                  autoComplete="off"
+                />
+                <button className="secondary-button" onClick={saveKeychainKey} disabled={!keychainKey.trim() || isSavingKeychain}>
+                  {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
+                </button>
+              </div>
+            )}
+            {endpointNeedsKey && (
+              <>
+                <div className="ai-field">
+                  <label htmlFor="ai-key">OpenAI API key</label>
+                  <input
+                    id="ai-key"
+                    type="password"
+                    value={draftKey}
+                    onChange={(event) => setDraftKey(event.target.value)}
+                    placeholder="sk-..."
+                    autoComplete="off"
+                  />
+                </div>
+                <label className="toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.persistKey}
+                    onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
+                  />
+                  Remember key in this browser
+                </label>
+                <div className="ai-settings-actions">
+                  <button className="secondary-button" onClick={saveBrowserKey}>Save key</button>
+                  <button className="secondary-button" onClick={removeBrowserKey}>Clear key</button>
+                </div>
+              </>
+            )}
+            <div className="ai-field">
+              <label htmlFor="ai-model">Model</label>
+              <select id="ai-model" value={modelSelectValue} onChange={(event) => updateModelSelection(event.target.value)}>
+                {AI_MODEL_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+                <option value="custom">Custom model</option>
+              </select>
+              <p className="field-help">{selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}</p>
+            </div>
+            {modelSelectValue === 'custom' && (
+              <div className="ai-field">
+                <label htmlFor="ai-custom-model">Custom model ID</label>
+                <input id="ai-custom-model" value={settings.model} onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })} placeholder="gpt-..." />
+              </div>
+            )}
+            <details>
+              <summary>Advanced endpoint</summary>
+              <div className="ai-field">
+                <label htmlFor="ai-endpoint">Endpoint</label>
+                <input id="ai-endpoint" value={settings.endpoint} onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })} />
+              </div>
+            </details>
+            {notice && <p className="settings-notice">{notice}</p>}
+          </div>
+        )}
+
+        <div className="ai-message-list" aria-live="polite">
+          {messages.length === 0 && (
+            <div className="ai-empty">
+              <strong>No conversation yet.</strong>
+              <p>Ask about the current card, a historical parallel, or a decision you are facing.</p>
+            </div>
+          )}
+          {messages.map((message) => (
+            <article key={message.id} className={message.role === 'user' ? 'ai-message user' : 'ai-message assistant'}>
+              <span>{message.role === 'user' ? 'You' : 'AI Coach'}</span>
+              <p>{message.content}</p>
+            </article>
+          ))}
+          {isAsking && <p className="ai-thinking">Thinking...</p>}
+        </div>
+
+        <div className="ai-composer">
+          <textarea
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Ask about this lesson..."
+          />
+          <button className="primary-button" onClick={askQuestion} disabled={isAsking || !question.trim()}>
+            <Send size={16} />
+            Ask
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 

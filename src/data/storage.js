@@ -1,6 +1,26 @@
 import { createInitialState } from './seedData.js';
 
 const STORAGE_KEY = 'leaderman.state.v1';
+const MAX_SESSIONS = 10;
+
+function normalizeUserState(parsed) {
+  const seeded = createInitialState();
+  return {
+    ...seeded,
+    ...parsed,
+    sources: seeded.sources,
+    lessons: seeded.lessons,
+    sessions: (parsed.sessions || []).slice(0, MAX_SESSIONS),
+    reviews: {
+      ...seeded.reviews,
+      ...(parsed.reviews || {}),
+    },
+    settings: {
+      ...seeded.settings,
+      ...(parsed.settings || {}),
+    },
+  };
+}
 
 export function loadState() {
   try {
@@ -8,28 +28,14 @@ export function loadState() {
     if (!raw) return createInitialState();
     const parsed = JSON.parse(raw);
     if (parsed?.schemaVersion !== 1) return createInitialState();
-    const seeded = createInitialState();
-    return {
-      ...seeded,
-      ...parsed,
-      sources: seeded.sources,
-      lessons: seeded.lessons,
-      reviews: {
-        ...seeded.reviews,
-        ...(parsed.reviews || {}),
-      },
-      settings: {
-        ...seeded.settings,
-        ...(parsed.settings || {}),
-      },
-    };
+    return normalizeUserState(parsed);
   } catch {
     return createInitialState();
   }
 }
 
 export function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, sessions: (state.sessions || []).slice(0, MAX_SESSIONS) }));
 }
 
 export function exportState(state) {
@@ -48,20 +54,8 @@ export function parseImportedState(text) {
   if (parsed?.schemaVersion !== 1 || !Array.isArray(parsed.lessons)) {
     throw new Error('This does not look like a Leaderman backup.');
   }
-  const seeded = createInitialState();
   return {
-    ...seeded,
-    ...parsed,
-    sources: seeded.sources,
-    lessons: seeded.lessons,
-    reviews: {
-      ...seeded.reviews,
-      ...(parsed.reviews || {}),
-    },
-    settings: {
-      ...seeded.settings,
-      ...(parsed.settings || {}),
-    },
+    ...normalizeUserState(parsed),
     exportedAt: undefined,
   };
 }

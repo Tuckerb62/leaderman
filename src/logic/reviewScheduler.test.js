@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, isDue, nextReviewState } from './reviewScheduler.js';
+import { MAX_INTERVAL_DAYS, addDays, isDue, nextReviewState } from './reviewScheduler.js';
 
 describe('reviewScheduler', () => {
   it('pushes known cards into the future', () => {
@@ -28,5 +28,11 @@ describe('reviewScheduler', () => {
 
   it('adds days across date boundaries', () => {
     expect(addDays('2026-06-30', 2)).toBe('2026-07-02');
+  });
+
+  it('caps known-card intervals at 90 days', () => {
+    const result = nextReviewState({ intervalDays: 80, ease: 5, attempts: 8 }, 'know', '2026-06-06');
+    expect(result.intervalDays).toBe(MAX_INTERVAL_DAYS);
+    expect(result.dueAt).toBe('2026-09-04');
   });
 });

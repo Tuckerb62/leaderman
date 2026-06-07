@@ -1170,5 +1170,7 @@ export const createInitialState = () => ({
   settings: {
     dailyGoalCards: 10,
     currentFocus: 'Decision Quality',
+    streakDays: 0,
+    lastStudiedDate: null,
   },
 });

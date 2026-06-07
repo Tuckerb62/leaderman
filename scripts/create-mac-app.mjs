@@ -55,7 +55,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 PROJECT_DIR="${ROOT}"
 PORT="4174"
-URL="http://127.0.0.1:\${PORT}/?view=ai"
+URL="http://127.0.0.1:\${PORT}/"
 LOG_DIR="$HOME/Library/Logs/Leaderman"
 LOG_FILE="$LOG_DIR/launcher.log"
 

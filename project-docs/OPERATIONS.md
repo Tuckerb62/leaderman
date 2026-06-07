@@ -43,7 +43,7 @@ npm run local:ai
 Open:
 
 ```text
-http://127.0.0.1:4174/?view=ai
+http://127.0.0.1:4174/
 ```
 
 The server serves the built app from `dist/` and exposes the local AI proxy at `/api/openai-responses`.
@@ -53,8 +53,8 @@ The server serves the built app from `dist/` and exposes the local AI proxy at `
 Option A, save inside the app:
 
 1. Run `npm run local:ai`.
-2. Open `http://127.0.0.1:4174/?view=ai`.
-3. Paste the key into "Save key to Mac Keychain".
+2. Open `http://127.0.0.1:4174/`.
+3. Open the floating AI button, press the gear icon, and paste the key into "Save key to Mac Keychain".
 4. Press "Remember on this Mac."
 
 Option B, save from Terminal:
@@ -108,7 +108,7 @@ This creates:
 /Users/jonathan/Desktop/Leaderman.app
 ```
 
-Double-clicking the app starts the private local server on port `4174` if it is not already running, then opens the AI Coach view. Logs are written to:
+Double-clicking the app starts the private local server on port `4174` if it is not already running, then opens Leaderman. Logs are written to:
 
 ```text
 ~/Library/Logs/Leaderman/launcher.log
@@ -192,4 +192,3 @@ It should report whether a key is loaded from environment, macOS Keychain, or mi
 If the phone cannot reach the Mac, confirm both devices are on the same Wi-Fi, use the printed LAN URL, keep the server terminal open, and check macOS firewall prompts.
 
 If GitHub Pages looks stale, confirm `npm run build:pages` was run, `docs/` changes were committed, and GitHub Pages has finished deploying from `main`.
-

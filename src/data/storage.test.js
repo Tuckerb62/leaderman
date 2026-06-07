@@ -34,4 +34,13 @@ describe('storage import', () => {
   it('rejects unrelated JSON', () => {
     expect(() => parseImportedState(JSON.stringify({ hello: 'world' }))).toThrow('Leaderman backup');
   });
+
+  it('caps imported sessions at 10', () => {
+    const backup = createInitialState();
+    backup.sessions = Array.from({ length: 12 }, (_, index) => ({ id: `session-${index}` }));
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.sessions).toHaveLength(10);
+  });
 });

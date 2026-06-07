@@ -8,13 +8,12 @@ Leaderman lets the user study leadership as a practiced discipline instead of pa
 
 The current app supports these user-facing areas:
 
-- `Today`: daily focus, due review count, featured lessons, session start, and quick reflection capture.
+- `Feed`: default calm reading surface with due cards, new cards, inline expansion, decision practice, reflection capture, and visible spaced-review feedback.
 - `Learn`: one lesson at a time with the core idea, article content, source basis, historical example, scenario, decision options, reflection, notes, and review rating buttons.
 - `Philosophy`: schools of philosophy and philosophy lessons, with emphasis on Stoicism while also covering other traditions.
-- `AI Coach`: optional conversational help grounded in the selected lesson. It can use a private local proxy or a direct browser API key fallback.
 - `Library`: searchable source cards and lesson cards, including domains, tags, and user notes.
-- `Review`: due lessons ordered by scheduler priority, with `Know it`, `Review later`, and `Needs work`.
-- `Progress`: completion, mastery, weak domains, review queue, recent sessions, and reflections.
+- `Progress`: streak, lessons touched, mastery, weak areas, and recent reflections.
+- Floating `AI Coach`: optional conversational help grounded in the current lesson. It can use a private local proxy or a direct browser API key fallback.
 
 The app does not currently have accounts, cloud sync, payments, a backend database, live content generation, PDF import, EPUB import, or multi-device merge. Those are intentionally deferred.
 
@@ -63,12 +62,12 @@ Because there is no central backend, the same GitHub Pages URL on two devices wi
 
 ## AI Coach Modes
 
-The AI Coach has two operating modes:
+The floating AI Coach has two operating modes:
 
 - Private local server mode: the frontend calls `/api/openai-responses`. `scripts/local-ai-server.mjs` reads the OpenAI key from `OPENAI_API_KEY` or macOS Keychain and proxies the request to the OpenAI Responses API. The browser never receives the key.
 - Direct browser mode: the frontend can call a full HTTPS endpoint directly and attach a pasted API key in the browser. This is convenient but exposes the key to that browser environment and should remain a fallback for personal use only.
 
-The AI Coach also includes a model selector. Curated options live in `AI_MODEL_OPTIONS` in `src/logic/aiClient.js`, and the default model lives in `DEFAULT_AI_SETTINGS`. Keep the custom model option available so the user can try newer or account-specific model IDs without a code change.
+The floating AI Coach also includes a model selector. Curated options live in `AI_MODEL_OPTIONS` in `src/logic/aiClient.js`, and the default model lives in `DEFAULT_AI_SETTINGS`. Keep the custom model option available so the user can try newer or account-specific model IDs without a code change.
 
 The private server also exposes:
 
@@ -86,7 +85,7 @@ Leaderman can be used in several ways:
 - Phone testing without private AI: `npm run phone`, usually on port `5174` and reachable by LAN IP.
 - Private AI on Mac: `npm run local:ai`, served from `http://127.0.0.1:4174/`.
 - Private AI from phone or iPad: `npm run phone:ai`, served from the Mac on the local network.
-- Desktop launcher: `npm run mac:app`, which creates `Leaderman.app` on the Desktop and opens the private AI app view.
+- Desktop launcher: `npm run mac:app`, which creates `Leaderman.app` on the Desktop and opens the private local app.
 - Public static site: `npm run build:pages`, committed to `docs/`, then served by GitHub Pages.
 - iPhone or iPad home screen app: open the GitHub Pages URL in Safari and use Add to Home Screen.
 

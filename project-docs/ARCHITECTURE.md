@@ -4,7 +4,7 @@ Leaderman is a Vite React single-page app with optional local Node tooling for p
 
 ## Key Files
 
-- `src/App.jsx`: main React application, navigation, view composition, session flow, import/export controls, AI Coach UI, and local state updates.
+- `src/App.jsx`: main React application, Feed, navigation, view composition, session flow, import/export controls, floating AI Coach UI, and local state updates.
 - `src/styles.css`: full app styling, responsive layout, dashboard surfaces, controls, lesson cards, and mobile behavior.
 - `src/data/seedData.js`: deterministic source cards, domains, philosophy schools, micro-lessons, initial reviews, and app state factory.
 - `src/data/storage.js`: local state load/save, backup export, and backup import normalization.
@@ -115,7 +115,7 @@ flowchart LR
   Seed["src/data/seedData.js"] --> Load["loadState()"]
   Browser["localStorage"] --> Load
   Load --> React["App state"]
-  React --> Views["Today / Learn / Philosophy / AI / Library / Review / Progress"]
+  React --> Views["Feed / Learn / Philosophy / Library / Progress / Floating AI"]
   Views --> Actions["review, note, reflection, session, import"]
   Actions --> React
   React --> Save["saveState()"]
@@ -140,7 +140,7 @@ Due lessons are sorted by `src/logic/selectors.js`, with `needs-work` lessons fi
 
 ```mermaid
 flowchart LR
-  UI["AI Coach view"] --> Client["src/logic/aiClient.js"]
+  UI["Floating AI panel"] --> Client["src/logic/aiClient.js"]
   Client --> Endpoint{"Endpoint"}
   Endpoint -->|"default /api/openai-responses"| LocalServer["scripts/local-ai-server.mjs"]
   LocalServer --> Key{"API key source"}
@@ -163,15 +163,18 @@ The API request body includes a centralized `instructions` prompt. It gives the 
 
 `npm run build:pages` creates `docs/` for GitHub Pages with `VITE_BASE=/leaderman/`. This folder is generated output and should be considered replaceable.
 
-The desktop launcher does not bundle a copy of the app. It points to this repo path, runs `npm run build`, starts `scripts/local-ai-server.mjs`, and opens `http://127.0.0.1:4174/?view=ai`.
+The desktop launcher does not bundle a copy of the app. It points to this repo path, runs `npm run build`, starts `scripts/local-ai-server.mjs`, and opens `http://127.0.0.1:4174/`.
 
 ## Testing
 
 Current automated tests use Vitest and cover:
 
 - AI settings behavior.
+- AI chat persistence behavior.
 - AI client payload and response parsing behavior.
+- Feed queue ordering and domain interleaving.
 - Review scheduler transitions.
+- Streak and session-minute helpers.
 - seed data integrity.
 - storage import/export normalization.
 

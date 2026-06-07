@@ -44,6 +44,7 @@ export function progressStats(state) {
     mastery,
     minutes,
     due: dueLessons(state).length,
+    streakDays: state.settings?.streakDays || 0,
   };
 }
 
@@ -51,12 +52,62 @@ export function weakDomains(state) {
   const domainMap = new Map();
   state.lessons.forEach((lesson) => {
     const review = state.reviews[lesson.id];
-    const current = domainMap.get(lesson.domain) || { domain: lesson.domain, needsWork: 0, attempts: 0 };
+    const current = domainMap.get(lesson.domain) || { domain: lesson.domain, needsWork: 0, attempts: 0, needsWorkRate: 0 };
     current.needsWork += review?.needsWork || 0;
     current.attempts += review?.attempts || 0;
+    current.needsWorkRate = Math.round((current.needsWork / Math.max(current.attempts, 1)) * 100);
     domainMap.set(lesson.domain, current);
   });
   return [...domainMap.values()]
     .filter((item) => item.needsWork || item.attempts)
-    .sort((a, b) => b.needsWork - a.needsWork || b.attempts - a.attempts);
+    .sort((a, b) => b.needsWorkRate - a.needsWorkRate || b.needsWork - a.needsWork || b.attempts - a.attempts);
+}
+
+function stableHash(text) {
+  return [...text].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 100000, 7);
+}
+
+function interleaveDomains(lessons) {
+  const queue = [...lessons];
+  for (let index = 2; index < queue.length; index += 1) {
+    if (queue[index].domain !== queue[index - 1].domain || queue[index].domain !== queue[index - 2].domain) continue;
+    const swapIndex = queue.findIndex((lesson, candidateIndex) => candidateIndex > index && lesson.domain !== queue[index].domain);
+    if (swapIndex !== -1) {
+      [queue[index], queue[swapIndex]] = [queue[swapIndex], queue[index]];
+    }
+  }
+  return queue;
+}
+
+export function feedQueue(state, limit = 40) {
+  const now = todayKey();
+  const usedIds = new Set();
+  const weakDomainNames = weakDomains(state).map((item) => item.domain);
+
+  function take(predicate, sort = (a, b) => a.order - b.order) {
+    const picked = state.lessons
+      .filter((lesson) => !usedIds.has(lesson.id) && predicate(lesson, state.reviews[lesson.id]))
+      .sort(sort);
+    picked.forEach((lesson) => usedIds.add(lesson.id));
+    return picked;
+  }
+
+  const needsWork = take((lesson, review) => review?.status === 'needs-work');
+  const due = take(
+    (lesson, review) => review?.status !== 'needs-work' && isDue(review, now),
+    (a, b) => {
+      const aDue = state.reviews[a.id]?.dueAt || now;
+      const bDue = state.reviews[b.id]?.dueAt || now;
+      return aDue.localeCompare(bDue) || a.order - b.order;
+    },
+  );
+  const weakNew = take((lesson, review) => (!review || review.attempts === 0) && weakDomainNames.includes(lesson.domain));
+  const otherNew = take((lesson, review) => !review || review.attempts === 0);
+  const strong = take(
+    (lesson, review) => review?.status === 'strong',
+    (a, b) => stableHash(`${a.id}-${now}`) - stableHash(`${b.id}-${now}`),
+  );
+  const remaining = take(() => true);
+
+  return interleaveDomains([...needsWork, ...due, ...weakNew, ...otherNew, ...strong, ...remaining]).slice(0, limit);
 }

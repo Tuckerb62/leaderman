@@ -42,10 +42,10 @@ npm run local:ai
 Open:
 
 ```text
-http://127.0.0.1:4174/?view=ai
+http://127.0.0.1:4174/
 ```
 
-Paste your key into "Save key to Mac Keychain" and press "Remember on this Mac."
+Open the floating AI button, use the gear icon, paste your key into "Save key to Mac Keychain," and press "Remember on this Mac."
 
 Option B: save your key from the terminal:
 
@@ -62,7 +62,7 @@ npm run local:ai
 Open:
 
 ```text
-http://127.0.0.1:4174/?view=ai
+http://127.0.0.1:4174/
 ```
 
 To use it from your phone on the same Wi-Fi network:
