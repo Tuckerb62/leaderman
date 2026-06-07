@@ -83,6 +83,16 @@ Leaderman is installable as a web app, so you do not need an Apple Developer acc
 
 Mac:
 
+Option A, Desktop launcher app:
+
+```bash
+npm run mac:app
+```
+
+This creates `Leaderman.app` on your Desktop. Double-click it to start the private local server and open Leaderman.
+
+Option B, browser-installed app:
+
 1. Open the app in Safari or Chrome.
 2. Use the browser's install/add-to-dock option.
 3. Launch it from the Dock like a normal app.
