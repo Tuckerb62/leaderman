@@ -76,13 +76,6 @@ function formatInterval(days) {
   return `Back in ${Math.round(days / 30)} months`;
 }
 
-function formatTimer(ms) {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
-}
-
 function reviewBadge(review) {
   if (!review || review.attempts === 0) return { label: 'new', tone: 'new' };
   if (review.status === 'needs-work') return { label: 'due now', tone: 'urgent' };
@@ -375,19 +368,12 @@ function Metric({ label, value }) {
 
 function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, setContextLessonId, setView }) {
   const [expandedId, setExpandedId] = useState(null);
-  const [sessionStart] = useState(() => Date.now());
-  const [elapsed, setElapsed] = useState(0);
   const [ratedCards, setRatedCards] = useState({});
   const [feedIds] = useState(() => feedQueue(state, 100).map((lesson) => lesson.id));
   const initialDueIds = useRef(feedIds.filter((lessonId) => isDue(state.reviews[lessonId])));
   const lessons = useMemo(() => feedIds.map((lessonId) => state.lessons.find((lesson) => lesson.id === lessonId)).filter(Boolean), [feedIds, state.lessons]);
   const dueCount = lessons.filter((lesson) => isDue(state.reviews[lesson.id])).length;
   const allInitialDueRated = initialDueIds.current.length > 0 && initialDueIds.current.every((id) => ratedCards[id]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => setElapsed(Date.now() - sessionStart), 1000);
-    return () => window.clearInterval(interval);
-  }, [sessionStart]);
 
   function openFullLesson(lessonId) {
     setSelectedLessonId(lessonId);
@@ -403,13 +389,11 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
           <h1>Feed</h1>
         </div>
         <div className="feed-meta">
-          <span>{formatTimer(elapsed)}</span>
           <span>{dueCount} due · {lessons.length} cards</span>
           <span>Swipe up for the next one</span>
         </div>
       </header>
 
-      {elapsed >= 1200000 && <p className="feed-note">20 minutes. Good session.</p>}
       {allInitialDueRated && <p className="feed-note">You are caught up on reviews. The rest is exploration.</p>}
 
       <div className="feed-stack">
