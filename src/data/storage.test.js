@@ -43,4 +43,18 @@ describe('storage import', () => {
 
     expect(parsed.sessions).toHaveLength(10);
   });
+
+  it('keeps resume state when importing a backup', () => {
+    const backup = createInitialState();
+    backup.settings.resume = {
+      view: 'learn',
+      lessonId: 'lesson-stoic-control',
+      feedLessonId: 'lesson-hidden-rule',
+      updatedAt: '2026-06-07T12:00:00.000Z',
+    };
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.settings.resume).toMatchObject(backup.settings.resume);
+  });
 });

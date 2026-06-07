@@ -1555,5 +1555,11 @@ export const createInitialState = () => ({
     currentFocus: 'Decision Quality',
     streakDays: 0,
     lastStudiedDate: null,
+    resume: {
+      view: 'feed',
+      lessonId: null,
+      feedLessonId: null,
+      updatedAt: null,
+    },
   },
 });

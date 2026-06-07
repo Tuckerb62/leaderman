@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   Brain,
@@ -39,17 +39,20 @@ function queryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-function initialView() {
+function initialView(state) {
   const requestedView = queryParam('view');
   const requestedLesson = queryParam('lesson');
   if (requestedLesson) return 'learn';
-  return navItems.some((item) => item.id === requestedView) ? requestedView : 'feed';
+  if (navItems.some((item) => item.id === requestedView)) return requestedView;
+  const resumeView = state.settings?.resume?.view;
+  return navItems.some((item) => item.id === resumeView) ? resumeView : 'feed';
 }
 
 function initialLessonId(state) {
   const requestedLesson = queryParam('lesson');
   const matchingLesson = state.lessons.find((lesson) => lesson.slug === requestedLesson || lesson.id === requestedLesson);
-  return matchingLesson?.id || recommendedLessons(state, 1)[0]?.id;
+  const resumeLesson = state.lessons.find((lesson) => lesson.id === state.settings?.resume?.lessonId);
+  return matchingLesson?.id || resumeLesson?.id || recommendedLessons(state, 1)[0]?.id;
 }
 
 function viewTitle(view) {
@@ -129,15 +132,51 @@ function displayLessonTitle(state, lessonId) {
   return state.lessons.find((lesson) => lesson.id === lessonId)?.title || 'General';
 }
 
+function withResume(current, patch) {
+  const currentResume = current.settings?.resume || {};
+  const nextResume = {
+    view: currentResume.view || 'feed',
+    lessonId: currentResume.lessonId || null,
+    feedLessonId: currentResume.feedLessonId || null,
+    updatedAt: currentResume.updatedAt || null,
+    ...patch,
+  };
+  const unchanged =
+    currentResume.view === nextResume.view &&
+    currentResume.lessonId === nextResume.lessonId &&
+    currentResume.feedLessonId === nextResume.feedLessonId;
+
+  if (unchanged) return current;
+
+  return {
+    ...current,
+    settings: {
+      ...current.settings,
+      resume: {
+        ...nextResume,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  };
+}
+
 export default function App() {
   const [state, setState] = useState(() => loadState());
-  const [view, setView] = useState(() => initialView());
-  const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(loadState()));
+  const [view, setView] = useState(() => initialView(state));
+  const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(state));
   const [session, setSession] = useState(null);
   const [sessionSummary, setSessionSummary] = useState('');
   const [contextLessonId, setContextLessonId] = useState(null);
 
   useEffect(() => saveState(state), [state]);
+  useEffect(() => {
+    setState((current) =>
+      withResume(current, {
+        view,
+        lessonId: selectedLessonId || null,
+      }),
+    );
+  }, [view, selectedLessonId]);
 
   const stats = useMemo(() => progressStats(state), [state]);
   const selectedLesson = state.lessons.find((lesson) => lesson.id === selectedLessonId) || state.lessons[0];
@@ -277,6 +316,16 @@ export default function App() {
     }
   }
 
+  const rememberFeedLesson = useCallback((lessonId) => {
+    setContextLessonId(lessonId);
+    setState((current) =>
+      withResume(current, {
+        view: 'feed',
+        feedLessonId: lessonId,
+      }),
+    );
+  }, []);
+
   const commonProps = {
     state,
     selectedLesson,
@@ -288,6 +337,7 @@ export default function App() {
     rateCurrentLesson,
     saveReflection,
     saveLessonNote,
+    rememberFeedLesson,
     session,
   };
 
@@ -364,11 +414,49 @@ function Metric({ label, value }) {
   );
 }
 
-function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, setContextLessonId, setView }) {
+function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, setContextLessonId, setView, rememberFeedLesson }) {
   const [expandedId, setExpandedId] = useState(null);
   const [ratedCards, setRatedCards] = useState({});
   const [feedIds] = useState(() => feedQueue(state, 100).map((lesson) => lesson.id));
+  const feedStackRef = useRef(null);
+  const restoredFeedPosition = useRef(false);
+  const rememberFrame = useRef(0);
   const lessons = useMemo(() => feedIds.map((lessonId) => state.lessons.find((lesson) => lesson.id === lessonId)).filter(Boolean), [feedIds, state.lessons]);
+
+  useEffect(() => {
+    if (restoredFeedPosition.current) return;
+    const resumeLessonId = state.settings?.resume?.feedLessonId;
+    if (!resumeLessonId || !feedIds.includes(resumeLessonId)) return;
+
+    const target = feedStackRef.current?.querySelector(`[data-lesson-id="${resumeLessonId}"]`);
+    if (!target) return;
+
+    restoredFeedPosition.current = true;
+    setContextLessonId(resumeLessonId);
+    window.requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }));
+  }, [feedIds, setContextLessonId, state.settings?.resume?.feedLessonId]);
+
+  useEffect(() => {
+    const stack = feedStackRef.current;
+    if (!stack) return undefined;
+
+    function rememberVisibleCard() {
+      window.cancelAnimationFrame(rememberFrame.current);
+      rememberFrame.current = window.requestAnimationFrame(() => {
+        const cardHeight = Math.max(stack.clientHeight, 1);
+        const index = Math.max(0, Math.min(lessons.length - 1, Math.round(stack.scrollTop / cardHeight)));
+        const lessonId = lessons[index]?.id;
+        if (lessonId) rememberFeedLesson(lessonId);
+      });
+    }
+
+    rememberVisibleCard();
+    stack.addEventListener('scroll', rememberVisibleCard, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(rememberFrame.current);
+      stack.removeEventListener('scroll', rememberVisibleCard);
+    };
+  }, [lessons, rememberFeedLesson]);
 
   function openFullLesson(lessonId) {
     setSelectedLessonId(lessonId);
@@ -378,7 +466,7 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
 
   return (
     <section className="feed-view">
-      <div className="feed-stack">
+      <div className="feed-stack" ref={feedStackRef}>
         {lessons.map((lesson) => (
           <FeedCard
             key={lesson.id}
@@ -516,7 +604,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
 
   if (rated?.compact) {
     return (
-      <article className="feed-card rated-line" style={cardStyle}>
+      <article className="feed-card rated-line" style={cardStyle} data-lesson-id={lesson.id}>
         <div className="feed-backdrop" aria-hidden="true">
           <span className="feed-backdrop-mark">{artwork.mark}</span>
           <span className="feed-backdrop-source">{artwork.sourceTitle}</span>
@@ -533,6 +621,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
     <article
       className={expanded ? 'feed-card expanded' : 'feed-card'}
       style={cardStyle}
+      data-lesson-id={lesson.id}
       tabIndex={0}
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}

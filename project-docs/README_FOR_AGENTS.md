@@ -54,7 +54,7 @@ Future curriculum expansion should keep claims grounded. If adding material from
 
 ## Local-First Behavior
 
-User progress is stored in browser `localStorage` through `src/data/storage.js`. AI key preferences for direct browser mode are stored by `src/data/aiSettings.js`. Session-only keys use `sessionStorage`; persisted browser keys use `localStorage`.
+User progress is stored in browser `localStorage` through `src/data/storage.js`. The same local state also stores `settings.resume`, which remembers the last view, selected lesson, and last visible Feed card so the app can reopen where the user left off. AI key preferences for direct browser mode are stored by `src/data/aiSettings.js`. Session-only keys use `sessionStorage`; persisted browser keys use `localStorage`.
 
 The sidebar includes manual JSON export and import so the user can back up progress or move it to another browser manually. Import merges seeded source and lesson records from the current build, then restores user-owned review state, sessions, notes, reflections, and settings.
 
