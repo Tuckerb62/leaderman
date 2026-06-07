@@ -338,14 +338,26 @@ select:focus {
   overflow: hidden;
   border: 0;
   background:
-    radial-gradient(circle at 74% 26%, color-mix(in srgb, var(--feed-accent) 30%, transparent), transparent 30%),
-    linear-gradient(145deg, rgba(20, 19, 15, 0.94), rgba(38, 35, 29, 0.98) 54%, color-mix(in srgb, var(--feed-accent-2) 38%, #14130f));
+    radial-gradient(circle at 78% 20%, color-mix(in srgb, var(--feed-accent) 34%, transparent), transparent 31%),
+    radial-gradient(circle at 12% 82%, color-mix(in srgb, var(--feed-accent-2) 26%, transparent), transparent 34%),
+    linear-gradient(155deg, #11100c 0%, rgba(31, 29, 24, 0.98) 48%, color-mix(in srgb, var(--feed-accent-2) 42%, #17140f) 100%);
   color: var(--ink-light);
   padding: clamp(104px, 16vh, 170px) clamp(22px, 6vw, 86px) clamp(62px, 10vh, 100px);
   isolation: isolate;
   outline: none;
   touch-action: pan-y;
   user-select: none;
+}
+
+.feed-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(247, 240, 228, 0.055), transparent 24%, rgba(0, 0, 0, 0.18) 100%),
+    repeating-linear-gradient(105deg, rgba(247, 240, 228, 0.025) 0 1px, transparent 1px 8px);
+  content: '';
+  pointer-events: none;
 }
 
 .feed-card:focus-visible {
@@ -363,8 +375,8 @@ select:focus {
 .feed-card.rated-line {
   align-content: end;
   background:
-    radial-gradient(circle at 72% 30%, color-mix(in srgb, var(--feed-accent) 20%, transparent), transparent 28%),
-    linear-gradient(145deg, #161510, color-mix(in srgb, var(--feed-accent-2) 26%, #25221d));
+    radial-gradient(circle at 72% 30%, color-mix(in srgb, var(--feed-accent) 22%, transparent), transparent 28%),
+    linear-gradient(145deg, #13120e, color-mix(in srgb, var(--feed-accent-2) 30%, #25221d));
 }
 
 .rated-line-content {
