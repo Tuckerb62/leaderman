@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAiInstructions, buildResponseInput, extractResponseText } from './aiClient.js';
+import { buildAiInstructions, buildResponseInput, extractResponseText, requiresClientApiKey } from './aiClient.js';
 
 const lesson = {
   title: 'Control What Is Yours',
@@ -51,5 +51,10 @@ describe('ai client helpers', () => {
         ],
       }),
     ).toBe('First part.\nSecond part.');
+  });
+
+  it('only requires browser-held keys for absolute API endpoints', () => {
+    expect(requiresClientApiKey('/api/openai-responses')).toBe(false);
+    expect(requiresClientApiKey('https://api.openai.com/v1/responses')).toBe(true);
   });
 });

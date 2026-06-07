@@ -1147,6 +1147,60 @@ input:focus {
   gap: 7px;
 }
 
+.hidden-field {
+  display: none !important;
+}
+
+.mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.active-mode {
+  border-color: rgba(22, 138, 99, 0.42);
+  background: #effaf5;
+  color: var(--emerald-dark);
+}
+
+.server-status {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+  padding: 13px;
+}
+
+.server-status span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.server-status strong {
+  display: block;
+  margin-top: 6px;
+}
+
+.server-status p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.48;
+}
+
+.server-status.ready {
+  border-color: rgba(22, 138, 99, 0.34);
+  background: #effaf5;
+}
+
+.server-status.missing-key,
+.server-status.offline {
+  border-color: #f0d39b;
+  background: #fff8eb;
+}
+
 .ai-settings-actions {
   display: flex;
   gap: 10px;

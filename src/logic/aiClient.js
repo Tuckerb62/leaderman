@@ -1,8 +1,12 @@
 export const DEFAULT_AI_SETTINGS = {
-  endpoint: 'https://api.openai.com/v1/responses',
+  endpoint: '/api/openai-responses',
   model: 'gpt-5.1',
   persistKey: false,
 };
+
+export function requiresClientApiKey(endpoint = DEFAULT_AI_SETTINGS.endpoint) {
+  return /^https?:\/\//i.test(endpoint);
+}
 
 export function buildLessonContext(lesson) {
   if (!lesson) return 'No current lesson is selected.';
@@ -62,14 +66,18 @@ export function extractResponseText(payload) {
 }
 
 export async function askOpenAI({ apiKey, endpoint, model, messages, question, lesson, includeLessonContext }) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
   let response;
   try {
     response = await fetch(endpoint || DEFAULT_AI_SETTINGS.endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         model: model || DEFAULT_AI_SETTINGS.model,
         instructions: buildAiInstructions(lesson, includeLessonContext),

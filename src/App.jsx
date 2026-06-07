@@ -22,7 +22,7 @@ import {
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
-import { askOpenAI } from './logic/aiClient.js';
+import { DEFAULT_AI_SETTINGS, askOpenAI, requiresClientApiKey } from './logic/aiClient.js';
 import { nextReviewState, todayKey } from './logic/reviewScheduler.js';
 import { dueLessons, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
 
@@ -424,6 +424,28 @@ function AiCoachView({ selectedLesson }) {
   const [includeLessonContext, setIncludeLessonContext] = useState(true);
   const [isAsking, setIsAsking] = useState(false);
   const [notice, setNotice] = useState('');
+  const [serverStatus, setServerStatus] = useState('checking');
+  const endpointNeedsKey = requiresClientApiKey(settings.endpoint);
+
+  useEffect(() => {
+    if (endpointNeedsKey) {
+      setServerStatus('direct');
+      return;
+    }
+    let cancelled = false;
+    setServerStatus('checking');
+    fetch('/api/ai-health')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
+      .then((payload) => {
+        if (!cancelled) setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
+      })
+      .catch(() => {
+        if (!cancelled) setServerStatus('offline');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [endpointNeedsKey, settings.endpoint]);
 
   function updateSettings(nextSettings) {
     setSettings(nextSettings);
@@ -447,8 +469,12 @@ function AiCoachView({ selectedLesson }) {
   async function askQuestion(prompt = question) {
     const cleanQuestion = prompt.trim();
     if (!cleanQuestion || isAsking) return;
-    if (!settings.apiKey && !draftKey.trim()) {
+    if (endpointNeedsKey && !settings.apiKey && !draftKey.trim()) {
       setNotice('Add your API key first.');
+      return;
+    }
+    if (!endpointNeedsKey && serverStatus !== 'ready') {
+      setNotice('Start the private local AI server first, then try again.');
       return;
     }
 
@@ -466,7 +492,7 @@ function AiCoachView({ selectedLesson }) {
 
     try {
       const answer = await askOpenAI({
-        apiKey: settings.apiKey || draftKey.trim(),
+        apiKey: endpointNeedsKey ? settings.apiKey || draftKey.trim() : '',
         endpoint: settings.endpoint,
         model: settings.model,
         messages,
@@ -573,12 +599,33 @@ function AiCoachView({ selectedLesson }) {
         <div className="panel-head">
           <div>
             <p className="section-label">API setup</p>
-            <h2>Your key</h2>
+            <h2>{endpointNeedsKey ? 'Browser key' : 'Private server'}</h2>
           </div>
           <KeyRound className="panel-icon" size={28} />
         </div>
 
-        <div className="ai-field">
+        <div className={endpointNeedsKey ? 'server-status direct' : `server-status ${serverStatus}`}>
+          <span>{endpointNeedsKey ? 'Direct mode' : 'Local server'}</span>
+          <strong>{serverStatusLabel(serverStatus, endpointNeedsKey)}</strong>
+          <p>{serverStatusCopy(serverStatus, endpointNeedsKey)}</p>
+        </div>
+
+        <div className="mode-row">
+          <button
+            className={!endpointNeedsKey ? 'secondary-button active-mode' : 'secondary-button'}
+            onClick={() => updateSettings({ ...settings, endpoint: DEFAULT_AI_SETTINGS.endpoint })}
+          >
+            Use private server
+          </button>
+          <button
+            className={endpointNeedsKey ? 'secondary-button active-mode' : 'secondary-button'}
+            onClick={() => updateSettings({ ...settings, endpoint: 'https://api.openai.com/v1/responses' })}
+          >
+            Use browser key
+          </button>
+        </div>
+
+        <div className={endpointNeedsKey ? 'ai-field' : 'ai-field hidden-field'}>
           <label htmlFor="ai-key">OpenAI API key</label>
           <input
             id="ai-key"
@@ -608,16 +655,17 @@ function AiCoachView({ selectedLesson }) {
           />
         </div>
 
-        <label className="toggle-row">
+        <label className={endpointNeedsKey ? 'toggle-row' : 'toggle-row hidden-field'}>
           <input
             type="checkbox"
             checked={settings.persistKey}
             onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
+            disabled={!endpointNeedsKey}
           />
           Remember key in this browser
         </label>
 
-        <div className="ai-settings-actions">
+        <div className={endpointNeedsKey ? 'ai-settings-actions' : 'ai-settings-actions hidden-field'}>
           <button className="primary-button" onClick={saveKey}>
             Save key
           </button>
@@ -631,8 +679,8 @@ function AiCoachView({ selectedLesson }) {
         <div className="security-note">
           <strong>Storage note</strong>
           <p>
-            A website cannot write to macOS Keychain directly. Session mode keeps the key until the tab session ends;
-            remember mode stores it in this browser only. Do not use this on a shared device.
+            Recommended mode is private server: the key stays on your Mac in Keychain or an environment variable.
+            Browser key mode is available for hosted use, but it puts the key inside the browser.
           </p>
         </div>
 
@@ -642,6 +690,26 @@ function AiCoachView({ selectedLesson }) {
       </aside>
     </section>
   );
+}
+
+function serverStatusLabel(status, directMode) {
+  if (directMode) return 'Browser will call OpenAI directly';
+  return {
+    checking: 'Checking...',
+    ready: 'Ready',
+    'missing-key': 'Server running, key missing',
+    offline: 'Not running',
+  }[status] || 'Unknown';
+}
+
+function serverStatusCopy(status, directMode) {
+  if (directMode) return 'Use this only if you accept storing or typing the key in this browser.';
+  return {
+    checking: 'Looking for the private Leaderman server on this device.',
+    ready: 'Your browser will ask your Mac server. The API key is not stored in the website.',
+    'missing-key': 'Run the Keychain setup once, or start the server with OPENAI_API_KEY.',
+    offline: 'Run npm run local:ai from the Leaderman folder, then reload this page.',
+  }[status] || 'Server status is unknown.';
 }
 
 function LearnView({ state, selectedLesson, session, setSelectedLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote }) {
