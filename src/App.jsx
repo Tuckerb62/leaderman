@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Bot,
   BookOpen,
   Brain,
   Check,
@@ -36,12 +35,6 @@ const navItems = [
   { id: 'library', label: 'Library', icon: Library },
   { id: 'progress', label: 'Progress', icon: LineChart },
 ];
-
-const ratingCopy = {
-  know: 'Got it',
-  later: 'Later',
-  work: 'Again',
-};
 
 function queryParam(name) {
   if (typeof window === 'undefined') return null;
@@ -99,6 +92,42 @@ function reviewBadge(review) {
   const due = new Date(`${review.dueAt}T12:00:00`);
   const days = Math.max(1, Math.round((due - today) / 86400000));
   return { label: `in ${days}d`, tone: 'later' };
+}
+
+const domainArtwork = {
+  'Self-Command': { mark: 'SC', accent: '#8d9a78', secondary: '#5f6a4d' },
+  Communication: { mark: 'CM', accent: '#b59a6a', secondary: '#7a6230' },
+  Influence: { mark: 'IF', accent: '#9e8064', secondary: '#604c38' },
+  Judgment: { mark: 'JD', accent: '#8f987f', secondary: '#4f5b43' },
+  Teams: { mark: 'TM', accent: '#a58d71', secondary: '#6d5840' },
+  Ethics: { mark: 'ET', accent: '#9e8f74', secondary: '#6e6046' },
+  Power: { mark: 'PW', accent: '#9e5e4f', secondary: '#65352f' },
+  Conflict: { mark: 'CF', accent: '#b17d61', secondary: '#714734' },
+  Systems: { mark: 'SY', accent: '#81958a', secondary: '#465a4f' },
+  'Technology/Future': { mark: 'AI', accent: '#8095a0', secondary: '#425862' },
+  Philosophy: { mark: 'PH', accent: '#9b9078', secondary: '#5b5445' },
+};
+
+function sourceInitials(label) {
+  return label
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 3)
+    .toUpperCase();
+}
+
+function feedArtwork(lesson, sources) {
+  const sourceTitle = sources[0]?.title || lesson.sourceBasis?.[0] || lesson.domain;
+  const domain = domainArtwork[lesson.domain] || {};
+  return {
+    mark: domain.mark || sourceInitials(sourceTitle || lesson.title) || 'LM',
+    sourceTitle,
+    accent: domain.accent || '#8d9a78',
+    secondary: domain.secondary || '#5f6a4d',
+  };
 }
 
 function displayLessonTitle(state, lessonId) {
@@ -373,6 +402,7 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
         <div className="feed-meta">
           <span>{formatTimer(elapsed)}</span>
           <span>{dueCount} due · {lessons.length} cards</span>
+          <span>Swipe up for the next one</span>
         </div>
       </header>
 
@@ -430,79 +460,98 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
 
 function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, onSkip, onSaveReflection, onOpenFull }) {
   const badge = reviewBadge(review);
+  const artwork = feedArtwork(lesson, sources);
   const [decision, setDecision] = useState('');
   const [reflection, setReflection] = useState('');
+  const cardStyle = {
+    '--feed-accent': artwork.accent,
+    '--feed-accent-2': artwork.secondary,
+  };
 
   if (rated?.compact) {
     return (
-      <article className="feed-card rated-line">
-        <span>{lesson.title}</span>
-        <small>{rated.rating === 'know' ? 'got it' : rated.rating === 'work' ? 'again' : 'skipped'}</small>
+      <article className="feed-card rated-line" style={cardStyle}>
+        <div className="feed-backdrop" aria-hidden="true">
+          <span className="feed-backdrop-mark">{artwork.mark}</span>
+          <span className="feed-backdrop-source">{artwork.sourceTitle}</span>
+        </div>
+        <div className="rated-line-content">
+          <span>{lesson.title}</span>
+          <small>{rated.rating === 'know' ? 'got it' : rated.rating === 'work' ? 'again' : 'skipped'}</small>
+        </div>
       </article>
     );
   }
 
   return (
-    <article className={expanded ? 'feed-card expanded' : 'feed-card'}>
-      <div className="feed-card-head">
-        <span className="domain-tag">{lesson.domain}</span>
-        <span className={`status-badge ${badge.tone}`}>{badge.label}</span>
+    <article className={expanded ? 'feed-card expanded' : 'feed-card'} style={cardStyle}>
+      <div className="feed-backdrop" aria-hidden="true">
+        <span className="feed-backdrop-mark">{artwork.mark}</span>
+        <span className="feed-backdrop-source">{artwork.sourceTitle}</span>
       </div>
-      <h2>{lesson.title}</h2>
-      <p className="core-idea">{lesson.coreIdea}</p>
-      {rated && <p className="rating-feedback">{rated.label}</p>}
-
-      {expanded && (
-        <div className="feed-expanded">
-          <div className="article-body">
-            {lesson.articleParagraphs.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </div>
-          <div className="two-column">
-            <InfoBlock title="What it gets right" text={lesson.whatItGetsRight} />
-            <InfoBlock title="Fidelity note" text={lesson.fidelityNote} />
-          </div>
-          <div className="lesson-section">
-            <h3>Scenario</h3>
-            <p>{lesson.scenario}</p>
-            <InfoBlock title="Practice rep" text={lesson.practiceRep} />
-          </div>
-          <DecisionOptions lesson={lesson} selected={decision} onSelect={setDecision} />
-          <div className="lesson-section">
-            <h3>Reflection</h3>
-            <p>{lesson.reflectionPrompt}</p>
-            <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private answer you want to remember..." />
-            <button
-              className="secondary-button"
-              onClick={() => {
-                onSaveReflection(reflection);
-                setReflection('');
-              }}
-            >
-              Save reflection
-            </button>
-          </div>
-          <div className="source-grid">
-            {sources.map((source) => (
-              <SourceMini key={source.id} source={source} />
-            ))}
-          </div>
-          <button className="text-link" onClick={onOpenFull}>Open full lesson →</button>
+      <div className="feed-card-content">
+        <div className="feed-card-head">
+          <span className="domain-tag">{lesson.domain}</span>
+          <span className={`status-badge ${badge.tone}`}>{badge.label}</span>
         </div>
-      )}
+        <h2>{lesson.title}</h2>
+        <p className="core-idea">{lesson.coreIdea}</p>
+        <p className="source-line">{artwork.sourceTitle}</p>
+        {rated && <p className="rating-feedback">{rated.label}</p>}
 
-      <div className="feed-actions">
-        <button className="quiet-button" onClick={() => onRate('know')}>
-          <Check size={15} />
-          Got it
-        </button>
-        <button className="quiet-button" onClick={() => onRate('work')}>
-          <RotateCcw size={15} />
-          Again
-        </button>
-        <button className="quiet-button" onClick={onSkip}>Skip</button>
-        <button className="text-link" onClick={onExpand}>{expanded ? 'Collapse' : 'Go deeper →'}</button>
+        {expanded && (
+          <div className="feed-expanded">
+            <div className="article-body">
+              {lesson.articleParagraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            <div className="two-column">
+              <InfoBlock title="What it gets right" text={lesson.whatItGetsRight} />
+              <InfoBlock title="Fidelity note" text={lesson.fidelityNote} />
+            </div>
+            <div className="lesson-section">
+              <h3>Scenario</h3>
+              <p>{lesson.scenario}</p>
+              <InfoBlock title="Practice rep" text={lesson.practiceRep} />
+            </div>
+            <DecisionOptions lesson={lesson} selected={decision} onSelect={setDecision} />
+            <div className="lesson-section">
+              <h3>Reflection</h3>
+              <p>{lesson.reflectionPrompt}</p>
+              <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private answer you want to remember..." />
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  onSaveReflection(reflection);
+                  setReflection('');
+                }}
+              >
+                Save reflection
+              </button>
+            </div>
+            <div className="source-grid">
+              {sources.map((source) => (
+                <SourceMini key={source.id} source={source} />
+              ))}
+            </div>
+            <button className="text-link" onClick={onOpenFull}>Open full lesson →</button>
+          </div>
+        )}
+
+        <div className="feed-actions">
+          <button className="quiet-button" onClick={() => onRate('know')}>
+            <Check size={15} />
+            Got it
+          </button>
+          <button className="quiet-button" onClick={() => onRate('work')}>
+            <RotateCcw size={15} />
+            Again
+          </button>
+          <button className="quiet-button" onClick={onSkip}>Skip</button>
+          <button className="text-link" onClick={onExpand}>{expanded ? 'Collapse' : 'Go deeper →'}</button>
+        </div>
+        {!expanded && <span className="swipe-hint">Swipe up</span>}
       </div>
     </article>
   );
