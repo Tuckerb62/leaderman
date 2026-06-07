@@ -426,14 +426,29 @@ select:focus {
 
 .feed-backdrop-source {
   position: absolute;
-  left: clamp(22px, 6vw, 86px);
-  top: 50%;
-  max-width: min(780px, 78vw);
-  color: rgba(247, 240, 228, 0.045);
-  font-size: clamp(3.2rem, 10vw, 10rem);
-  font-weight: 780;
-  line-height: 0.9;
-  transform: translateY(-50%);
+  right: clamp(20px, 5vw, 78px);
+  bottom: clamp(116px, 15vh, 176px);
+  display: grid;
+  justify-items: end;
+  max-width: min(460px, 70vw);
+  border-right: 1px solid rgba(247, 240, 228, 0.14);
+  color: rgba(247, 240, 228, 0.16);
+  padding-right: 16px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.feed-backdrop-source span {
+  font-size: clamp(1.1rem, 3.6vw, 3.8rem);
+  font-weight: 790;
+  line-height: 0.95;
+}
+
+.feed-backdrop-source small {
+  margin-top: 8px;
+  color: rgba(247, 240, 228, 0.11);
+  font-size: clamp(0.62rem, 1.2vw, 0.86rem);
+  font-weight: 760;
 }
 
 .feed-card-content {
@@ -1135,9 +1150,14 @@ details summary {
   }
 
   .feed-backdrop-source {
-    left: 18px;
-    max-width: 90vw;
-    font-size: clamp(3rem, 20vw, 6.8rem);
+    right: 18px;
+    bottom: 98px;
+    max-width: 56vw;
+    padding-right: 10px;
+  }
+
+  .feed-backdrop-source span {
+    font-size: clamp(1rem, 7vw, 2.15rem);
   }
 
   .ai-float-button {

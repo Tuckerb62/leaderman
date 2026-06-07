@@ -117,11 +117,14 @@ function sourceInitials(label) {
 }
 
 function feedArtwork(lesson, sources) {
-  const sourceTitle = sources[0]?.title || lesson.sourceBasis?.[0] || lesson.domain;
+  const source = sources[0];
+  const sourceTitle = source?.title || lesson.sourceBasis?.[0] || lesson.domain;
+  const sourceAuthor = source?.author || 'Source tradition';
   const domain = domainArtwork[lesson.domain] || {};
   return {
     mark: domain.mark || sourceInitials(sourceTitle || lesson.title) || 'LM',
     sourceTitle,
+    sourceAuthor,
     accent: domain.accent || '#8d9a78',
     secondary: domain.secondary || '#5f6a4d',
   };
@@ -607,7 +610,10 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
       <article className="feed-card rated-line" style={cardStyle} data-lesson-id={lesson.id}>
         <div className="feed-backdrop" aria-hidden="true">
           <span className="feed-backdrop-mark">{artwork.mark}</span>
-          <span className="feed-backdrop-source">{artwork.sourceTitle}</span>
+          <span className="feed-backdrop-source">
+            <span>{artwork.sourceTitle}</span>
+            <small>{artwork.sourceAuthor}</small>
+          </span>
         </div>
         <div className="rated-line-content">
           <span>{lesson.title}</span>
@@ -630,7 +636,10 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
     >
       <div className="feed-backdrop" aria-hidden="true">
         <span className="feed-backdrop-mark">{artwork.mark}</span>
-        <span className="feed-backdrop-source">{artwork.sourceTitle}</span>
+        <span className="feed-backdrop-source">
+          <span>{artwork.sourceTitle}</span>
+          <small>{artwork.sourceAuthor}</small>
+        </span>
       </div>
       <div className="feed-card-content">
         <div className="feed-card-head">
