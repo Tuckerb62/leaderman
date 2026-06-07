@@ -49,6 +49,24 @@ function keyFromKeychain() {
   }
 }
 
+function saveKeyToKeychain(apiKey) {
+  if (process.platform !== 'darwin') {
+    throw new Error('macOS Keychain saving is only available on macOS.');
+  }
+  execFileSync('/usr/bin/security', [
+    'add-generic-password',
+    '-a',
+    userInfo().username,
+    '-s',
+    SERVICE_NAME,
+    '-w',
+    apiKey,
+    '-U',
+  ], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+}
+
 function getApiKey() {
   const envKey = process.env.OPENAI_API_KEY?.trim();
   if (envKey) return { key: envKey, source: 'environment' };
@@ -114,6 +132,38 @@ async function proxyOpenAI(req, res) {
   res.end(text);
 }
 
+async function saveOpenAIKey(req, res) {
+  if (host !== '127.0.0.1' && host !== 'localhost') {
+    json(res, 403, {
+      error: {
+        message: 'Saving to Keychain is only allowed from the Mac-only local server. Use npm run local:ai.',
+      },
+    });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (error) {
+    json(res, 400, { error: { message: error.message } });
+    return;
+  }
+
+  const apiKey = String(body.apiKey || '').trim();
+  if (!apiKey) {
+    json(res, 400, { error: { message: 'No API key was provided.' } });
+    return;
+  }
+
+  try {
+    saveKeyToKeychain(apiKey);
+    json(res, 200, { ok: true, source: 'macOS Keychain' });
+  } catch (error) {
+    json(res, 500, { error: { message: error.message || 'Could not save key to Keychain.' } });
+  }
+}
+
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const decodedPath = decodeURIComponent(url.pathname);
@@ -161,6 +211,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && req.url?.startsWith('/api/openai-responses')) {
       await proxyOpenAI(req, res);
+      return;
+    }
+    if (req.method === 'POST' && req.url?.startsWith('/api/save-openai-key')) {
+      await saveOpenAIKey(req, res);
       return;
     }
     if (req.method === 'GET' || req.method === 'HEAD') {

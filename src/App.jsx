@@ -425,14 +425,30 @@ function AiCoachView({ selectedLesson }) {
   const [isAsking, setIsAsking] = useState(false);
   const [notice, setNotice] = useState('');
   const [serverStatus, setServerStatus] = useState('checking');
+  const [keychainKey, setKeychainKey] = useState('');
+  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
   const endpointNeedsKey = requiresClientApiKey(settings.endpoint);
 
-  useEffect(() => {
+  function refreshServerStatus() {
     if (endpointNeedsKey) {
       setServerStatus('direct');
       return;
     }
+    setServerStatus('checking');
+    fetch('/api/ai-health')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
+      .then((payload) => setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key'))
+      .catch(() => setServerStatus('offline'));
+  }
+
+  useEffect(() => {
     let cancelled = false;
+    if (endpointNeedsKey) {
+      setServerStatus('direct');
+      return () => {
+        cancelled = true;
+      };
+    }
     setServerStatus('checking');
     fetch('/api/ai-health')
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
@@ -464,6 +480,31 @@ function AiCoachView({ selectedLesson }) {
     setDraftKey('');
     setSettings({ ...settings, apiKey: '', hasStoredKey: false });
     setNotice('API key cleared.');
+  }
+
+  async function saveKeychainKey() {
+    const cleanKey = keychainKey.trim();
+    if (!cleanKey || isSavingKeychain) return;
+    setIsSavingKeychain(true);
+    setNotice('');
+    try {
+      const response = await fetch('/api/save-openai-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: cleanKey }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || 'Could not save the key.');
+      }
+      setKeychainKey('');
+      setNotice('API key saved to macOS Keychain.');
+      refreshServerStatus();
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setIsSavingKeychain(false);
+    }
   }
 
   async function askQuestion(prompt = question) {
@@ -623,6 +664,29 @@ function AiCoachView({ selectedLesson }) {
           >
             Use browser key
           </button>
+        </div>
+
+        <div className={endpointNeedsKey ? 'keychain-save hidden-field' : 'keychain-save'}>
+          <div className="ai-field">
+            <label htmlFor="keychain-key">Save key to Mac Keychain</label>
+            <input
+              id="keychain-key"
+              type="password"
+              value={keychainKey}
+              onChange={(event) => setKeychainKey(event.target.value)}
+              placeholder="Paste once, save to Keychain"
+              autoComplete="off"
+              disabled={serverStatus === 'offline'}
+            />
+          </div>
+          <button
+            className="primary-button wide"
+            onClick={saveKeychainKey}
+            disabled={!keychainKey.trim() || isSavingKeychain || serverStatus === 'offline'}
+          >
+            {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
+          </button>
+          <p>Use this once on your Mac. The app sends the key only to the local server at this address.</p>
         </div>
 
         <div className={endpointNeedsKey ? 'ai-field' : 'ai-field hidden-field'}>
