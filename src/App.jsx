@@ -348,6 +348,28 @@ export default function App() {
     }));
   }
 
+  function saveReadingProgress(lessonId, chapterIndex, markComplete = false) {
+    setState((current) => {
+      const existing = current.readingProgress?.[lessonId] || { completedChapters: [] };
+      const completedChapters = markComplete
+        ? Array.from(new Set([...(existing.completedChapters || []), chapterIndex])).sort((a, b) => a - b)
+        : existing.completedChapters || [];
+      const next = markCurrentStudied(current);
+      return {
+        ...next,
+        readingProgress: {
+          ...(next.readingProgress || {}),
+          [lessonId]: {
+            lessonId,
+            chapterIndex,
+            completedChapters,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      };
+    });
+  }
+
   async function importBackup(file) {
     if (!file) return;
     const text = await file.text();
@@ -384,6 +406,7 @@ export default function App() {
     rateCurrentLesson,
     saveReflection,
     saveLessonNote,
+    saveReadingProgress,
     rememberFeedLesson,
     session,
   };
@@ -813,6 +836,64 @@ function InfoList({ title, items }) {
   );
 }
 
+function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapter, onCompleteChapter }) {
+  const currentChapter = chapters[currentIndex] || chapters[0];
+  const completed = new Set(progress?.completedChapters || []);
+  const completedCount = completed.size;
+  const percent = Math.round((completedCount / chapters.length) * 100);
+
+  return (
+    <div className="chapter-reader">
+      <div className="chapter-reader-head">
+        <div>
+          <p className="reading-meta">
+            Source basis: {lesson.sourceBasis.join(', ')} · {chapters.length} chapter summaries
+          </p>
+          <h3>{currentChapter.title}</h3>
+        </div>
+        <span>{completedCount}/{chapters.length} read</span>
+      </div>
+
+      <div className="chapter-progress" aria-label={`${percent}% read`}>
+        <span style={{ width: `${percent}%` }} />
+      </div>
+
+      <div className="chapter-reader-layout">
+        <div className="chapter-list" aria-label={`${lesson.title} chapter summaries`}>
+          {chapters.map((chapter, index) => (
+            <button key={chapter.id} className={index === currentIndex ? 'chapter-row active' : 'chapter-row'} onClick={() => onSelectChapter(index)}>
+              <span>{completed.has(index) ? 'Read' : `Ch ${chapter.number}`}</span>
+              <strong>{chapter.title.replace(/^Chapter \d+:\s*/, '')}</strong>
+            </button>
+          ))}
+        </div>
+
+        <article className="chapter-card">
+          <p>{currentChapter.summary}</p>
+          {currentChapter.keyPoints?.length > 0 && (
+            <div className="chapter-keypoints">
+              <span>Remember</span>
+              <ul>
+                {currentChapter.keyPoints.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="chapter-actions">
+            <button className="secondary-button" onClick={() => onSelectChapter(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
+              Previous
+            </button>
+            <button className="success-button" onClick={onCompleteChapter}>
+              {currentIndex >= chapters.length - 1 ? 'Mark read' : 'Mark read & continue'}
+            </button>
+          </div>
+        </article>
+      </div>
+    </div>
+  );
+}
+
 function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   const lessonBySlug = new Map(state.lessons.map((lesson) => [lesson.slug, lesson]));
   const stoicSchool = philosophySchools.find((school) => school.id === 'stoicism');
@@ -887,9 +968,13 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   );
 }
 
-function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote }) {
+function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote, saveReadingProgress }) {
   const summaryLesson = isSummaryLesson(selectedLesson);
+  const savedReadingProgress = state.readingProgress?.[selectedLesson.id];
+  const chapterSummaries = selectedLesson.chapterSummaries || [];
+  const savedChapterIndex = Math.max(0, Math.min(chapterSummaries.length - 1, savedReadingProgress?.chapterIndex || 0));
   const [step, setStep] = useState(() => (summaryLesson ? 'summary' : 'article'));
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(savedChapterIndex);
   const [reflection, setReflection] = useState('');
   const [decision, setDecision] = useState('');
   const [showFidelity, setShowFidelity] = useState(false);
@@ -899,9 +984,20 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
 
   useEffect(() => {
     setStep(isSummaryLesson(selectedLesson) ? 'summary' : 'article');
+    setCurrentChapterIndex(Math.max(0, Math.min((selectedLesson.chapterSummaries || []).length - 1, state.readingProgress?.[selectedLesson.id]?.chapterIndex || 0)));
     setDecision('');
     setContextLessonId(selectedLesson.id);
-  }, [selectedLesson.id, setContextLessonId]);
+  }, [selectedLesson.id, setContextLessonId, state.readingProgress]);
+
+  function selectChapter(index, markComplete = false) {
+    setCurrentChapterIndex(index);
+    saveReadingProgress(selectedLesson.id, index, markComplete);
+  }
+
+  function completeCurrentChapter() {
+    const nextIndex = Math.min(chapterSummaries.length - 1, currentChapterIndex + 1);
+    selectChapter(nextIndex, true);
+  }
 
   return (
     <section className="learn-grid">
@@ -922,7 +1018,18 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
           ))}
         </div>
 
-        {summaryLesson && step === 'summary' && (
+        {summaryLesson && step === 'summary' && chapterSummaries.length > 0 && (
+          <ChapterReader
+            lesson={selectedLesson}
+            chapters={chapterSummaries}
+            currentIndex={currentChapterIndex}
+            progress={savedReadingProgress}
+            onSelectChapter={selectChapter}
+            onCompleteChapter={completeCurrentChapter}
+          />
+        )}
+
+        {summaryLesson && step === 'summary' && chapterSummaries.length === 0 && (
           <div className="article-section">
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
@@ -1130,15 +1237,22 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
         </div>
 
         <div className="library-list">
-          {filteredLessons.map((lesson) => (
-            <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openLesson(lesson.id)}>
-              <div>
-                <strong>{lesson.title}</strong>
-                <p>{lesson.coreIdea}</p>
-              </div>
-              <span>{lesson.domain}</span>
-            </button>
-          ))}
+          {filteredLessons.map((lesson) => {
+            const progress = state.readingProgress?.[lesson.id];
+            const chapterCount = lesson.chapterSummaries?.length || 0;
+            return (
+              <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openLesson(lesson.id)}>
+                <div>
+                  <strong>{lesson.title}</strong>
+                  <p>{lesson.coreIdea}</p>
+                </div>
+                <span className="library-row-meta">
+                  {lesson.domain}
+                  {chapterCount > 0 && <small>{progress ? `Chapter ${progress.chapterIndex + 1}/${chapterCount}` : `${chapterCount} chapters`}</small>}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

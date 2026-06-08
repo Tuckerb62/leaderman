@@ -14,6 +14,8 @@ describe('seed lesson articles', () => {
         expect(lesson.summaryBullets.length).toBeGreaterThanOrEqual(4);
         expect(lesson.timeline.length).toBeGreaterThanOrEqual(4);
         expect(lesson.themeNotes.length).toBeGreaterThanOrEqual(4);
+        expect(lesson.chapterSummaries.length).toBeGreaterThanOrEqual(8);
+        expect(lesson.chapterSummaries[0].title).toContain('Chapter 1:');
         expect(lesson.fidelityNote).toContain('copyright-safe synthesis');
         expect(lesson.scenario).toContain('memory map');
       } else {

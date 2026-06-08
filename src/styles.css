@@ -615,6 +615,123 @@ select:focus {
   padding-left: 2px;
 }
 
+.chapter-reader {
+  display: grid;
+  gap: 14px;
+}
+
+.chapter-reader-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.chapter-reader-head h3 {
+  margin-bottom: 0;
+}
+
+.chapter-reader-head span,
+.chapter-keypoints span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chapter-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(141, 154, 120, 0.14);
+}
+
+.chapter-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-dark);
+}
+
+.chapter-reader-layout {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.chapter-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.chapter-row {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--paper-line);
+  border-radius: var(--radius);
+  background: rgba(255, 252, 246, 0.55);
+  color: var(--ink);
+  padding: 10px;
+  text-align: left;
+}
+
+.chapter-row.active {
+  border-color: var(--accent-dark);
+  background: rgba(141, 154, 120, 0.16);
+}
+
+.chapter-row span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.chapter-row strong {
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.chapter-card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(247, 240, 228, 0.16);
+  border-radius: var(--radius);
+  background: rgba(247, 240, 228, 0.93);
+  padding: 17px;
+}
+
+.chapter-card p {
+  margin: 0;
+  color: #4a443b;
+}
+
+.chapter-keypoints {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--paper-line);
+  padding-top: 12px;
+}
+
+.chapter-keypoints ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: #4a443b;
+}
+
+.chapter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .info-block span,
 .fidelity-row span,
 .source-card span,
@@ -787,9 +904,23 @@ select:focus {
 }
 
 .queue-row small,
-.library-row span {
+.library-row span,
+.library-row-meta small {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.library-row-meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 92px;
+  text-align: right;
+}
+
+.library-row-meta small {
+  font-weight: 720;
+  text-transform: uppercase;
 }
 
 .search-row {
@@ -1204,8 +1335,16 @@ details summary {
   }
 
   .two-column,
+  .chapter-reader-layout,
   .progress-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .chapter-list {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(150px, 70%);
+    overflow-x: auto;
+    max-height: none;
   }
 
   .philosophy-hero {
@@ -1274,5 +1413,15 @@ details summary {
 
   .two-column {
     grid-template-columns: 1fr;
+  }
+
+  .chapter-reader-head,
+  .library-section-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .library-row {
+    align-items: start;
   }
 }

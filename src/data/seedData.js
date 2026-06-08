@@ -2290,6 +2290,63 @@ const summarySpecs = [
   },
 ];
 
+function buildChapterSummaries(spec) {
+  const chapterDrafts = [
+    {
+      anchor: spec.timeline[0] || spec.summaryBullets[0] || 'Opening frame',
+      summary: spec.articleParagraphs[0],
+      keyPoints: [spec.summaryBullets[0], spec.timeline[0], spec.themeNotes[0]],
+    },
+    {
+      anchor: spec.timeline[1] || spec.summaryBullets[1] || 'Rising pressure',
+      summary: spec.articleParagraphs[1] || spec.articleParagraphs[0],
+      keyPoints: [spec.summaryBullets[1], spec.timeline[1], spec.themeNotes[1]],
+    },
+    {
+      anchor: spec.timeline[2] || spec.summaryBullets[2] || 'Complication',
+      summary: spec.articleParagraphs[2] || spec.articleParagraphs[1],
+      keyPoints: [spec.summaryBullets[2], spec.timeline[2], spec.themeNotes[2]],
+    },
+    {
+      anchor: spec.timeline[3] || spec.summaryBullets[3] || 'Resolution pattern',
+      summary: spec.articleParagraphs[3] || spec.articleParagraphs[2],
+      keyPoints: [spec.summaryBullets[3], spec.timeline[3], spec.themeNotes[3]],
+    },
+    {
+      anchor: spec.summaryBullets[0] || 'Key point',
+      summary: `This chapter-level study note slows down the first major point: ${spec.summaryBullets[0] || spec.coreIdea} In the larger arc of ${spec.title}, this is the idea to keep in mind before moving into the next section.`,
+      keyPoints: [spec.summaryBullets[0], spec.themeNotes[0]],
+    },
+    {
+      anchor: spec.summaryBullets[1] || 'Second movement',
+      summary: `The next movement centers on this pressure point: ${spec.summaryBullets[1] || spec.coreIdea} Read it as a turning point, not just as a fact. It changes what the characters, institutions, or historical actors are able to do next.`,
+      keyPoints: [spec.summaryBullets[1], spec.themeNotes[1]],
+    },
+    {
+      anchor: spec.timeline[2] || spec.summaryBullets[2] || 'Later turn',
+      summary: `This checkpoint matters because it shows the consequences beginning to narrow: ${spec.timeline[2] || spec.summaryBullets[2] || spec.coreIdea} The useful reading move is to ask what earlier decision, belief, or pressure made this turn possible.`,
+      keyPoints: [spec.timeline[2], spec.summaryBullets[2], spec.themeNotes[2]],
+    },
+    {
+      anchor: spec.themeNotes[3] || spec.summaryBullets[3] || 'What to remember',
+      summary: `The final study note is the memory hook for ${spec.title}: ${spec.themeNotes.join(' ')} Use this as the short recall frame when you come back later and need to remember why this work or historical period matters.`,
+      keyPoints: [spec.themeNotes[0], spec.themeNotes[1], spec.themeNotes[2], spec.themeNotes[3]],
+    },
+  ];
+
+  return chapterDrafts.map((chapter, index) => {
+    const anchor = chapter.anchor || spec.title;
+    const cleanAnchor = anchor.replace(/^\d{3,4}( BCE| CE)?[:/ -]*/i, '').replace(/\.$/, '');
+    return {
+      id: `${spec.slug}-chapter-${index + 1}`,
+      number: index + 1,
+      title: `Chapter ${index + 1}: ${cleanAnchor}`,
+      summary: chapter.summary,
+      keyPoints: chapter.keyPoints.filter(Boolean),
+    };
+  });
+}
+
 const summaryLessons = summarySpecs.map((spec, index) => ({
   id: `lesson-${spec.slug}`,
   slug: spec.slug,
@@ -2317,6 +2374,7 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
   summaryBullets: spec.summaryBullets,
   timeline: spec.timeline,
   themeNotes: spec.themeNotes,
+  chapterSummaries: spec.chapterSummaries || buildChapterSummaries(spec),
   historicalExample: null,
   sourceBasis: spec.sourceIds.map((id) => sourceTitle(id)),
   fidelityNote:
@@ -2346,6 +2404,7 @@ export const createInitialState = () => ({
   sessions: [],
   reflections: [],
   notes: {},
+  readingProgress: {},
   settings: {
     dailyGoalCards: 10,
     currentFocus: 'Decision Quality',

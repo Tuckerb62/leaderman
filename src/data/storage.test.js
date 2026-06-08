@@ -57,4 +57,20 @@ describe('storage import', () => {
 
     expect(parsed.settings.resume).toMatchObject(backup.settings.resume);
   });
+
+  it('keeps reading bookmarks when importing a backup', () => {
+    const backup = createInitialState();
+    backup.readingProgress = {
+      'lesson-summary-way-kings': {
+        lessonId: 'lesson-summary-way-kings',
+        chapterIndex: 2,
+        completedChapters: [0, 1],
+        updatedAt: '2026-06-07T12:00:00.000Z',
+      },
+    };
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.readingProgress['lesson-summary-way-kings']).toMatchObject(backup.readingProgress['lesson-summary-way-kings']);
+  });
 });

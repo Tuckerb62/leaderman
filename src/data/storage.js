@@ -11,6 +11,10 @@ function normalizeUserState(parsed) {
     sources: seeded.sources,
     lessons: seeded.lessons,
     sessions: (parsed.sessions || []).slice(0, MAX_SESSIONS),
+    readingProgress: {
+      ...seeded.readingProgress,
+      ...(parsed.readingProgress || {}),
+    },
     reviews: {
       ...seeded.reviews,
       ...(parsed.reviews || {}),
