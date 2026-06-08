@@ -1601,13 +1601,20 @@ function FloatingAiPanel({ lesson }) {
 }
 
 function FidelityPanel({ lesson }) {
-  const rows = [
-    ['Source basis', lesson.sourceBasis.join(', ')],
-    ['History lens', lesson.historicalExample?.title || 'General leadership history'],
-    ['Analogy', lesson.historicalExample?.analogy || 'Pattern matched to context.'],
-    ['Caution', lesson.ethicsCheck],
-    ['Fidelity', lesson.fidelityNote],
-  ];
+  const summaryLesson = isSummaryLesson(lesson);
+  const rows = summaryLesson
+    ? [
+        ['Source basis', lesson.sourceBasis.join(', ')],
+        ['Summary type', lesson.summaryKind === 'History' ? 'World history study guide' : 'Novel study guide'],
+        ['Study note', lesson.fidelityNote],
+      ]
+    : [
+        ['Source basis', lesson.sourceBasis.join(', ')],
+        ['History lens', lesson.historicalExample?.title || 'General leadership history'],
+        ['Analogy', lesson.historicalExample?.analogy || 'Pattern matched to context.'],
+        ['Caution', lesson.ethicsCheck],
+        ['Fidelity', lesson.fidelityNote],
+      ];
   return (
     <div className="fidelity-panel">
       <p className="section-label">Fidelity notes</p>
