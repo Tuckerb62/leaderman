@@ -700,7 +700,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}
       onKeyDown={handleGestureKeyDown}
-      aria-label={`${lesson.title}. Swipe right for got it, left for again, up to skip, or double tap to go deeper.`}
+      aria-label={`${lesson.title} lesson card`}
     >
       <div className="feed-backdrop" aria-hidden="true">
         <span className="feed-backdrop-mark">{artwork.mark}</span>
@@ -725,15 +725,17 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
 
         {expanded && !summaryLesson && (
           <div className="feed-expanded">
+            <InfoList title="Quick version" items={lesson.quickVersion || []} />
             <div className="article-body">
               {lesson.articleParagraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
             </div>
             <div className="two-column">
-              <InfoBlock title="What it gets right" text={lesson.whatItGetsRight} />
-              <InfoBlock title="Fidelity note" text={lesson.fidelityNote} />
+              <InfoList title="Break Down" items={lesson.breakDown || []} />
+              <InfoList title="Remember" items={lesson.remember || []} />
             </div>
+            <QuestionList questions={lesson.questions || []} />
             <div className="lesson-section">
               <h3>Scenario</h3>
               <p>{lesson.scenario}</p>
@@ -762,8 +764,6 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
             <button className="text-link" onClick={onOpenFull}>Open full lesson →</button>
           </div>
         )}
-
-        {!expanded && <span className="swipe-hint">Right got it · left again · up skip · double tap deeper</span>}
       </div>
     </article>
   );
@@ -803,6 +803,12 @@ function DecisionOptions({ lesson, selected, onSelect }) {
 function SummaryLessonBody({ lesson, sources, onOpenFull }) {
   return (
     <div className="feed-expanded summary-expanded">
+      {lesson.coverImageUrl && (
+        <div className="summary-hero-image">
+          <img src={lesson.coverImageUrl} alt="" loading="lazy" />
+        </div>
+      )}
+      <InfoList title="Quick version" items={lesson.quickVersion || lesson.summaryBullets || []} />
       <div className="article-body">
         {lesson.articleParagraphs.map((paragraph) => (
           <p key={paragraph}>{paragraph}</p>
@@ -812,7 +818,8 @@ function SummaryLessonBody({ lesson, sources, onOpenFull }) {
         <InfoList title="Key points" items={lesson.summaryBullets || []} />
         <InfoList title={lesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={lesson.timeline || []} />
       </div>
-      <InfoList title="Themes to remember" items={lesson.themeNotes || []} />
+      <InfoList title="Remember" items={lesson.remember || lesson.themeNotes || []} />
+      {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
       <div className="source-grid">
         {sources.map((source) => (
           <SourceMini key={source.id} source={source} />
@@ -824,6 +831,7 @@ function SummaryLessonBody({ lesson, sources, onOpenFull }) {
 }
 
 function InfoList({ title, items }) {
+  if (!items?.length) return null;
   return (
     <div className="lesson-section">
       <h3>{title}</h3>
@@ -832,6 +840,23 @@ function InfoList({ title, items }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function QuestionList({ questions }) {
+  if (!questions?.length) return null;
+  return (
+    <div className="lesson-section">
+      <h3>Questions</h3>
+      <div className="question-list">
+        {questions.map((question) => (
+          <div key={`${question.type}-${question.prompt}`} className="question-row">
+            <span>{question.type}</span>
+            <p>{question.prompt}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -845,11 +870,17 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
   return (
     <div className="chapter-reader">
       <div className="chapter-reader-head">
-        <div>
+        {lesson.coverImageUrl && (
+          <div className="chapter-cover">
+            <img src={lesson.coverImageUrl} alt="" loading="lazy" />
+          </div>
+        )}
+        <div className="chapter-reader-title">
           <p className="reading-meta">
             Source basis: {lesson.sourceBasis.join(', ')} · {chapters.length} chapter summaries
           </p>
           <h3>{currentChapter.title}</h3>
+          {lesson.collectionTitle && <p className="chapter-collection-tag">{lesson.collectionTitle}</p>}
         </div>
         <span>{completedCount}/{chapters.length} read</span>
       </div>
@@ -860,26 +891,34 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
 
       <div className="chapter-reader-layout">
         <div className="chapter-list" aria-label={`${lesson.title} chapter summaries`}>
-          {chapters.map((chapter, index) => (
-            <button key={chapter.id} className={index === currentIndex ? 'chapter-row active' : 'chapter-row'} onClick={() => onSelectChapter(index)}>
-              <span>{completed.has(index) ? 'Read' : `Ch ${chapter.number}`}</span>
-              <strong>{chapter.title.replace(/^Chapter \d+:\s*/, '')}</strong>
-            </button>
-          ))}
+          {chapters.map((chapter, index) => {
+            const hideFutureNovelTitle = lesson.summaryKind === 'Novel' && index > currentIndex && !completed.has(index);
+            const rowTitle = hideFutureNovelTitle ? `Chapter ${chapter.number}` : chapter.title.replace(/^Chapter \d+:\s*/, '');
+            return (
+              <button key={chapter.id} className={index === currentIndex ? 'chapter-row active' : 'chapter-row'} onClick={() => onSelectChapter(index)}>
+                <span>{completed.has(index) ? 'Read' : `Ch ${chapter.number}`}</span>
+                <strong>{rowTitle}</strong>
+              </button>
+            );
+          })}
         </div>
 
         <article className="chapter-card">
-          <p>{currentChapter.summary}</p>
-          {currentChapter.keyPoints?.length > 0 && (
-            <div className="chapter-keypoints">
-              <span>Remember</span>
-              <ul>
-                {currentChapter.keyPoints.map((point) => (
-                  <li key={point}>{point}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <div className="article-body">
+            {(currentChapter.retelling || currentChapter.summary.split(/\n\s*\n/)).map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          <div className="two-column">
+            <InfoBlock title="What changed" text={currentChapter.whatChanged} />
+            <InfoBlock title="Why it matters" text={currentChapter.whyItMatters} />
+          </div>
+          <div className="two-column">
+            <InfoList title="Break Down" items={currentChapter.breakDown || []} />
+            <InfoList title="Remember" items={currentChapter.remember || currentChapter.keyPoints || []} />
+          </div>
+          {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
+          <QuestionList questions={currentChapter.questions || []} />
           <div className="chapter-actions">
             <button className="secondary-button" onClick={() => onSelectChapter(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
               Previous
@@ -980,7 +1019,9 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
   const [showFidelity, setShowFidelity] = useState(false);
   const sources = selectedLesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean);
   const sessionProgress = session ? `${session.currentIndex + 1} / ${session.lessonIds.length}` : 'Solo lesson';
-  const stepItems = summaryLesson ? ['summary', 'details', 'themes', 'notes'] : ['article', 'scenario', 'decision', 'reflection'];
+  const stepItems = summaryLesson
+    ? ['summary', 'overview', 'breakdown', 'questions', 'notes']
+    : ['article', 'breakdown', 'questions', 'scenario', 'decision', 'reflection'];
 
   useEffect(() => {
     setStep(isSummaryLesson(selectedLesson) ? 'summary' : 'article');
@@ -1031,6 +1072,11 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
 
         {summaryLesson && step === 'summary' && chapterSummaries.length === 0 && (
           <div className="article-section">
+            {selectedLesson.coverImageUrl && (
+              <div className="summary-hero-image">
+                <img src={selectedLesson.coverImageUrl} alt="" loading="lazy" />
+              </div>
+            )}
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
             </p>
@@ -1042,14 +1088,39 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
           </div>
         )}
 
-        {summaryLesson && step === 'details' && (
-          <div className="two-column">
-            <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
-            <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
+        {summaryLesson && step === 'overview' && (
+          <div className="article-section">
+            {selectedLesson.coverImageUrl && (
+              <div className="summary-hero-image">
+                <img src={selectedLesson.coverImageUrl} alt="" loading="lazy" />
+              </div>
+            )}
+            <p className="reading-meta">
+              Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
+            </p>
+            <InfoList title="Quick version" items={selectedLesson.quickVersion || selectedLesson.summaryBullets || []} />
+            <div className="article-body">
+              {selectedLesson.articleParagraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            <div className="two-column">
+              <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
+              <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
+            </div>
+            <InfoList title="Remember" items={selectedLesson.remember || selectedLesson.themeNotes || []} />
+            {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
           </div>
         )}
 
-        {summaryLesson && step === 'themes' && <InfoList title="Themes to remember" items={selectedLesson.themeNotes || []} />}
+        {summaryLesson && step === 'breakdown' && (
+          <>
+            <InfoList title="Break Down" items={selectedLesson.breakDown || []} />
+            {selectedLesson.reflectionLens && <InfoBlock title="Why it stays relevant" text={selectedLesson.reflectionLens} />}
+          </>
+        )}
+
+        {summaryLesson && step === 'questions' && <QuestionList questions={selectedLesson.questions || []} />}
 
         {summaryLesson && step === 'notes' && (
           <div className="lesson-section">
@@ -1073,6 +1144,7 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Historical lens: {selectedLesson.historicalExample?.title || 'Leadership history'}
             </p>
+            <InfoList title="Quick version" items={selectedLesson.quickVersion || []} />
             <div className="article-body">
               {selectedLesson.articleParagraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
@@ -1080,10 +1152,14 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             </div>
             <div className="two-column">
               <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
-              <InfoBlock title="Fidelity note" text={selectedLesson.fidelityNote} />
+              <InfoList title="Remember" items={selectedLesson.remember || []} />
             </div>
           </div>
         )}
+
+        {!summaryLesson && step === 'breakdown' && <InfoList title="Break Down" items={selectedLesson.breakDown || []} />}
+
+        {!summaryLesson && step === 'questions' && <QuestionList questions={selectedLesson.questions || []} />}
 
         {!summaryLesson && step === 'scenario' && (
           <div className="lesson-section">
@@ -1167,10 +1243,33 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
   const [query, setQuery] = useState('');
   const [folderId, setFolderId] = useState('books');
   const [domain, setDomain] = useState('All');
+  const [collectionId, setCollectionId] = useState(null);
   const selectedFolder = libraryFolders.find((folder) => folder.id === folderId) || libraryFolders[0];
   const SelectedIcon = selectedFolder.icon;
-  const domainOptions = selectedFolder.id === 'all' ? [] : selectedFolder.domains.filter((item) => state.lessons.some((lesson) => lesson.domain === item));
-  const folderLessonCount = selectedFolder.id === 'all' ? state.lessons.length : state.lessons.filter((lesson) => selectedFolder.domains.includes(lesson.domain)).length;
+  const folderLessons = selectedFolder.id === 'all' ? state.lessons : state.lessons.filter((lesson) => selectedFolder.domains.includes(lesson.domain));
+  const isCollectionShelf = selectedFolder.id === 'books' || selectedFolder.id === 'history';
+  const domainOptions = isCollectionShelf || selectedFolder.id === 'all' ? [] : selectedFolder.domains.filter((item) => state.lessons.some((lesson) => lesson.domain === item));
+  const folderLessonCount = folderLessons.length;
+  const collectionOptions = useMemo(() => {
+    if (!isCollectionShelf) return [];
+    const map = new Map();
+    folderLessons.forEach((lesson) => {
+      const key = lesson.collectionId || lesson.domain;
+      const current = map.get(key) || {
+        id: key,
+        title: lesson.collectionTitle || lesson.domain,
+        description: lesson.collectionDescription || lesson.coreIdea,
+        imageUrl: lesson.collectionImageUrl || lesson.coverImageUrl || null,
+        order: lesson.collectionOrder || 999,
+        count: 0,
+      };
+      current.count += 1;
+      map.set(key, current);
+    });
+    return [...map.values()].sort((left, right) => (left.order - right.order) || left.title.localeCompare(right.title));
+  }, [folderLessons, isCollectionShelf]);
+  const selectedCollection = collectionOptions.find((item) => item.id === collectionId) || collectionOptions[0] || null;
+  const activeCollectionId = isCollectionShelf ? selectedCollection?.id || null : null;
   const folderStats = selectedFolder.domains
     .map((item) => ({
       domain: item,
@@ -1178,17 +1277,29 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
       sources: state.sources.filter((source) => source.domain === item).length,
     }))
     .filter((item) => item.lessons > 0 || item.sources > 0);
-  const filteredLessons = state.lessons.filter((lesson) => {
+  const filteredLessons = folderLessons.filter((lesson) => {
     const text = `${lesson.title} ${lesson.domain} ${lesson.coreIdea} ${(lesson.tags || []).join(' ')}`.toLowerCase();
-    const inFolder = selectedFolder.id === 'all' || selectedFolder.domains.includes(lesson.domain);
-    return inFolder && (domain === 'All' || lesson.domain === domain) && text.includes(query.toLowerCase());
+    const inCollection = !activeCollectionId || lesson.collectionId === activeCollectionId;
+    return inCollection && (domain === 'All' || lesson.domain === domain) && text.includes(query.toLowerCase());
   });
+  const filteredSourceIds = new Set(filteredLessons.flatMap((lesson) => lesson.sourceIds || []));
   const filteredSources = state.sources.filter((source) => {
     const text = `${source.title} ${source.author} ${source.domain} ${source.usefulIdea} ${(source.tags || []).join(' ')}`.toLowerCase();
+    if (isCollectionShelf) return filteredSourceIds.has(source.id) && text.includes(query.toLowerCase());
     const inFolder = selectedFolder.id === 'all' || selectedFolder.domains.includes(source.domain);
     return inFolder && (domain === 'All' || source.domain === domain) && text.includes(query.toLowerCase());
   });
   const sourcePreview = filteredSources.slice(0, 5);
+
+  useEffect(() => {
+    if (!isCollectionShelf) {
+      setCollectionId(null);
+      return;
+    }
+    if (!collectionOptions.some((item) => item.id === collectionId)) {
+      setCollectionId(collectionOptions[0]?.id || null);
+    }
+  }, [collectionId, collectionOptions, isCollectionShelf]);
 
   function openLesson(lessonId) {
     setSelectedLessonId(lessonId);
@@ -1199,6 +1310,7 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
   function chooseFolder(nextFolderId) {
     setFolderId(nextFolderId);
     setDomain('All');
+    setCollectionId(null);
   }
 
   return (
@@ -1214,10 +1326,15 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
             <SelectedIcon size={20} />
           </span>
           <div className="library-shelf-copy">
-            <p className="section-label">Current shelf</p>
-            <h2>{selectedFolder.title}</h2>
-            <p>{selectedFolder.description}</p>
+            <p className="section-label">{isCollectionShelf && selectedCollection ? selectedFolder.title : 'Current shelf'}</p>
+            <h2>{isCollectionShelf && selectedCollection ? selectedCollection.title : selectedFolder.title}</h2>
+            <p>{isCollectionShelf && selectedCollection ? selectedCollection.description : selectedFolder.description}</p>
           </div>
+          {isCollectionShelf && selectedCollection?.imageUrl && (
+            <div className="library-shelf-art">
+              <img src={selectedCollection.imageUrl} alt="" loading="lazy" />
+            </div>
+          )}
           <label className="shelf-switcher">
             <span>Switch shelf</span>
             <select value={folderId} onChange={(event) => chooseFolder(event.target.value)}>
@@ -1229,6 +1346,24 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
             </select>
           </label>
         </div>
+
+        {isCollectionShelf && collectionOptions.length > 0 && (
+          <div className="collection-strip" aria-label={`${selectedFolder.title} collections`}>
+            {collectionOptions.map((collection) => (
+              <button
+                key={collection.id}
+                className={selectedCollection?.id === collection.id ? 'collection-chip active' : 'collection-chip'}
+                onClick={() => setCollectionId(collection.id)}
+              >
+                {collection.imageUrl && <img src={collection.imageUrl} alt="" loading="lazy" />}
+                <div>
+                  <strong>{collection.title}</strong>
+                  <small>{collection.count} items</small>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {domainOptions.length > 0 && (
           <div className="domain-filter compact">
@@ -1243,7 +1378,7 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
         <div className="library-section-head">
           <div>
             <p className="section-label">{selectedFolder.title}</p>
-            <h3>{domain === 'All' ? 'Choose what to read' : domain}</h3>
+            <h3>{isCollectionShelf ? `${selectedCollection?.title || selectedFolder.title} reading list` : domain === 'All' ? 'Choose what to read' : domain}</h3>
           </div>
           <span>{filteredLessons.length} of {folderLessonCount} cards</span>
         </div>
@@ -1254,12 +1389,14 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
             const chapterCount = lesson.chapterSummaries?.length || 0;
             return (
               <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openLesson(lesson.id)}>
-                <div>
+                {lesson.coverImageUrl && <img className="library-row-cover" src={lesson.coverImageUrl} alt="" loading="lazy" />}
+                <div className="library-row-copy">
                   <strong>{lesson.title}</strong>
                   <p>{lesson.coreIdea}</p>
+                  {lesson.collectionTitle && isCollectionShelf && <small>{lesson.summaryKind === 'History' ? 'History guide' : lesson.collectionTitle}</small>}
                 </div>
                 <span className="library-row-meta">
-                  {lesson.domain}
+                  {lesson.summaryKind === 'History' ? 'History' : lesson.domain}
                   {chapterCount > 0 && <small>{progress ? `Chapter ${progress.chapterIndex + 1}/${chapterCount}` : `${chapterCount} chapters`}</small>}
                 </span>
               </button>
@@ -1269,15 +1406,24 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
       </div>
 
       <aside className="source-list-panel library-context-panel">
-        <p className="section-label">Inside this shelf</p>
-        <div className="shelf-breakdown">
-          {folderStats.map((item) => (
-            <button key={item.domain} className={domain === item.domain ? 'shelf-breakdown-row active' : 'shelf-breakdown-row'} onClick={() => setDomain(item.domain)}>
-              <span>{item.domain}</span>
-              <small>{item.lessons} cards</small>
-            </button>
-          ))}
-        </div>
+        <p className="section-label">{isCollectionShelf ? 'Shelf note' : 'Inside this shelf'}</p>
+        {isCollectionShelf && selectedCollection ? (
+          <article className="source-card compact collection-context-card">
+            <span>{selectedFolder.title}</span>
+            <h3>{selectedCollection.title}</h3>
+            <p>{selectedCollection.description}</p>
+            <small>{filteredLessons.length} readable items</small>
+          </article>
+        ) : (
+          <div className="shelf-breakdown">
+            {folderStats.map((item) => (
+              <button key={item.domain} className={domain === item.domain ? 'shelf-breakdown-row active' : 'shelf-breakdown-row'} onClick={() => setDomain(item.domain)}>
+                <span>{item.domain}</span>
+                <small>{item.lessons} cards</small>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="source-preview-head">
           <p className="section-label">Source preview</p>
           <span>{filteredSources.length}</span>
@@ -1630,18 +1776,19 @@ function FidelityPanel({ lesson }) {
     ? [
         ['Source basis', lesson.sourceBasis.join(', ')],
         ['Summary type', lesson.summaryKind === 'History' ? 'World history study guide' : 'Novel study guide'],
-        ['Study note', lesson.fidelityNote],
+        ...(lesson.summaryKind === 'History' && lesson.reflectionLens ? [['Leadership reflection', lesson.reflectionLens]] : []),
+        ['Source note', lesson.fidelityNote],
       ]
     : [
         ['Source basis', lesson.sourceBasis.join(', ')],
         ['History lens', lesson.historicalExample?.title || 'General leadership history'],
         ['Analogy', lesson.historicalExample?.analogy || 'Pattern matched to context.'],
         ['Caution', lesson.ethicsCheck],
-        ['Fidelity', lesson.fidelityNote],
-      ];
+        ['Source note', lesson.fidelityNote],
+      ].filter(([, text]) => Boolean(text));
   return (
     <div className="fidelity-panel">
-      <p className="section-label">Fidelity notes</p>
+      <p className="section-label">Source notes</p>
       {rows.map(([label, text]) => (
         <div key={label} className="fidelity-row">
           <span>{label}</span>
@@ -1653,6 +1800,7 @@ function FidelityPanel({ lesson }) {
 }
 
 function InfoBlock({ title, text }) {
+  if (!text) return null;
   return (
     <div className="info-block">
       <span>{title}</span>

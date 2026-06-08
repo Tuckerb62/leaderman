@@ -544,8 +544,189 @@ const historicalExamples = {
   },
 };
 
+const domainFrames = {
+  'Self-Command': {
+    problem: 'The problem usually begins inside the leader before it shows up in the room.',
+    signal: 'Use this when your attention, emotion, resentment, or ambition starts steering the decision before you have chosen a response.',
+    firstMove: 'Slow the reaction enough to name the next useful action.',
+    mistake: 'The common failure is calling an impulse a principle because it feels intense.',
+  },
+  Communication: {
+    problem: 'The problem is often not a lack of words, but words that make the other person defend the wrong thing.',
+    signal: 'Use this when the conversation is getting louder while the facts, impact, or request are getting less clear.',
+    firstMove: 'Put the observable issue into plain language before you add interpretation.',
+    mistake: 'The common failure is trying to win the tone of the exchange instead of improving the shared picture.',
+  },
+  Influence: {
+    problem: 'The problem is influence that moves people without increasing clarity.',
+    signal: 'Use this when you need cooperation but do not want compliance built on confusion, pressure, or image management.',
+    firstMove: 'Make the reason, ask, and choice architecture visible.',
+    mistake: 'The common failure is mistaking fast agreement for durable commitment.',
+  },
+  Judgment: {
+    problem: 'The problem is treating unlike decisions as if they deserve the same process.',
+    signal: 'Use this when stakes, reversibility, evidence, and human cost are uneven.',
+    firstMove: 'Name what kind of decision this is before arguing for an answer.',
+    mistake: 'The common failure is optimizing for confidence before understanding the shape of the choice.',
+  },
+  Teams: {
+    problem: 'The problem is usually coordination, trust, or permission, not raw effort.',
+    signal: 'Use this when people are waiting, guessing, duplicating work, or privately saying what the group needed to hear earlier.',
+    firstMove: 'Clarify the rule of participation, ownership, or decision rights.',
+    mistake: 'The common failure is blaming people for not using a norm that was never made explicit.',
+  },
+  Ethics: {
+    problem: 'The problem is power getting clever before it gets honest.',
+    signal: 'Use this when a tactic would work partly because the other person cannot see the cost, refuse freely, or question the frame.',
+    firstMove: 'Make the real ask, downside, and option to decline visible.',
+    mistake: 'The common failure is calling manipulation strategy because it produced the desired answer.',
+  },
+  Power: {
+    problem: 'The problem is forgetting that authority changes what people feel safe saying.',
+    signal: 'Use this when your role, status, access, or control makes other people edit themselves around you.',
+    firstMove: 'Name the constraint your power creates and reduce unnecessary ambiguity.',
+    mistake: 'The common failure is reading compliance as trust.',
+  },
+  Conflict: {
+    problem: 'The problem is a dispute that has become a contest of positions instead of a search for the thing at stake.',
+    signal: 'Use this when people keep repeating demands, boundaries, accusations, or threats without learning anything new.',
+    firstMove: 'Move one layer down: behavior, interest, standard, consequence, or next step.',
+    mistake: 'The common failure is treating escalation as clarity.',
+  },
+  Systems: {
+    problem: 'The problem is a pattern that keeps reproducing itself after individual effort should have solved it.',
+    signal: 'Use this when the same issue returns with different names, owners, or excuses.',
+    firstMove: 'Map the loop, incentive, constraint, or missing feedback signal.',
+    mistake: 'The common failure is demanding heroics from people inside a badly shaped system.',
+  },
+  'Technology/Future': {
+    problem: 'The problem is letting new tools outrun accountability.',
+    signal: 'Use this when speed, automation, or technical fluency makes a claim feel more reliable than it has earned.',
+    firstMove: 'Add a verification step and decide who remains accountable.',
+    mistake: 'The common failure is confusing output quality with judgment quality.',
+  },
+  Philosophy: {
+    problem: 'The problem is an abstract idea staying abstract when the learner needs a way to live with it.',
+    signal: 'Use this when the same human question keeps returning under pressure: fear, desire, duty, attention, status, grief, or choice.',
+    firstMove: 'Translate the idea into one testable way of seeing or acting today.',
+    mistake: 'The common failure is turning philosophy into a motto instead of a disciplined practice.',
+  },
+  'Self-Help': {
+    problem: 'The problem is advice that sounds inspiring but never becomes a repeatable behavior.',
+    signal: 'Use this when motivation spikes and fades while the environment keeps producing the old pattern.',
+    firstMove: 'Shrink the idea into one cue, rep, feedback signal, or support.',
+    mistake: 'The common failure is blaming character when design, health, help, or constraints are the real issue.',
+  },
+  Literature: {
+    problem: 'The problem is seeing a story as decoration instead of as a rehearsal for judgment.',
+    signal: 'Use this when a character mistake resembles a real leadership temptation: obsession, pride, mercy, class blindness, or evasion.',
+    firstMove: 'Name the human pressure in the scene and the decision habit it exposes.',
+    mistake: 'The common failure is turning the novel into a slogan and losing the uncomfortable detail.',
+  },
+  History: {
+    problem: 'The problem is using history as a moral poster instead of a disciplined explanation.',
+    signal: 'Use this when present pressure resembles an older pattern of incentives, fear, legitimacy, or institutional weakness.',
+    firstMove: 'Ask what each actor wanted, feared, controlled, and misunderstood.',
+    mistake: 'The common failure is extracting a clean lesson from a messy event too quickly.',
+  },
+};
+
+const lessonOverrides = {
+  'hidden-rule': {
+    quickVersion: [
+      'Teams often stay quiet because the rule for speaking is unclear.',
+      'Silence may mean confusion, caution, or fear, not agreement.',
+      'Leaders lower anxiety by naming how participation should work.',
+      'A useful phrase is: "Rough ideas are welcome before polished answers."',
+      'The invitation only works if dissent is not punished later.',
+    ],
+    articleParagraphs: [
+      'New teams rarely fail because nobody has ideas. More often, people are trying to guess the rule of the room. Is this a meeting where rough ideas are welcome, or only polished answers? Are junior people supposed to challenge the plan, or wait until senior people speak first? Is disagreement treated as help, or as making trouble?',
+      'When the rule is invisible, silence starts to look like agreement. A leader may think everyone seems fine with the plan while the team is actually holding back risks. Newer members, quieter people, and people with less power often wait for a signal before speaking. Without that signal, they protect themselves by nodding along or saving the real concern for a private conversation later.',
+      'Making the hidden rule visible means saying the participation norm out loud. Instead of hoping people understand the culture, the leader names it: "I want rough ideas before polished answers," or "I need someone to poke holes in this before we commit." That small sentence changes the room because it tells people what kind of contribution is wanted.',
+      'The Toyota production example matters because quality improved when problems could be surfaced early rather than hidden until they became expensive. The transferable lesson is not a factory ritual; it is permission design. People need to know whether naming a defect, doubt, or half-formed thought will be treated as useful information.',
+      'The danger is hypocrisy. If a leader invites dissent and then punishes the first person who disagrees, the team learns a darker rule: the official rule was fake. Trust does not merely stay the same; it gets worse. The hidden rule becomes, "Speak honestly only if you can afford the consequences."',
+    ],
+    breakDown: [
+      'The problem is not always lack of ideas. It may be unclear permission.',
+      'The signal is silence, vague agreement, or only senior people speaking.',
+      'The first move is to name the participation rule out loud.',
+      'A good version sounds like: "Rough ideas are welcome before polished answers."',
+      'The common mistake is inviting honesty and then reacting defensively.',
+      'Avoid asking for dissent when the decision is already closed.',
+    ],
+    remember: [
+      'Hidden rules create unnecessary silence.',
+      'People with less power need clearer permission to speak.',
+      'Silence is not the same as agreement.',
+      'Safety gets worse if dissent is punished later.',
+    ],
+    questions: [
+      { type: 'Recall', prompt: 'What does it mean to make a hidden rule visible?' },
+      { type: 'Scenario', prompt: 'You are leading a meeting and only the senior people are speaking. What could you say first?' },
+      { type: 'Judgment', prompt: 'When might inviting open disagreement backfire?' },
+      { type: 'Reflection', prompt: 'When have you stayed quiet because the rule of the room was unclear?' },
+    ],
+  },
+  'power-test': {
+    quickVersion: [
+      'Influence becomes unethical when people cannot clearly reason, refuse, or understand consequences.',
+      'Power changes how freely someone can say no.',
+      'Ethical leadership makes the real ask, tradeoff, and options visible.',
+      'A useful phrase is: "Here is what I am asking, here is why, and here are your real options."',
+      'Watch for praise used as pressure, hidden downsides, selective information, and costly refusal.',
+    ],
+    articleParagraphs: [
+      'The Power Test asks a simple question before you use influence: can the other person still think clearly, understand the consequences, and refuse without being punished? If the answer is no, the tactic may be effective, but it is not clean leadership. It is pressure wearing the clothes of persuasion.',
+      'Power changes the room before anyone gives an order. A manager can call an assignment an "opportunity" while the employee hears, "Declining this may hurt my future." A senior person can ask for feedback while everyone calculates whether honesty will be remembered later. The more authority you hold, the more work you must do to make the choice real.',
+      'Ethical influence makes the ask visible. It says what is needed, why it matters, what the tradeoff is, and what options the other person actually has. A clean version sounds like: "Here is what I am asking, here is why, and here are your real options." That sentence does not remove pressure, but it reduces hidden pressure.',
+      'The Roman fear of kingship is useful here because it shows why unconstrained power creates anxiety even when the powerful person claims necessity. People do not only ask whether a leader means well. They ask what would happen if the leader stopped meaning well, or if refusing became expensive.',
+      'Warning signs are concrete: praise that makes refusal feel disloyal, peer pressure disguised as consensus, selective information, hidden downsides, rushed consent, and options that exist only in theory. The practice is to make the downside speakable before agreement is requested.',
+    ],
+    breakDown: [
+      'The problem is influence that works because the other person cannot freely evaluate it.',
+      'The signal is hidden cost, rushed consent, fear of disappointing authority, or missing downside information.',
+      'The first move is to state the real ask, reason, tradeoff, and real options.',
+      'Good use sounds like: "Here is what I am asking, here is why, and here are your real options."',
+      'The common mistake is treating agreement as consent when refusal would be punished.',
+      'Avoid using praise, urgency, or group pressure to close off thought.',
+    ],
+    remember: [
+      'Power makes refusal harder.',
+      'Clean influence keeps consequences visible.',
+      'Agreement under hidden pressure is weak evidence of consent.',
+      'The leader is responsible for making the real choice understandable.',
+    ],
+    questions: [
+      { type: 'Recall', prompt: 'What three capacities does the Power Test protect?' },
+      { type: 'Scenario', prompt: 'You want someone to accept an unpopular assignment. What should you make visible before they answer?' },
+      { type: 'Judgment', prompt: 'Why can praise become pressure when it comes from a powerful person?' },
+      { type: 'Reflection', prompt: 'When have you said yes partly because refusing felt costly?' },
+    ],
+  },
+  'habit-identity': {
+    quickVersion: [
+      'A habit is not only a task; it is a vote for a future identity.',
+      'Tiny repeatable reps beat dramatic resets that collapse after three days.',
+      'The cue matters because it tells the behavior when to start.',
+      'The right question is: what kind of person does this repetition make easier to become?',
+      'Do not use habit language to blame people for constraints that require support.',
+    ],
+    articleParagraphs: [
+      'Identity-based habit work solves a familiar problem: people try to become disciplined by designing a life that only a disciplined person could already execute. The new plan is impressive for three days, then the old environment returns and the plan quietly disappears.',
+      'The deeper move is smaller and more durable. Choose a behavior tiny enough to repeat when motivation is ordinary, then attach it to a cue that already exists. Two minutes of reading after making coffee is not heroic, but it gives the day a reliable vote: I am someone who returns to the work.',
+      'The leadership value is not personal optimization for its own sake. A leader who understands habit loops can design meetings, handoffs, attention blocks, and recovery routines that make good behavior easier to repeat. Culture is partly a collection of repeated cues.',
+      'The mistake is moralizing every failure. If a person is exhausted, grieving, unsupported, or working inside a broken environment, a tiny habit may help but it will not solve the real constraint. Good habit design asks what can be repeated and what support must change.',
+      'A practical decision rule: shrink the rep until it can survive a bad day, then measure whether it changes the next action. If the rep only looks impressive in a notebook, it is branding. If it changes tomorrow morning, it is training.',
+    ],
+  },
+};
+
+function lessonFrame(lesson) {
+  return domainFrames[lesson.domain] || domainFrames.Judgment;
+}
+
 function buildLessonArticle(lesson) {
-  const sourceNames = lesson.sourceIds.map(sourceTitle).join(', ');
   const example = historicalExamples[lesson.slug] || {
     title: 'Historical leadership pattern',
     summary:
@@ -553,14 +734,66 @@ function buildLessonArticle(lesson) {
     analogy:
       'A leadership idea is like a tool in a workshop: useful when matched to the material, dangerous when swung at every problem the same way.',
   };
+  const frame = lessonFrame(lesson);
+
+  if (lessonOverrides[lesson.slug]?.articleParagraphs) {
+    return lessonOverrides[lesson.slug].articleParagraphs;
+  }
 
   return [
-    `${lesson.title} is not a slogan; it is a decision habit. This lesson draws on ${sourceNames}, but it is deliberately paraphrased rather than treated as a substitute for the original works. The core idea is simple: ${lesson.coreIdea}`,
-    `The leadership mistake this guards against is using one comfortable move for every situation. ${lesson.whatItGetsRight} At the same time, ${lesson.whatItMisses.toLowerCase()} A serious learner should hold the useful idea and the limitation together rather than turning either into doctrine.`,
-    `Historical example: ${example.title}. ${example.summary} The point is not that history gives an identical script for today. The point is that history gives tested patterns: people react to incentives, power changes what can be said, information arrives unevenly, and decisions carry second-order consequences.`,
-    `Analogy: ${example.analogy} In your own life, the practical question is not “do I understand this concept?” but “can I recognize the moment when this concept should change my behavior?” The practice rep is: ${lesson.practiceRep}`,
-    `Use the idea with discipline. ${lesson.opposingView} That opposing view may be right in some contexts, especially when urgency, safety, or formal authority matters more than dialogue. The fidelity rule for this lesson is to cite the source tradition, use the historical example as a pattern rather than proof, and avoid pretending one book or case settles every situation.`,
-    `Caution: ${lesson.ethicsCheck} A future leader needs power literacy, but power literacy should increase truthfulness, consent, accountability, and restraint. Review question: ${lesson.reviewPrompt}`,
+    `${frame.problem} ${lesson.coreIdea}`,
+    `${frame.signal} In the app scenario, ${lesson.scenario.charAt(0).toLowerCase()}${lesson.scenario.slice(1)} That is the moment to stop looking for a grand theory and choose a concrete move.`,
+    `${frame.firstMove} For this lesson, the practice rep is specific: ${lesson.practiceRep} The value is that the learner can try it in one conversation, meeting, decision, or review cycle instead of merely agreeing with the concept.`,
+    `${example.title} gives the idea a sharper edge. ${example.summary} The useful pattern is not a script to copy; it is a reminder to ask how incentives, fear, authority, and information are shaping what people can actually do.`,
+    `${example.analogy} The mistake to avoid is also concrete: ${frame.mistake} ${lesson.ethicsCheck}`,
+    `The tradeoff in ${lesson.title} is that ${lesson.opposingView.charAt(0).toLowerCase()}${lesson.opposingView.slice(1)} Good judgment means knowing when this move improves clarity and when the situation needs a faster command, a firmer boundary, outside help, or a different process.`,
+  ];
+}
+
+function buildQuickVersion(lesson) {
+  if (lessonOverrides[lesson.slug]?.quickVersion) return lessonOverrides[lesson.slug].quickVersion;
+  const frame = lessonFrame(lesson);
+  return [
+    lesson.coreIdea,
+    frame.signal,
+    `Practice it with one concrete move: ${lesson.practiceRep}`,
+    `The mistake to avoid: ${frame.mistake}`,
+    `Use the caution as a guardrail: ${lesson.ethicsCheck}`,
+  ];
+}
+
+function buildBreakDown(lesson) {
+  if (lessonOverrides[lesson.slug]?.breakDown) return lessonOverrides[lesson.slug].breakDown;
+  const frame = lessonFrame(lesson);
+  return [
+    frame.problem,
+    frame.signal,
+    frame.firstMove,
+    `What good use looks like: ${lesson.practiceRep}`,
+    `The common mistake: ${frame.mistake}`,
+    `What to avoid: ${lesson.ethicsCheck}`,
+  ];
+}
+
+function buildRemember(lesson) {
+  if (lessonOverrides[lesson.slug]?.remember) return lessonOverrides[lesson.slug].remember;
+  const example = historicalExamples[lesson.slug];
+  return [
+    lesson.reviewPrompt,
+    lessonFrame(lesson).signal,
+    `Practice phrase/action: ${lesson.practiceRep}`,
+    example ? `${example.title} is the memory example.` : `Use ${lesson.title} as a pressure-tested decision habit.`,
+    `Easy to forget: ${lesson.ethicsCheck}`,
+  ];
+}
+
+function buildLessonQuestions(lesson) {
+  if (lessonOverrides[lesson.slug]?.questions) return lessonOverrides[lesson.slug].questions;
+  return [
+    { type: 'Recall', prompt: lesson.reviewPrompt },
+    { type: 'Scenario', prompt: `In this situation, what is the best first move: ${lesson.scenario}` },
+    { type: 'Judgment', prompt: `When would ${lesson.title.toLowerCase()} be the wrong or incomplete move?` },
+    { type: 'Reflection', prompt: lesson.reflectionPrompt },
   ];
 }
 
@@ -1582,6 +1815,114 @@ export const sourceCards = [
     tags: ['novel', 'classic', 'gothic'],
   },
   {
+    id: 'src-summary-alloy-law',
+    title: 'The Alloy of Law',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'Mistborn Era Two reframes Allomancy as frontier detective fiction, blending law, class, railways, and urban crime.',
+    usefulIdea: 'The book shows how a world changes when earlier myth becomes inherited infrastructure.',
+    blindSpot: 'A summary cannot reproduce the tonal mix of banter, investigation, action, and historical continuity from Era One.',
+    opposingView: 'Some readers see it as a lighter bridge novel rather than the full weight of a new saga.',
+    application: 'Use this card to remember Wax, Wayne, Marasi, Steris, the Vanishers, and the new shape of Scadrial.',
+    tags: ['novel', 'fantasy', 'mistborn', 'sanderson'],
+  },
+  {
+    id: 'src-summary-shadows-self',
+    title: 'Shadows of Self',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'The second Wax and Wayne novel turns lawkeeping into a personal crisis around autonomy, divine guidance, and political manipulation.',
+    usefulIdea: 'The book asks what justice means when the state, religion, and intimate loyalty begin to overlap.',
+    blindSpot: 'A summary compresses the emotional impact of Bleeder, Lessie, and Harmony’s difficult role.',
+    opposingView: 'Readers vary on whether the novel works more as mystery, tragedy, or theological problem.',
+    application: 'Use this card to track Wax’s personal stakes, Bleeder’s challenge, and the city-level consequences.',
+    tags: ['novel', 'fantasy', 'mistborn', 'sanderson'],
+  },
+  {
+    id: 'src-summary-bands-mourning',
+    title: 'The Bands of Mourning',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'A race for a legendary artifact becomes a wider story about myth, imperial memory, and hidden technological escalation.',
+    usefulIdea: 'The novel is about how legends are used politically long after the people inside them are gone.',
+    blindSpot: 'A summary loses the expedition rhythm, surprise identities, and late cosmere-scale reveals.',
+    opposingView: 'Some readers prize the adventure pace more than the book’s growing geopolitical implications.',
+    application: 'Use this card to remember the journey south, the Malwish, the artifact chase, and the shifting picture of history.',
+    tags: ['novel', 'fantasy', 'mistborn', 'sanderson'],
+  },
+  {
+    id: 'src-summary-lost-metal',
+    title: 'The Lost Metal',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'The Era Two finale combines city security, cosmere-scale interference, sacrifice, and industrial-age brinkmanship.',
+    usefulIdea: 'The ending asks how ordinary civic duty, friendship, and intelligence work stand beside larger magical conflict.',
+    blindSpot: 'A summary cannot recreate the payoff for long-running character chemistry and cosmere crossover knowledge.',
+    opposingView: 'Some readers love the expanded cosmere scope; others prefer the tighter detective feel of earlier Wax and Wayne books.',
+    application: 'Use this card to remember the Set’s final moves, Wayne’s arc, and the broader stakes around Scadrial.',
+    tags: ['novel', 'fantasy', 'mistborn', 'sanderson'],
+  },
+  {
+    id: 'src-summary-tress',
+    title: 'Tress of the Emerald Sea',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'A fairy-tale voyage across deadly spore seas becomes a story about devotion, resourcefulness, and quietly stubborn courage.',
+    usefulIdea: 'The novel works by making competence feel gentle rather than grandiose.',
+    blindSpot: 'A summary cannot capture the narrator’s voice, the whimsical tone, or the tactile strangeness of the seas.',
+    opposingView: 'Some readers treat it as a lighter side adventure; others see it as one of Sanderson’s clearest statements about practical heroism.',
+    application: 'Use this card to remember Tress, Charlie, the Crow’s Song, the Sorceress, and the sea-spore system.',
+    tags: ['novel', 'fantasy', 'cosmere', 'sanderson'],
+  },
+  {
+    id: 'src-summary-yumi',
+    title: 'Yumi and the Nightmare Painter',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'Two isolated young people across linked worlds are forced into each other’s lives, turning ritual, artistry, loneliness, and memory into a romance-mystery.',
+    usefulIdea: 'The book studies duty and creativity by putting one character inside rigid ritual and the other inside exhausted drift.',
+    blindSpot: 'A summary reduces the emotional accumulation of small routines, visual atmosphere, and gradual revelation.',
+    opposingView: 'Some readers respond most to the romance, while others focus on the metaphysical mystery and commentary on art.',
+    application: 'Use this card to remember Yumi, Painter, the yokihijo rituals, nightmares, and the hidden history binding both worlds.',
+    tags: ['novel', 'fantasy', 'cosmere', 'sanderson'],
+  },
+  {
+    id: 'src-summary-sunlit-man',
+    title: 'The Sunlit Man',
+    author: 'Brandon Sanderson',
+    domain: 'Novel Summaries',
+    coreArgument: 'A fugitive crossing a lethal world becomes a compressed action novel about debt, identity, courage, and choosing responsibility again.',
+    usefulIdea: 'The book asks what remains of a person after long evasion and repeated survival choices.',
+    blindSpot: 'A summary loses the speed, pressure, and payoffs for readers following wider cosmere threads.',
+    opposingView: 'Some readers see it as a cosmere lore sprint; others see it as a character reckoning told at high velocity.',
+    application: 'Use this card to remember Nomad, Canticle, the Cinder King, Aux, and the theme of carrying old vows into new danger.',
+    tags: ['novel', 'fantasy', 'cosmere', 'sanderson'],
+  },
+  {
+    id: 'src-summary-count-monte-cristo',
+    title: 'The Count of Monte Cristo',
+    author: 'Alexandre Dumas',
+    domain: 'Novel Summaries',
+    coreArgument: 'A wrongfully imprisoned sailor escapes, becomes immensely powerful, and turns revenge into a vast test of justice, identity, and mercy.',
+    usefulIdea: 'The novel is a revenge engine that keeps asking whether mastery over events can ever master moral consequence.',
+    blindSpot: 'A summary cannot reproduce the scale, serial momentum, disguises, and cumulative irony of Dumas’s plotting.',
+    opposingView: 'Some readers treat it as pure adventure; others see the second half as a moral critique of revenge itself.',
+    application: 'Use this card to remember Edmond Dantes, Chateau d’If, Abbe Faria, the Count’s aliases, and the final turn toward mercy.',
+    tags: ['novel', 'classic', 'adventure'],
+  },
+  {
+    id: 'src-summary-iliad',
+    title: 'The Iliad',
+    author: 'Attributed to Homer',
+    domain: 'Novel Summaries',
+    coreArgument: 'The Iliad is not the whole Trojan War but a concentrated epic about rage, honor, mortality, grief, and the cost of heroic glory.',
+    usefulIdea: 'Its power comes from narrowing the war to Achilles’ wrath and its consequences for friends, enemies, and the doomed city.',
+    blindSpot: 'A summary cannot replace the poem’s speeches, similes, divine interventions, or oral-epic structure.',
+    opposingView: 'Some readings emphasize heroism and battlefield excellence; others stress pity, futility, and the shared mortality of all sides.',
+    application: 'Use this card to remember Achilles, Agamemnon, Hector, Patroclus, Priam, and the movement from wrath toward grief.',
+    tags: ['novel', 'classic', 'epic'],
+  },
+  {
     id: 'src-history-classical-japan',
     title: 'Classical Japan: Heian Court and Samurai Rise',
     author: 'Historical case synthesis',
@@ -1725,6 +2066,114 @@ export const sourceCards = [
     application: 'Use this card to remember causes, trench warfare, Versailles, fascism, appeasement, Holocaust, total war, and postwar order.',
     tags: ['history', 'europe', 'world-war'],
   },
+  {
+    id: 'src-history-periclean-athens',
+    title: 'Periclean Athens',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Periclean Athens combined democratic confidence, naval empire, public building, and rhetorical leadership in ways that looked brilliant and brittle at the same time.',
+    usefulIdea: 'The period shows how civic greatness can depend on imperial extraction and disciplined storytelling.',
+    blindSpot: 'The evidence comes through elite authors and cannot fully recover ordinary Athenians, women, or the enslaved.',
+    opposingView: 'Some accounts celebrate democratic creativity; others stress coercion, exclusion, and the costs imposed on allies.',
+    application: 'Use this card to remember Pericles, the Delian League, democratic prestige, and the tensions before the Peloponnesian War.',
+    tags: ['history', 'greece', 'athens', 'pericles'],
+  },
+  {
+    id: 'src-history-peloponnesian-war',
+    title: 'The Peloponnesian War',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'The long war between Athens and Sparta became a study in fear, overreach, plague, faction, and the exhaustion of a whole Greek world.',
+    usefulIdea: 'The war is a classic lesson in how power competition destroys the confidence that made power possible.',
+    blindSpot: 'Even Thucydides, the central source, frames events selectively and cannot stand for every Greek perspective.',
+    opposingView: 'Some readings stress realist interstate rivalry; others emphasize internal politics, leadership failure, and contingency.',
+    application: 'Use this card to remember Archidamian war, plague, Sicilian disaster, Persian involvement, and Athens’s defeat.',
+    tags: ['history', 'greece', 'war', 'thucydides'],
+  },
+  {
+    id: 'src-history-philip-macedon',
+    title: 'Philip II and Macedon',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Philip II transformed Macedon into the military and political system that made Alexander’s later conquests possible.',
+    usefulIdea: 'Great conquests usually begin in institutional preparation before they appear as personal genius.',
+    blindSpot: 'Philip is often overshadowed by Alexander, which can flatten the importance of reform, diplomacy, and dynastic strategy.',
+    opposingView: 'Some historians focus on Philip’s battlefield innovations; others emphasize diplomacy, marriage politics, and Greek disunity.',
+    application: 'Use this card to remember Macedonian reform, Chaeronea, and the preconditions for the Hellenistic age.',
+    tags: ['history', 'greece', 'macedon', 'philip-ii'],
+  },
+  {
+    id: 'src-history-julius-caesar',
+    title: 'Julius Caesar',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Caesar rose through ambition, patronage, war, debt, and public spectacle until the Roman Republic could no longer contain him without collapsing further.',
+    usefulIdea: 'He is essential for studying tempo, narrative control, and how extraordinary success can hollow out republican restraint.',
+    blindSpot: 'Caesar’s own writing and later hostile or admiring accounts complicate any simple neutral reading.',
+    opposingView: 'Some accounts frame him as destroyer of the republic; others see him as product of a republic already breaking down.',
+    application: 'Use this card to remember Gaul, the Rubicon, civil war, dictatorship, assassination, and the republic’s terminal weakness.',
+    tags: ['history', 'rome', 'caesar', 'republic'],
+  },
+  {
+    id: 'src-history-augustus',
+    title: 'Augustus',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Augustus converted civil-war victory into durable rule by hiding monarchy inside restored order, public benefit, and familiar Roman forms.',
+    usefulIdea: 'His regime shows how legitimacy can be manufactured through symbolism, patience, and institution-wrapping.',
+    blindSpot: 'A short summary can make Augustan stability look cleaner than the violence and coercion that preceded it.',
+    opposingView: 'Some histories emphasize the peace and administrative success; others stress the loss of republican freedom.',
+    application: 'Use this card to remember Octavian, Actium, the Principate, propaganda, and the settlement of power after civil war.',
+    tags: ['history', 'rome', 'augustus', 'empire'],
+  },
+  {
+    id: 'src-history-trajan-hadrian',
+    title: 'Trajan and Hadrian',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Trajan and Hadrian mark two different imperial styles: expansion to a high-water mark and then consolidation, administration, and defensible limits.',
+    usefulIdea: 'Together they show the difference between pushing frontier glory and governing for endurance.',
+    blindSpot: 'Pairing them on one card compresses important provincial, military, and local differences across both reigns.',
+    opposingView: 'Some accounts celebrate Trajan’s expansion; others judge Hadrian’s restraint as the more durable imperial choice.',
+    application: 'Use this card to remember Dacia, eastern expansion, Hadrian’s Wall, travel, and the shift from conquest to consolidation.',
+    tags: ['history', 'rome', 'emperors', 'trajan', 'hadrian'],
+  },
+  {
+    id: 'src-history-marcus-aurelius',
+    title: 'Marcus Aurelius',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Marcus Aurelius is remembered as a philosopher-emperor, but his reign was also marked by plague, frontier war, internal strain, and succession difficulty.',
+    usefulIdea: 'He is useful because private seriousness did not remove public crisis; virtue still had to govern under pressure.',
+    blindSpot: 'Stoic admiration can blur the costs of war, persecution, and the limitations of one ruler’s character inside a stressed system.',
+    opposingView: 'Some readers idealize Marcus as model ruler; others stress that good intentions did not solve structural decline.',
+    application: 'Use this card to remember the Meditations, Marcomannic Wars, Antonine Plague, and the tension between philosophy and imperial reality.',
+    tags: ['history', 'rome', 'emperors', 'stoicism'],
+  },
+  {
+    id: 'src-history-constantine',
+    title: 'Constantine',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Constantine reunified imperial power, sponsored Christianity, and helped change the political and religious direction of late Rome.',
+    usefulIdea: 'His reign shows how one ruler can recode legitimacy by linking victory, faith, and imperial structure.',
+    blindSpot: 'A survey cannot settle the debates around Constantine’s motives, sincerity, or the uneven lived reality of Christianization.',
+    opposingView: 'Some accounts emphasize genuine conversion; others stress strategic coalition-building and imperial utility.',
+    application: 'Use this card to remember the Milvian Bridge, Nicaea, Constantinople, and the fusion of imperial and Christian futures.',
+    tags: ['history', 'rome', 'constantine', 'christianity'],
+  },
+  {
+    id: 'src-history-justinian',
+    title: 'Justinian and Byzantium',
+    author: 'Historical case synthesis',
+    domain: 'World History',
+    coreArgument: 'Justinian’s reign fused law, reconquest, monumental building, court theology, and financial strain into one of late antiquity’s defining experiments.',
+    usefulIdea: 'The reign is a strong case of ambitious restoration carrying both civilizational prestige and severe material cost.',
+    blindSpot: 'A short guide compresses regional diversity, Justinianic plague, and the longer Byzantine story beyond one emperor.',
+    opposingView: 'Some histories praise codification and ambition; others emphasize overextension and fragility.',
+    application: 'Use this card to remember the Corpus Juris Civilis, Hagia Sophia, reconquest wars, and the problem of restoring Rome after Rome.',
+    tags: ['history', 'byzantium', 'justinian', 'rome'],
+  },
 ];
 
 const lessonSpecs = [
@@ -1830,8 +2279,8 @@ const leadershipLessons = lessonSpecs.map((spec, index) => {
     domain,
     sourceIds,
     coreIdea,
-    whatItGetsRight: `${title} gives a leader a concrete move that can be practiced in a real conversation or decision today.`,
-    whatItMisses: 'The move is not universal; context, power differences, and timing determine whether it helps.',
+    whatItGetsRight: `${coreIdea} The useful part is that it becomes observable in one concrete behavior, not just a belief.`,
+    whatItMisses: `${title} can be overused when stakes, timing, safety, or authority call for a different process.`,
     opposingView: 'A competing view would choose speed, authority, or formal process before reflection and dialogue.',
     scenario,
     decisionOptions,
@@ -1846,12 +2295,15 @@ const leadershipLessons = lessonSpecs.map((spec, index) => {
     articleParagraphs: null,
     historicalExample: historicalExamples[slug] || null,
     sourceBasis: sourceIds.map((id) => sourceTitle(id)),
-    fidelityNote:
-      'This reading is a copyright-safe synthesis. It paraphrases known leadership ideas, names the source basis, and uses history as an illustrative pattern rather than invented proof.',
+    fidelityNote: 'Source note: built from the listed source cards and historical lens. Verify primary texts before external citation.',
   };
 }).map((lesson) => ({
   ...lesson,
+  quickVersion: buildQuickVersion(lesson),
   articleParagraphs: buildLessonArticle(lesson),
+  breakDown: buildBreakDown(lesson),
+  remember: buildRemember(lesson),
+  questions: buildLessonQuestions(lesson),
   minutes: Math.max(10, lesson.minutes + 5),
 }));
 
@@ -2097,6 +2549,150 @@ const summarySpecs = [
     themeNotes: ['Modern evidence and ancient evil.', 'Invasion and contamination fears.', 'Gender, sexuality, and purity.', 'Collective intelligence.'],
   },
   {
+    slug: 'summary-alloy-law',
+    title: 'The Alloy of Law',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-alloy-law'],
+    coreIdea: 'Mistborn Era Two opens with Waxillium Ladrian leaving the Roughs for the city, where crime, politics, and industrial change force frontier instincts into urban investigation.',
+    articleParagraphs: [
+      'Summary: The Alloy of Law jumps forward in Scadrial’s history. Rail lines, guns, newspapers, and city politics now sit beside Allomancy and Feruchemy. Waxillium Ladrian, once a lawman in the Roughs, returns to Elendel after family losses and inheritance obligations pull him back into aristocratic life.',
+      'The plot becomes a detective-western hybrid. Wax is trying to understand a string of kidnappings and robberies tied to the Vanishers, while Wayne brings disguise, improvisation, and loyalty. Marasi joins the orbit as a sharp observer of a society that still underestimates her. The city is wealthier and more modern than the old empire, but it has built new class gaps and new criminal forms.',
+      'The book matters as a transition story. It shows what happened after the mythic events of Era One became cultural memory. Harmony is real, but peace has not removed corruption, grief, or ambition. Wax is forced to ask whether justice belongs in the law, in personal action, or in something between the two.',
+      'What to remember: this is the bridge from world-saving myth to industrial-age stewardship. The novel is about modernization, inheritance, and the shock of discovering that order can decay in more sophisticated ways than open tyranny.',
+    ],
+    summaryBullets: ['Wax returns from frontier lawkeeping into city politics and crime.', 'Wayne and Marasi widen the investigation into class and public order.', 'The Vanishers reveal new forms of disorder in a post-Harmony world.', 'The ending reframes the city as the real frontier of Era Two.'],
+    timeline: ['Wax leaves the Roughs and reenters House Ladrian life.', 'Kidnappings and robberies draw him into the Vanishers case.', 'Marasi and Wayne help connect crime to larger social patterns.', 'The city survives, but Wax accepts that Elendel needs a new kind of lawkeeper.'],
+    themeNotes: ['Modernity after myth.', 'Law versus justice.', 'Class change in an industrial society.', 'Grief carried into duty.'],
+  },
+  {
+    slug: 'summary-shadows-self',
+    title: 'Shadows of Self',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-shadows-self'],
+    coreIdea: 'The second Wax and Wayne novel turns a city crisis into a personal reckoning about autonomy, divine influence, and whether order can remain humane.',
+    articleParagraphs: [
+      'Summary: Shadows of Self begins with Elendel facing coordinated political and social unrest. Wax is no longer just a returning aristocrat; he is now part of the city’s defensive rhythm. The threat called Bleeder moves through the city by imitation, instability, and intimate psychological attack.',
+      'What makes the novel strong is the way it collapses the public and private. Bleeder is not merely a criminal target. She is tied to Wax’s deepest assumptions about the past and to Harmony’s role in human life. The result is a story where policing, faith, and grief cannot be kept in separate boxes.',
+      'The rest of the cast complicates the picture. Wayne provides improvisational humanity, Marasi keeps widening the social lens, and Steris quietly becomes more significant as competence under pressure. The city itself feels fragile because institutions are trying to keep pace with modern scale, representation, and unrest.',
+      'What to remember: this is the painful middle book that asks whether guidance can become control and whether justice can survive when the person enforcing it is emotionally compromised. The central memory hook is that the enemy is also a test of belief.',
+    ],
+    summaryBullets: ['Bleeder turns city disorder into psychological warfare.', 'Wax is forced to revisit the story he told himself about Lessie and Harmony.', 'Steris and Marasi become stronger political and investigative presences.', 'The ending leaves Wax with a more wounded and less simple faith.'],
+    timeline: ['Civic instability rises in Elendel.', 'Bleeder’s attacks expose how vulnerable identity and trust can be.', 'Wax learns the past was not what he believed.', 'Elendel is stabilized, but the cost is deeply personal.'],
+    themeNotes: ['Autonomy and divine influence.', 'Justice under emotional strain.', 'Modern city fragility.', 'Truth that wounds belief.'],
+  },
+  {
+    slug: 'summary-bands-mourning',
+    title: 'The Bands of Mourning',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-bands-mourning'],
+    coreIdea: 'An expedition for a legendary artifact becomes a study in myth, diplomacy, technology, and the politics of who controls history.',
+    articleParagraphs: [
+      'Summary: The Bands of Mourning sends Wax, Wayne, Marasi, and Steris beyond Elendel into a more openly exploratory story. Rumors of a near-divine artifact tied to the Lord Ruler and southern peoples raise the stakes from crime-solving to civilizational memory.',
+      'The novel is about movement across maps and assumptions. The main cast travels, negotiates, survives ambushes, and keeps discovering that the northern basin’s version of history is incomplete. Steris, often underestimated, becomes crucial through planning, discipline, and the ability to think ahead under pressure.',
+      'The artifact hunt also becomes a lesson in how legend travels. Sacred objects, old powers, and official stories shape diplomacy as much as weapons do. By the time the group reaches the artifact itself, the real change is not just whether the Bands exist, but whether Scadrial’s peoples can continue to treat one another as footnotes.',
+      'What to remember: the book expands Mistborn from city politics into globe-scale history. It is a story about recovering humility when your society realizes its inherited story is provincial.',
+    ],
+    summaryBullets: ['The search for the Bands pushes the cast into southern and transregional history.', 'Steris grows into one of the group’s most reliable strategic minds.', 'Myth and diplomacy become as important as combat.', 'The ending widens the political map of Scadrial and sets up larger external pressures.'],
+    timeline: ['Rumors of the Bands draw the team into a new expedition.', 'Travel and conflict reveal hidden southern powers and incomplete histories.', 'The artifact chase forces diplomatic as well as physical survival.', 'The discovery phase ends by widening the future stakes beyond Elendel.'],
+    themeNotes: ['History as contested property.', 'Competence under travel pressure.', 'Myth in diplomacy.', 'Provincial arrogance versus wider reality.'],
+  },
+  {
+    slug: 'summary-lost-metal',
+    title: 'The Lost Metal',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-lost-metal'],
+    coreIdea: 'The Era Two finale merges city security, friendship, sacrifice, and cosmere-scale interference into a last stand for Scadrial’s future.',
+    articleParagraphs: [
+      'Summary: The Lost Metal begins with Elendel still vulnerable to the Set and to forces larger than the city understands. Wax has matured into a more reflective investigator and statesman, while Wayne, Marasi, and Steris each face choices about what service should look like as danger scales upward.',
+      'The plot is part intelligence story, part sabotage race, part farewell to a team. The Set’s plans force the cast to move through political channels, covert action, and large-scale risk management. The novel keeps asking how civic duty works when the threat is both local and interplanetary.',
+      'Marasi’s choices matter because they frame power as something that can be declined as well as seized. Wayne’s arc matters because comedy, improvisation, and apparent unseriousness are gradually revealed as a form of courage. Wax, meanwhile, is forced to lead without the illusion that leadership will keep people unhurt.',
+      'What to remember: the ending is about sacrifice and scale. Era Two closes by showing that even in a world of gods and advanced magic, cities still depend on flawed people choosing costly responsibility in time.',
+    ],
+    summaryBullets: ['The Set’s final gambit threatens both Elendel and larger cosmere balances.', 'Marasi, Steris, and Wayne each become central in different operational ways.', 'Wax faces the limits of control in a widening crisis.', 'The finale closes the era through sacrifice, refusal, and civic stewardship.'],
+    timeline: ['The Set escalates its endgame against the city.', 'Investigation and countermeasures reveal wider external involvement.', 'The team splits across diplomatic, covert, and sacrificial roles.', 'Scadrial survives at significant cost and the era closes.'],
+    themeNotes: ['Service at city scale.', 'Sacrifice inside friendship.', 'Power refused versus seized.', 'The local world inside a larger cosmos.'],
+  },
+  {
+    slug: 'summary-tress',
+    title: 'Tress of the Emerald Sea',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-tress'],
+    coreIdea: 'A quiet girl leaves home across impossible seas to rescue someone she loves, discovering that patience, competence, and kindness can be heroic without spectacle.',
+    articleParagraphs: [
+      'Summary: Tress of the Emerald Sea opens with a contained island life and a love that feels ordinary until it is threatened by distance and power. When Charlie is taken, Tress leaves the safety of the Rock and enters a maritime world defined by lethal spore seas, dangerous crews, and a Sorceress whose reach seems impossible to resist.',
+      'The structure is classic voyage narrative, but the tone is different from conventional epic fantasy. Tress does not become heroic by suddenly enjoying violence or by turning into a grand conqueror. She studies, adapts, observes people carefully, and learns how each system on the ship actually works.',
+      'The supporting cast matters because each person embodies a different relationship to fear, performance, and survival. The sea itself is not just scenery; it is a set of environments with rules that create puzzles and force attention. The story repeatedly rewards practical intelligence over theatrical dominance.',
+      'What to remember: this novel is a leadership lesson in miniature. Tress succeeds because she becomes more capable without becoming hard. The memory hook is gentle competence under pressure.',
+    ],
+    summaryBullets: ['Tress leaves an ordinary life for a dangerous rescue voyage.', 'Her growth comes through observation, adaptation, and practical courage.', 'The spore seas make environment itself part of the plot engine.', 'The ending rewards competence joined to love rather than brute force.'],
+    timeline: ['Charlie is taken and Tress leaves home.', 'She joins a ship and learns its people and systems.', 'The voyage across dangerous spores becomes a training ground in competence.', 'Tress reaches the Sorceress and resolves the crisis through intelligence and courage.'],
+    themeNotes: ['Gentle competence.', 'Love as motive without sentimentality.', 'Environment as rule system.', 'Heroism without domination.'],
+  },
+  {
+    slug: 'summary-yumi',
+    title: 'Yumi and the Nightmare Painter',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-yumi'],
+    coreIdea: 'Two isolated lives are thrown together across linked realities, turning ritual, art, loneliness, and memory into a romance shaped by mystery and mutual transformation.',
+    articleParagraphs: [
+      'Summary: Yumi and the Nightmare Painter begins by contrasting two worlds and two forms of exhaustion. Yumi lives under ritual obligation and spiritual prestige, while Painter drifts through urban routine, alienation, and artistic stagnation. Their linked condition forces each to inhabit the other’s life before either fully understands why.',
+      'The novel works because the exchange changes behavior before it resolves explanation. Yumi begins seeing how much life Painter has abandoned. Painter begins seeing how much discipline, beauty, and burden structure Yumi’s world. Their relationship grows from frustration into admiration because each becomes witness to the other’s unspoken loneliness.',
+      'The mystery behind the worlds gives the story its pressure. Nightmares, machine-like repetition, ritual art, and concealed history all suggest that both societies are built on a damaged memory. The romance therefore never floats free of metaphysical stakes; intimacy becomes one path toward seeing what the worlds are hiding.',
+      'What to remember: this is a story about artistry and duty meeting each other. The emotional key is that both characters become more human by learning another form of attention.',
+    ],
+    summaryBullets: ['Yumi and Painter are forced into one another’s daily life and constraints.', 'Ritual discipline and artistic drift become mirrors rather than opposites.', 'The mystery of the worlds links romance to hidden historical damage.', 'The ending turns memory and mutual recognition into the path toward restoration.'],
+    timeline: ['The two characters discover their impossible link.', 'Each begins living partly through the other’s routines and burdens.', 'Nightmares and buried history expose the worlds’ deeper problem.', 'Recognition, sacrifice, and truth resolve both the emotional and metaphysical crisis.'],
+    themeNotes: ['Duty and creativity.', 'Loneliness witnessed by another person.', 'Art as ordering force.', 'History hidden inside daily ritual.'],
+  },
+  {
+    slug: 'summary-sunlit-man',
+    title: 'The Sunlit Man',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-sunlit-man'],
+    coreIdea: 'A fugitive with a damaged past races across a lethal world and is forced to decide whether survival alone is enough to justify who he has become.',
+    articleParagraphs: [
+      'Summary: The Sunlit Man drops the reader into motion immediately. Nomad is running, carrying powers and debts that make stillness impossible. When he lands on Canticle, a world where sunlight and movement are tied to survival, the environment turns every choice into a calculation of time, danger, and moral cost.',
+      'The book is short and fast, but it is not shallow. Nomad’s flight is also a spiritual and ethical condition. He has spent too long surviving by moving on, avoiding attachment, and reducing his obligations to the next necessary step. Canticle interrupts that pattern by putting him among people who will suffer if he stays selfish.',
+      'The central conflict with the Cinder King and the planet’s brutal structure gives the novel its action engine. Yet the emotional engine is older: who Nomad used to be, what vows and failures he carries, and whether he can become responsible again without undoing himself. The speed of the book heightens rather than replaces that question.',
+      'What to remember: this is a compressed redemption-and-pursuit story. The core recall frame is movement versus rooted duty: can a runner choose to stand and protect?',
+    ],
+    summaryBullets: ['Nomad arrives on a world where survival rules are physically harsh and morally clarifying.', 'Canticle forces him to choose between evasion and renewed responsibility.', 'The conflict is both local resistance and personal reckoning.', 'The ending treats protection as the opposite of endless flight.'],
+    timeline: ['Nomad lands on Canticle while fleeing older threats.', 'He learns the planet’s deadly rules and local power structure.', 'Conflict with the Cinder King forces a stand.', 'Nomad leaves changed because he chooses protection over pure escape.'],
+    themeNotes: ['Flight versus duty.', 'Speed under moral pressure.', 'Environment as ethical test.', 'Responsibility reclaimed.'],
+  },
+  {
+    slug: 'summary-count-monte-cristo',
+    title: 'The Count of Monte Cristo',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-count-monte-cristo'],
+    coreIdea: 'A sailor betrayed into imprisonment escapes, amasses knowledge and wealth, and engineers a vast revenge campaign that becomes a moral test of justice and mercy.',
+    articleParagraphs: [
+      'Summary: The Count of Monte Cristo begins with Edmond Dantes as a capable young sailor whose future looks secure until envy, political opportunism, and fear destroy it. He is imprisoned in the Chateau d’If, where suffering would be the whole story if not for Abbe Faria, whose knowledge transforms the prison from pure despair into apprenticeship.',
+      'After escape and the discovery of hidden wealth, the novel becomes one of literature’s most elaborate revenge structures. Edmond returns to society through multiple identities, using patience, theater, information, and precision to destroy those who wronged him. Parisian social life becomes the stage on which concealed histories slowly reappear.',
+      'What keeps the book from being only wish fulfillment is the moral drift of revenge itself. Edmond can punish, expose, and orchestrate, but he cannot perfectly control who else is damaged when truth detonates inside families and institutions. Mercy, once impossible to imagine, gradually becomes part of the question again.',
+      'What to remember: this is a long novel about transformation through suffering, education, power, and restraint. The recall frame is that revenge gives Edmond mastery over events but not automatic mastery over justice.',
+    ],
+    summaryBullets: ['Betrayal sends Edmond from promising future into prison and apparent erasure.', 'Abbe Faria gives him knowledge, orientation, and access to hidden wealth.', 'The Count’s revenge campaign depends on disguises, timing, and social theater.', 'The ending matters because mercy returns as the final measure of what kind of man Edmond has become.'],
+    timeline: ['Edmond is betrayed and sent to the Chateau d’If.', 'Abbe Faria educates him and reveals the treasure.', 'The Count reenters society under crafted identities.', 'Revenge unfolds and finally turns toward mercy and release.'],
+    themeNotes: ['Education inside suffering.', 'Revenge and justice.', 'Identity as performance.', 'Mercy after power.'],
+  },
+  {
+    slug: 'summary-iliad',
+    title: 'The Iliad',
+    summaryKind: 'Novel',
+    sourceIds: ['src-summary-iliad'],
+    coreIdea: 'The Iliad narrows the Trojan War to Achilles’ rage and shows how honor, grief, mortality, and pity move through both heroes and enemies.',
+    articleParagraphs: [
+      'Summary: The Iliad does not tell the whole Trojan War. It begins in the middle of the conflict with a quarrel between Achilles and Agamemnon, then follows the consequences of Achilles withdrawing from battle. That withdrawal destabilizes the Greek camp and turns wounded pride into a military and moral catastrophe.',
+      'The poem keeps shifting between battlefield action and speeches that expose character, hierarchy, fear, and fate. Hector, more than a simple opponent, becomes the human center of Troy’s defense. Patroclus becomes the hinge of the story because his death transforms Achilles’ wrath from offended honor into annihilating grief.',
+      'The gods shape events, but the poem is never only about divine machinery. Its real subject is mortal limit: armor breaks, youth dies, cities fall, and even the greatest warrior cannot defeat death itself. That is why the meeting between Achilles and Priam matters so much at the end; pity enters where rage once ruled completely.',
+      'What to remember: the poem is a study in wrath becoming grief and grief becoming temporary recognition of shared humanity. The recall frame is not victory, but mortality.',
+    ],
+    summaryBullets: ['Achilles’ quarrel with Agamemnon destabilizes the Greek war effort.', 'Hector becomes Troy’s central defender and human counterweight.', 'Patroclus’s death transforms the emotional scale of the poem.', 'Priam’s appeal brings the epic to a close in grief and dignity rather than triumph.'],
+    timeline: ['Achilles withdraws after conflict with Agamemnon.', 'Greek losses intensify while Hector presses the advantage.', 'Patroclus dies and Achilles returns to battle.', 'Priam meets Achilles and the poem ends with Hector’s funeral rites.'],
+    themeNotes: ['Wrath and its cost.', 'Mortality and glory.', 'Enemy recognition.', 'Grief as the poem’s deepest truth.'],
+  },
+  {
     slug: 'history-classical-japan',
     title: 'Classical Japan: Heian Court and Samurai Rise',
     summaryKind: 'History',
@@ -2288,7 +2884,510 @@ const summarySpecs = [
     timeline: ['1914-1918: World War I.', '1919: Versailles settlement and new European order.', '1939-1945: World War II in Europe and globally.', '1945 onward: occupation, Cold War division, reconstruction, and European integration.'],
     themeNotes: ['Industrialized violence.', 'Ideology and genocide.', 'Empire and global war.', 'Memory, reconstruction, and order.'],
   },
+  {
+    slug: 'history-periclean-athens',
+    title: 'Periclean Athens',
+    summaryKind: 'History',
+    sourceIds: ['src-history-periclean-athens'],
+    coreIdea: 'Periclean Athens linked democratic confidence, naval empire, public building, and persuasive leadership into one of antiquity’s most influential and unstable political moments.',
+    articleParagraphs: [
+      'Summary: Periclean Athens is often remembered through marble, drama, and democracy, but its power rested on empire, tribute, and naval dominance as much as civic confidence. Pericles operated inside a democratic system, yet his stature, rhetoric, and strategic framing gave him unusual influence over how Athenians imagined themselves.',
+      'The city became a center of artistic and intellectual life while also tightening control over allies in the Delian League. That tension matters. Athens could present itself as a school of Hellas while extracting resources from the network that funded its confidence. A strong summary must keep civic achievement and imperial pressure in the same frame.',
+      'Pericles is a useful figure because he shows how leadership can scale through narrative. Funeral oratory, public works, and strategic patience were not side matters; they were the means by which a democratic public could be taught to see empire as purpose. The same skill, however, can leave a city overconfident about what it deserves.',
+      'What to remember: Periclean Athens is about brilliance underwritten by pressure. It is a model of civic ambition and a warning about how high culture can coexist with domination.',
+    ],
+    summaryBullets: ['Athenian democracy and naval empire rose together rather than separately.', 'Pericles used rhetoric, building, and strategy to shape public identity.', 'Cultural achievement rested partly on imperial extraction.', 'The period set up both Athenian prestige and the vulnerabilities exposed by later war.'],
+    timeline: ['After the Persian Wars, Athens expands influence through the Delian League.', 'Pericles becomes the defining public figure of the city.', 'Public building, culture, and imperial management reinforce one another.', 'Athenian confidence enters the crisis years that lead toward the Peloponnesian War.'],
+    themeNotes: ['Democracy with empire.', 'Rhetoric as civic architecture.', 'Prestige and extraction.', 'Confidence before overreach.'],
+  },
+  {
+    slug: 'history-peloponnesian-war',
+    title: 'The Peloponnesian War',
+    summaryKind: 'History',
+    sourceIds: ['src-history-peloponnesian-war'],
+    coreIdea: 'The Peloponnesian War shows how fear, rivalry, plague, overreach, and faction can grind down even the most brilliant political worlds.',
+    articleParagraphs: [
+      'Summary: The Peloponnesian War was not one simple campaign but a long sequence of shifting phases between Athens, Sparta, and their allies. Structural tension mattered: Athens had built a maritime empire, Sparta feared its rise, and both sides were embedded in alliances that made local disputes escalate into wider war.',
+      'The war became a stress test for every Greek political claim. Athens suffered plague, debate, demagoguery, and the temptation to double down on prestige after setbacks. Sparta had to learn naval and diplomatic flexibility it did not begin with. Persia reentered Greek politics through money and strategic leverage. The war’s endurance mattered as much as any one battle.',
+      'Thucydides is central because he turns events into a study of power, fear, speeches, and decision failure. Yet the history is not only realism. It is also about bad judgment under stress: Sicily, factional violence, and the slow exhaustion of civic confidence all show that systems break from within while fighting enemies without.',
+      'What to remember: the Peloponnesian War is the classic case of rivalry becoming self-destruction. Its recall frame is that no side wins the kind of victory it thought it was pursuing.',
+    ],
+    summaryBullets: ['Athenian-Spartan rivalry escalated through alliances and fear.', 'Plague, faction, and strategic overreach damaged Athens from within.', 'Persia’s role and Spartan adaptation changed the balance later in the war.', 'The conflict ended by exhausting the wider Greek world rather than producing clean mastery.'],
+    timeline: ['431 BCE: open war begins.', 'Early phases include plague and Athenian defensive strategy.', 'The Sicilian Expedition becomes a catastrophic turning point.', 'Athens is defeated in 404 BCE after prolonged strain and shifting alliances.'],
+    themeNotes: ['Fear in great-power rivalry.', 'Overreach after prestige.', 'Faction inside war.', 'Exhaustion instead of true victory.'],
+  },
+  {
+    slug: 'history-philip-macedon',
+    title: 'Philip II and Macedon',
+    summaryKind: 'History',
+    sourceIds: ['src-history-philip-macedon'],
+    coreIdea: 'Philip II built the military and political machine that allowed Macedon to dominate Greece and made Alexander’s later conquests possible.',
+    articleParagraphs: [
+      'Summary: Philip II inherited a vulnerable Macedon and transformed it through military reform, diplomatic marriage, economic strengthening, and relentless political opportunism. He professionalized the army, improved the phalanx and cavalry system, and learned how to use both warfare and alliance to outmaneuver Greek rivals.',
+      'Greek city-states often appear in textbooks as the main actors of the era, but Philip is the figure who proves that disunited excellence can be defeated by organized adaptation. Macedon was often treated as marginal or semi-barbarian by southern Greeks, yet Philip used that underestimation to turn Macedon into the hegemonic power of the Greek world.',
+      'The Battle of Chaeronea matters because it revealed a new political reality. Athens and Thebes could still fight magnificently, but the old city-state balance no longer determined the future. Philip then framed Macedonian supremacy through the League of Corinth, mixing domination with a language of common cause against Persia.',
+      'What to remember: Philip is the institutional prelude to Alexander. The key recall frame is reform before glory.',
+    ],
+    summaryBullets: ['Philip rebuilt Macedon through reform rather than inheritance alone.', 'Military professionalism and diplomacy worked together in his rise.', 'Chaeronea marked the end of Greek autonomy as the central political fact.', 'The League of Corinth turned dominance into a broader strategic platform.'],
+    timeline: ['Philip consolidates Macedon after instability and external pressure.', 'Army reform and diplomacy expand Macedonian power.', '338 BCE: Chaeronea breaks the old Greek balance.', 'Philip prepares the Persian project that Alexander will inherit.'],
+    themeNotes: ['Preparation before conquest.', 'Reform as power.', 'Underestimation by rivals.', 'Institutional prelude to legend.'],
+  },
+  {
+    slug: 'history-julius-caesar',
+    title: 'Julius Caesar',
+    summaryKind: 'History',
+    sourceIds: ['src-history-julius-caesar'],
+    coreIdea: 'Caesar is a study in ambition, narrative control, and how extraordinary military and political success can outrun a republic’s remaining limits.',
+    articleParagraphs: [
+      'Summary: Julius Caesar rose through a Roman world already destabilized by expansion, patronage, debt, populist appeal, elite rivalry, and repeated resort to violence. He built alliances, spent aggressively, cultivated public favor, and then used the Gallic campaigns to gain military glory, wealth, and soldiers personally loyal to him.',
+      'What makes Caesar historically central is not just that he crossed the Rubicon. It is that he learned how to combine battlefield success, public writing, calibrated mercy, and speed of action into a political style that outpaced opponents who were often procedurally correct but strategically slower. His commentary on Gaul helped turn war into authored legitimacy.',
+      'The civil war then became a test of whether the republic still had enough shared norms to absorb a man like Caesar. It did not. His dictatorship offered reform, order, and concentration of power in a political culture that both needed strong direction and feared it. The assassination therefore solved little because it removed the man without healing the system that produced him.',
+      'What to remember: Caesar is the clearest Roman example of momentum outstripping institutional restraint. The recall frame is speed, story, and collapse of republican trust.',
+    ],
+    summaryBullets: ['Caesar used war, debt politics, and alliance-building to rise in a stressed republic.', 'The Gallic campaigns made military victory into political capital.', 'Civil war exposed how little shared restraint still bound Rome’s elite.', 'Assassination ended Caesar but not the crisis that made him possible.'],
+    timeline: ['Caesar advances through Roman office and alliance politics.', '58-50 BCE: Gallic campaigns transform his position.', '49 BCE: crossing the Rubicon begins civil war.', '44 BCE: dictatorship and assassination leave Rome more unstable, not less.'],
+    themeNotes: ['Tempo as power.', 'Narrative control.', 'Institutions overloaded by success.', 'Removal of a leader without system repair.'],
+  },
+  {
+    slug: 'history-augustus',
+    title: 'Augustus',
+    summaryKind: 'History',
+    sourceIds: ['src-history-augustus'],
+    coreIdea: 'Augustus turned the wreckage of civil war into a durable regime by hiding monarchy inside peace, familiarity, and institutional theater.',
+    articleParagraphs: [
+      'Summary: Augustus began as Octavian, one claimant among many in the violent aftermath of Caesar’s death. Through alliance, propaganda, elimination of rivals, and eventual victory over Antony and Cleopatra, he secured unmatched power. Yet his deeper achievement was not simply winning; it was making Roman elites and subjects live with the result.',
+      'The Principate worked by presentation as much as coercion. Augustus accepted titles carefully, restored temples, emphasized peace, cultivated public morality, and claimed to be restoring the republic while ensuring that real power concentrated around his person and household. This balancing act explains why his settlement endured where other strongmen had failed.',
+      'He also benefited from exhaustion. Rome had seen too much civil war. Stability itself became persuasive, and Augustus was skilled at turning that longing into legitimacy. Architecture, literature, ritual, and administration all reinforced the sense that his rule was not mere seizure but necessary order.',
+      'What to remember: Augustus is the master class in legitimized power. The recall frame is control wrapped in restoration.',
+    ],
+    summaryBullets: ['Octavian won the succession struggle and then outperformed rivals at regime design.', 'Augustus presented concentrated power as restored order rather than open monarchy.', 'Public symbolism, administration, and peace made domination tolerable and even desirable to many.', 'The settlement endured because it solved problems Romans feared more than monarchy itself.'],
+    timeline: ['After Caesar’s death, Octavian enters succession conflict.', 'Triumviral politics and war narrow the field.', '31 BCE: Actium secures supremacy.', 'The Principate stabilizes rule by blending personal control with republican language.'],
+    themeNotes: ['Legitimacy after victory.', 'Symbolic politics.', 'Order desired after chaos.', 'Monarchy concealed inside continuity.'],
+  },
+  {
+    slug: 'history-trajan-hadrian',
+    title: 'Trajan and Hadrian',
+    summaryKind: 'History',
+    sourceIds: ['src-history-trajan-hadrian'],
+    coreIdea: 'Trajan and Hadrian show two imperial instincts in sequence: expansion to glory and consolidation for endurance.',
+    articleParagraphs: [
+      'Summary: Trajan is often remembered as the emperor under whom Rome reached its largest territorial extent. Campaigns in Dacia and the East expanded prestige, revenue, and imperial self-confidence. He embodied the outward-facing, conquering image of Rome at high power.',
+      'Hadrian, by contrast, is useful precisely because he did not simply repeat that pattern. He traveled widely, invested in administration, fortified boundaries, and accepted that sustainable empire may require fewer dramatic gains and more disciplined maintenance. His reign is a reminder that glory and durability are not always the same strategic choice.',
+      'Studying them together is better than treating each in isolation. One shows the attraction of visible success; the other shows the intelligence of defining limits. Roman imperial history is full of leaders who wanted to imitate conquest. Fewer were willing to choose consolidation when prestige culture rewarded motion.',
+      'What to remember: this pair is a lesson in frontier strategy. The recall frame is expansion versus stewardship.',
+    ],
+    summaryBullets: ['Trajan represented conquest, high confidence, and the empire at visible maximum reach.', 'Hadrian represented boundary-setting, travel, administration, and defensible order.', 'The contrast reveals different definitions of imperial success.', 'Durable rule often depends on knowing when not to keep expanding.'],
+    timeline: ['Trajan expands imperial frontiers and prestige.', 'Rome reaches a territorial high-water mark.', 'Hadrian redirects emphasis toward defense, travel, and administration.', 'Imperial identity shifts from endless conquest toward managed endurance.'],
+    themeNotes: ['Glory versus endurance.', 'Frontier strategy.', 'Prestige culture and restraint.', 'Administration after expansion.'],
+  },
+  {
+    slug: 'history-marcus-aurelius',
+    title: 'Marcus Aurelius',
+    summaryKind: 'History',
+    sourceIds: ['src-history-marcus-aurelius'],
+    coreIdea: 'Marcus Aurelius is remembered for Stoic self-command, but his reign shows how even a serious ruler must govern under plague, war, exhaustion, and imperfect succession.',
+    articleParagraphs: [
+      'Summary: Marcus Aurelius became emperor in a period that later memory often romanticized as Rome’s high civilization. In practice, his reign was burdened by the Antonine Plague, northern frontier conflict, logistics, and the pressure of preserving order across a huge system. The Meditations therefore belong beside war and administration, not above them.',
+      'He is important because philosophy did not remove difficulty. Stoic discipline helped Marcus interpret suffering, duty, anger, and mortality, but it did not dissolve military necessity or structural pressure. That gap makes him useful for leadership study: interior steadiness matters, yet it does not guarantee good outcomes by itself.',
+      'The reign also carries limits. Succession to Commodus complicates the image of perfect wisdom translating seamlessly into political durability. Personal virtue can stabilize a regime temporarily while still failing to transmit a strong future. This is not a knock on Marcus so much as a reminder that systems outlast moods.',
+      'What to remember: Marcus Aurelius is the case where character is real but not sufficient. The recall frame is philosophy under empire-wide stress.',
+    ],
+    summaryBullets: ['Marcus ruled during plague, war, and heavy systemic strain.', 'The Meditations show private discipline rather than public simplicity.', 'Stoic seriousness helped him endure but did not cancel structural limits.', 'Succession reminds us that one ruler’s virtue does not automatically solve the future.'],
+    timeline: ['Marcus rises within the Antonine order.', 'Plague and frontier wars dominate the reign.', 'The emperor writes meditative reflections amid campaign pressures.', 'Succession to Commodus darkens later evaluation of the period.'],
+    themeNotes: ['Inner discipline and outer strain.', 'Virtue without omnipotence.', 'Duty during fatigue.', 'Succession as systemic test.'],
+  },
+  {
+    slug: 'history-constantine',
+    title: 'Constantine',
+    summaryKind: 'History',
+    sourceIds: ['src-history-constantine'],
+    coreIdea: 'Constantine remade the political and religious shape of late Rome by linking military victory, imperial centralization, and Christian sponsorship.',
+    articleParagraphs: [
+      'Summary: Constantine emerged from a violent imperial world of competing claimants, military legitimacy, and repeated fragmentation. His rise cannot be separated from civil war, battlefield success, and the need to present victory as more than luck. The famous vision and the Battle of the Milvian Bridge became foundational pieces of that presentation.',
+      'His historical significance lies partly in Christianization, but that must be understood carefully. Constantine did not simply switch the empire overnight from pagan to Christian. He sponsored churches, called councils, patronized clergy, and built new forms of imperial-religious cooperation. The process was political, theological, and uneven at once.',
+      'The founding of Constantinople matters because it shows Constantine’s instinct for durable structure. He was not only reacting to old Rome; he was repositioning the empire’s center of gravity. By linking faith, victory, and imperial redesign, he helped create the future grammar of Byzantine as well as Christian imperial politics.',
+      'What to remember: Constantine is a hinge ruler. The recall frame is regime recoding through faith and victory.',
+    ],
+    summaryBullets: ['Constantine rose through civil war and military legitimacy.', 'Christian sponsorship became central to his regime identity.', 'Nicaea and imperial patronage linked doctrine to state power.', 'Constantinople embodied a new long-term imperial orientation.'],
+    timeline: ['Constantine competes in a fragmented imperial order.', 'Victory at the Milvian Bridge transforms his political symbolism.', 'Christian patronage and imperial councils expand under his reign.', 'Constantinople becomes a durable center for the empire’s future.'],
+    themeNotes: ['Victory as legitimacy.', 'Faith and state structure.', 'Imperial recoding.', 'New centers after old Rome.'],
+  },
+  {
+    slug: 'history-justinian',
+    title: 'Justinian and Byzantium',
+    summaryKind: 'History',
+    sourceIds: ['src-history-justinian'],
+    coreIdea: 'Justinian’s reign fused legal codification, monumental ambition, reconquest, and heavy strain into one of late antiquity’s most revealing experiments in restoration.',
+    articleParagraphs: [
+      'Summary: Justinian ruled from Constantinople centuries after the western empire’s collapse, but he still imagined himself heir to Rome as a whole. His reign is remembered for legal codification, theological intervention, military reconquest, and imperial building on a grand scale. Hagia Sophia remains the visible emblem of that ambition.',
+      'The legal legacy matters because the Corpus Juris Civilis gave later Europe and Byzantium a lasting structure of Roman law. Yet the reign was not just juristic order. It was also court politics, contested doctrine, expensive war, and the constant question of whether restoration could outpace the burdens it created.',
+      'The reconquest campaigns in North Africa and Italy looked at first like dramatic recovery. Over time they also exposed the costs of overextension. War, taxation, and plague undercut the fantasy that the old Roman world could simply be reassembled if the emperor wanted it strongly enough.',
+      'What to remember: Justinian is a restoration case with both brilliance and strain visible at once. The recall frame is prestige joined to cost.',
+    ],
+    summaryBullets: ['Justinian pursued restoration through law, architecture, and military reconquest.', 'The Corpus Juris Civilis became one of the reign’s most durable legacies.', 'Hagia Sophia symbolizes imperial ambition beyond military success alone.', 'Reconquest and plague reveal the material cost of trying to restore Rome wholesale.'],
+    timeline: ['Justinian consolidates rule in Constantinople.', 'Legal codification and monumental building define the regime.', 'Reconquest campaigns retake major western territories temporarily.', 'Plague and overextension expose the price of restoration.'],
+    themeNotes: ['Restoration as ambition.', 'Law and legitimacy.', 'Prestige with material cost.', 'The limits of rebuilding the past.'],
+  },
 ];
+
+function stripStudyLabel(text = '') {
+  return text.replace(/^Summary:\s*/i, '').replace(/^What to remember:\s*/i, '').trim();
+}
+
+function stripFinalPeriod(text = '') {
+  return text.replace(/\.$/, '');
+}
+
+function buildSummaryArticle(spec) {
+  const cleaned = spec.articleParagraphs.map(stripStudyLabel);
+  if (spec.summaryKind === 'Novel') {
+    return [
+      `${spec.title} is ${cleaned[0].charAt(0).toLowerCase()}${cleaned[0].slice(1)}`,
+      cleaned[1],
+      cleaned[2],
+      cleaned[3],
+      `Watch for how ${spec.themeNotes.slice(0, 3).join(', ').toLowerCase()} keep changing the meaning of each scene. The useful reading habit is to ask what each character believes they are protecting before judging the choice they make.`,
+    ];
+  }
+
+  return [
+    `${spec.title} is ${cleaned[0].charAt(0).toLowerCase()}${cleaned[0].slice(1)}`,
+    cleaned[1],
+    cleaned[2],
+    cleaned[3],
+    `A good reading of ${spec.title} keeps three questions alive: who had power, what constraints shaped their options, and which consequences were visible only after the turning point passed.`,
+  ];
+}
+
+function buildSummaryBreakDown(spec) {
+  if (spec.summaryKind === 'Novel') {
+    return [
+      `The story starts from this pressure: ${spec.coreIdea}`,
+      `The central tension is ${spec.themeNotes[0]?.toLowerCase() || 'the first major theme'}.`,
+      `The main forces to track are ${spec.summaryBullets.slice(0, 2).join(' ')}`,
+      `The complication is that ${spec.summaryBullets[2]?.charAt(0).toLowerCase()}${spec.summaryBullets[2]?.slice(1) || 'the visible conflict hides deeper motives.'}`,
+      `By the end, ${spec.summaryBullets[3]?.charAt(0).toLowerCase()}${spec.summaryBullets[3]?.slice(1) || 'the reader understands the conflict differently.'}`,
+      `Watch next for how choices reshape trust, power, and self-understanding.`,
+    ];
+  }
+
+  return [
+    `The period starts from this problem: ${spec.coreIdea}`,
+    `The key actors or forces are visible in the timeline: ${spec.timeline.slice(0, 2).join(' ')}`,
+    `The central tension is ${spec.themeNotes[0]?.toLowerCase() || 'power under constraint'}.`,
+    `The turning pressure is ${spec.summaryBullets[2]?.charAt(0).toLowerCase()}${spec.summaryBullets[2]?.slice(1) || 'a shift in power, legitimacy, or incentives.'}`,
+    `By the end, ${spec.summaryBullets[3]?.charAt(0).toLowerCase()}${spec.summaryBullets[3]?.slice(1) || 'the world being studied has changed in a durable way.'}`,
+    `Watch for what people commonly simplify: winners, causes, consequences, and moral certainty.`,
+  ];
+}
+
+function buildSummaryQuestions(spec) {
+  if (spec.summaryKind === 'Novel') {
+    return [
+      { type: 'Plot', prompt: `What pressure or conflict sets ${spec.title} in motion?` },
+      { type: 'Motivation', prompt: `Which character or group is easiest to misread, and what might they believe they are protecting?` },
+      { type: 'Theme', prompt: `How does the story develop ${spec.themeNotes[0]?.toLowerCase() || 'its central theme'} through concrete events rather than explanation?` },
+      { type: 'Interpretation', prompt: `What unresolved tension should you keep watching as the story moves forward?` },
+    ];
+  }
+
+  return [
+    { type: 'Recall', prompt: `What changed most decisively in ${spec.title}?` },
+    { type: 'Scenario', prompt: `If you were advising a leader inside this period, which constraint would you make them name first?` },
+    { type: 'Judgment', prompt: `What is the biggest oversimplification to avoid when using ${spec.title} as an example?` },
+    { type: 'Reflection', prompt: `Which pattern from ${spec.title} resembles a modern leadership problem?` },
+  ];
+}
+
+const summaryCollections = {
+  'mistborn-era-1': {
+    id: 'mistborn-era-1',
+    title: 'Mistborn Era 1',
+    description: 'Ash, rebellion, empire, and the original Vin-Kelsier-Sazed trilogy.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/14658160-M.jpg',
+    order: 1,
+  },
+  'mistborn-era-2': {
+    id: 'mistborn-era-2',
+    title: 'Mistborn Era 2',
+    description: 'Industrial Scadrial, Wax and Wayne, civic disorder, and modernized Allomancy.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/14658081-M.jpg',
+    order: 2,
+  },
+  'stormlight-archive': {
+    id: 'stormlight-archive',
+    title: 'Stormlight Archive',
+    description: 'Epic Roshar novels centered on oaths, war, trauma, scholarship, and world-scale crisis.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/14658316-M.jpg',
+    order: 3,
+  },
+  'cosmere-standalones': {
+    id: 'cosmere-standalones',
+    title: 'Cosmere Standalones',
+    description: 'Individual Sanderson worlds with their own tone, politics, and magic logic.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/14658347-M.jpg',
+    order: 4,
+  },
+  'american-classics': {
+    id: 'american-classics',
+    title: 'American Classics',
+    description: 'Short, high-signal novels on class performance, conscience, and the social imagination.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/10590366-M.jpg',
+    order: 5,
+  },
+  'dystopian-classics': {
+    id: 'dystopian-classics',
+    title: 'Dystopian Classics',
+    description: 'Modern novels about surveillance, language, reality control, and ideological domination.',
+    imageUrl: null,
+    order: 6,
+  },
+  'russian-classics': {
+    id: 'russian-classics',
+    title: 'Russian Classics',
+    description: 'Psychological and moral novels that turn ideas into lived crisis.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/13116014-M.jpg',
+    order: 7,
+  },
+  'victorian-gothic': {
+    id: 'victorian-gothic',
+    title: 'Victorian and Gothic',
+    description: 'Conscience, desire, secrecy, and dread inside nineteenth-century social worlds.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/12216503-M.jpg',
+    order: 8,
+  },
+  'epic-classics': {
+    id: 'epic-classics',
+    title: 'Epic and Adventure Classics',
+    description: 'Foundational stories of wrath, survival, revenge, and the long cost of glory.',
+    imageUrl: 'https://covers.openlibrary.org/b/id/14557288-M.jpg',
+    order: 9,
+  },
+  'japanese-history': {
+    id: 'japanese-history',
+    title: 'Japanese History',
+    description: 'Court culture, warlord consolidation, modernization, empire, and postwar transformation.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Emperor_Meiji_by_Takahashi_Yuichi.jpg/330px-Emperor_Meiji_by_Takahashi_Yuichi.jpg',
+    order: 20,
+  },
+  'greek-world': {
+    id: 'greek-world',
+    title: 'Greek World',
+    description: 'Athens, Sparta, democracy, empire, and the political arguments of the classical polis.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Alexander_Mosaic_detail_of_Alexander_the_Great_%283x4_cropped%29.jpg/330px-Alexander_Mosaic_detail_of_Alexander_the_Great_%283x4_cropped%29.jpg',
+    order: 21,
+  },
+  'macedonian-hellenistic': {
+    id: 'macedonian-hellenistic',
+    title: 'Macedon and Hellenistic Age',
+    description: 'Philip, Alexander, and the shift from city-state rivalry to imperial and successor worlds.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Alexander_Mosaic_detail_of_Alexander_the_Great_%283x4_cropped%29.jpg/330px-Alexander_Mosaic_detail_of_Alexander_the_Great_%283x4_cropped%29.jpg',
+    order: 22,
+  },
+  'roman-republic': {
+    id: 'roman-republic',
+    title: 'Roman Republic',
+    description: 'Expansion, faction, elite rivalry, civil war, and the institutional strain before empire.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Retrato_de_Julio_C%C3%A9sar_%2826724093101%29_%28cropped%29.jpg/330px-Retrato_de_Julio_C%C3%A9sar_%2826724093101%29_%28cropped%29.jpg',
+    order: 23,
+  },
+  'roman-emperors': {
+    id: 'roman-emperors',
+    title: 'Roman Emperors',
+    description: 'Legitimacy, expansion, consolidation, philosophy, and religious transition under imperial rule.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Augustus_of_Prima_Porta.jpg/330px-Augustus_of_Prima_Porta.jpg',
+    order: 24,
+  },
+  'byzantine-rome': {
+    id: 'byzantine-rome',
+    title: 'Byzantium and Late Rome',
+    description: 'Christian empire, legal codification, and restoration efforts after the western collapse.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Statua_di_Costantino_ai_musei_capitolini.jpg/330px-Statua_di_Costantino_ai_musei_capitolini.jpg',
+    order: 25,
+  },
+  'european-transformations': {
+    id: 'european-transformations',
+    title: 'European Transformations',
+    description: 'Renaissance, Reformation, and revolution as arguments about power, order, and legitimacy.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Anonymous_-_Prise_de_la_Bastille.jpg/330px-Anonymous_-_Prise_de_la_Bastille.jpg',
+    order: 26,
+  },
+  'modern-war-europe': {
+    id: 'modern-war-europe',
+    title: 'Modern Europe and World Wars',
+    description: 'Industrialized violence, ideology, genocide, reconstruction, and geopolitical reorderings.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Bundesarchiv_Bild_101I-646-5188-17%2C_Flugzeuge_Junkers_Ju_87.jpg/330px-Bundesarchiv_Bild_101I-646-5188-17%2C_Flugzeuge_Junkers_Ju_87.jpg',
+    order: 27,
+  },
+};
+
+const summaryCollectionBySlug = {
+  'summary-final-empire': 'mistborn-era-1',
+  'summary-well-ascension': 'mistborn-era-1',
+  'summary-hero-ages': 'mistborn-era-1',
+  'summary-alloy-law': 'mistborn-era-2',
+  'summary-shadows-self': 'mistborn-era-2',
+  'summary-bands-mourning': 'mistborn-era-2',
+  'summary-lost-metal': 'mistborn-era-2',
+  'summary-way-kings': 'stormlight-archive',
+  'summary-words-radiance': 'stormlight-archive',
+  'summary-oathbringer': 'stormlight-archive',
+  'summary-rhythm-war': 'stormlight-archive',
+  'summary-warbreaker': 'cosmere-standalones',
+  'summary-elantris': 'cosmere-standalones',
+  'summary-tress': 'cosmere-standalones',
+  'summary-yumi': 'cosmere-standalones',
+  'summary-sunlit-man': 'cosmere-standalones',
+  'summary-gatsby': 'american-classics',
+  'summary-mockingbird': 'american-classics',
+  'summary-1984': 'dystopian-classics',
+  'summary-crime-punishment': 'russian-classics',
+  'summary-jane-eyre': 'victorian-gothic',
+  'summary-dracula': 'victorian-gothic',
+  'summary-count-monte-cristo': 'epic-classics',
+  'summary-iliad': 'epic-classics',
+  'history-classical-japan': 'japanese-history',
+  'history-sengoku-japan': 'japanese-history',
+  'history-meiji-restoration': 'japanese-history',
+  'history-modern-japan': 'japanese-history',
+  'history-classical-greece': 'greek-world',
+  'history-periclean-athens': 'greek-world',
+  'history-peloponnesian-war': 'greek-world',
+  'history-philip-macedon': 'macedonian-hellenistic',
+  'history-alexander-hellenistic': 'macedonian-hellenistic',
+  'history-roman-republic': 'roman-republic',
+  'history-julius-caesar': 'roman-republic',
+  'history-roman-empire': 'roman-emperors',
+  'history-augustus': 'roman-emperors',
+  'history-trajan-hadrian': 'roman-emperors',
+  'history-marcus-aurelius': 'roman-emperors',
+  'history-constantine': 'byzantine-rome',
+  'history-justinian': 'byzantine-rome',
+  'history-renaissance-europe': 'european-transformations',
+  'history-reformation-europe': 'european-transformations',
+  'history-french-revolution-overview': 'european-transformations',
+  'history-europe-world-wars': 'modern-war-europe',
+};
+
+const summaryCoverBySlug = {
+  'summary-final-empire': 'https://covers.openlibrary.org/b/id/14658160-M.jpg',
+  'summary-way-kings': 'https://covers.openlibrary.org/b/id/14658316-M.jpg',
+  'summary-warbreaker': 'https://covers.openlibrary.org/b/id/14658347-M.jpg',
+  'summary-alloy-law': 'https://covers.openlibrary.org/b/id/14658081-M.jpg',
+  'summary-gatsby': 'https://covers.openlibrary.org/b/id/10590366-M.jpg',
+  'summary-crime-punishment': 'https://covers.openlibrary.org/b/id/13116014-M.jpg',
+  'summary-dracula': 'https://covers.openlibrary.org/b/id/12216503-M.jpg',
+  'summary-count-monte-cristo': 'https://covers.openlibrary.org/b/id/14557288-M.jpg',
+  'history-julius-caesar': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Retrato_de_Julio_C%C3%A9sar_%2826724093101%29_%28cropped%29.jpg/330px-Retrato_de_Julio_C%C3%A9sar_%2826724093101%29_%28cropped%29.jpg',
+  'history-augustus': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Augustus_of_Prima_Porta.jpg/330px-Augustus_of_Prima_Porta.jpg',
+  'history-marcus-aurelius': 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/MSR-ra-61-b-1-DM.jpg/330px-MSR-ra-61-b-1-DM.jpg',
+  'history-constantine': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Statua_di_Costantino_ai_musei_capitolini.jpg/330px-Statua_di_Costantino_ai_musei_capitolini.jpg',
+  'history-alexander-hellenistic': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Alexander_Mosaic_detail_of_Alexander_the_Great_%283x4_cropped%29.jpg/330px-Alexander_Mosaic_detail_of_Alexander_the_Great_%283x4_cropped%29.jpg',
+  'history-meiji-restoration': 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Emperor_Meiji_by_Takahashi_Yuichi.jpg/330px-Emperor_Meiji_by_Takahashi_Yuichi.jpg',
+  'history-french-revolution-overview': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Anonymous_-_Prise_de_la_Bastille.jpg/330px-Anonymous_-_Prise_de_la_Bastille.jpg',
+  'history-europe-world-wars': 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Bundesarchiv_Bild_101I-646-5188-17%2C_Flugzeuge_Junkers_Ju_87.jpg/330px-Bundesarchiv_Bild_101I-646-5188-17%2C_Flugzeuge_Junkers_Ju_87.jpg',
+};
+
+const summaryReflectionBySlug = {
+  'history-periclean-athens': 'Pericles is a strong example of how public rhetoric, civic pride, and visible works can strengthen legitimacy while quietly depending on empire and extraction.',
+  'history-peloponnesian-war': 'The Peloponnesian War is a harsh example of how fear and prestige can trap great powers into exhausting themselves faster than they damage the enemy.',
+  'history-philip-macedon': 'Philip II is a good example of how reform, preparation, and institutional discipline often matter more than later heroic legend.',
+  'history-alexander-hellenistic': 'Alexander is a good example of unmatched momentum and charisma paired with weak succession design; conquest moved faster than durable political settlement.',
+  'history-julius-caesar': 'Caesar is a good example of how speed, narrative control, and personal brilliance can overpower institutions that are already losing shared restraint.',
+  'history-augustus': 'Augustus is a good example of how leaders wrap raw control in stability, familiarity, and public benefit so power feels lawful rather than merely victorious.',
+  'history-trajan-hadrian': 'Trajan and Hadrian together are a good example of the choice between visible expansion and quieter stewardship; one wins applause, the other often preserves durability.',
+  'history-marcus-aurelius': 'Marcus Aurelius is a good example of personal discipline under pressure, but also of the limit of virtue when the wider system is tired, sick, and hard to pass on well.',
+  'history-constantine': 'Constantine is a good example of recoding legitimacy by tying victory to faith and institution-building instead of treating religion as a purely private matter.',
+  'history-justinian': 'Justinian is a good example of restoration ambition: law and prestige can travel far, but reconquest and symbolic grandeur can still overextend the system carrying them.',
+  'history-classical-japan': 'Classical Japan is a good example of symbolic legitimacy and practical force drifting apart before a new balance emerges.',
+  'history-sengoku-japan': 'Sengoku Japan is a good example of how disruption, consolidation, and durable settlement are different leadership tasks even when later memory merges them.',
+  'history-meiji-restoration': 'The Meiji Restoration is a good example of selective adaptation under pressure: fast modernization works best when leaders know what they are trying to preserve as well as what they must change.',
+  'history-modern-japan': 'Modern Japan is a good example of why national development cannot be understood honestly without holding achievement, imperial violence, defeat, and reconstruction together.',
+  'history-roman-republic': 'The Roman Republic is a good example of institutions being overloaded by their own success when norms weaken before formal structures catch up.',
+  'history-roman-empire': 'The Roman Empire is a good example of power enduring through bargains, administration, and infrastructure rather than conquest alone.',
+  'history-renaissance-europe': 'The Renaissance is a good example of culture and power moving together; artistic brilliance often rests on money, rivalry, and patronage structures.',
+  'history-reformation-europe': 'The Reformation is a good example of ideas becoming explosive when media, institutions, rulers, and conscience all align under stress.',
+  'history-french-revolution-overview': 'The French Revolution is a good example of legitimacy collapse accelerating faster than rulers expect, and of emergency politics devouring its own ideals.',
+  'history-europe-world-wars': 'The world wars are a good example of systems and plans outrunning moral imagination; industrial capacity and ideology can scale destruction faster than judgment.',
+};
+
+function buildFictionChapterEntry(spec, chapter, index) {
+  const anchor = chapter.anchor || spec.timeline[index % spec.timeline.length] || spec.summaryBullets[index % spec.summaryBullets.length] || spec.title;
+  const opening = stripStudyLabel(chapter.summary);
+  const pointA = chapter.keyPoints[0] || spec.summaryBullets[0] || spec.coreIdea;
+  const pointB = chapter.keyPoints[1] || spec.summaryBullets[1] || spec.coreIdea;
+  const pointC = chapter.keyPoints[2] || spec.themeNotes[index % spec.themeNotes.length] || spec.coreIdea;
+  const lead = index < 4 ? 'chapter' : 'study movement';
+  const retelling = [
+    `This ${lead} opens with this movement: ${anchor.replace(/\.$/, '')}. ${opening} The scene-level pressure is not only what happens, but how the people inside the story understand what is happening to them.`,
+    `The central figure or group is trying to protect something: safety, dignity, love, belief, status, duty, or control. ${pointA} That desire makes the next choice feel reasonable from the inside, even when the reader can already sense the danger forming around it.`,
+    `The tension rises because ${pointB.charAt(0).toLowerCase()}${pointB.slice(1)} A conversation, discovery, public pressure, or private fear narrows the available choices. The story is asking the reader to notice who has room to act and who is being carried by forces they barely understand.`,
+    `By the end of this entry, ${pointC.charAt(0).toLowerCase()}${pointC.slice(1)} The plot has moved, but the more important change is emotional: someone now knows more, wants more, fears more, or has crossed a line that will make the next step harder.`,
+  ];
+
+  return {
+    id: `${spec.slug}-chapter-${index + 1}`,
+    number: index + 1,
+    title: `Chapter ${index + 1}: ${anchor.replace(/^\d{3,4}( BCE| CE)?[:/ -]*/i, '').replace(/\.$/, '')}`,
+    summary: retelling.join('\n\n'),
+    retelling,
+    whatChanged: `By the end, ${stripFinalPeriod(`${pointC.charAt(0).toLowerCase()}${pointC.slice(1)}`)}. The reader has a clearer sense of what the characters are risking and what pressure will carry forward.`,
+    whyItMatters: `This part matters because it develops ${stripFinalPeriod(spec.themeNotes[index % spec.themeNotes.length]?.toLowerCase() || 'the central conflict')} through action rather than lecture. It gives the next section a sharper emotional or moral problem to work with.`,
+    breakDown: [
+      `Where it starts: ${stripFinalPeriod(anchor)}.`,
+      `Central tension: ${stripFinalPeriod(pointA)}.`,
+      `What someone wants: a safer, clearer, freer, or more powerful position than they have now.`,
+      `What complicates the goal: ${stripFinalPeriod(pointB)}.`,
+      `What changes by the end: ${stripFinalPeriod(pointC)}.`,
+      `Watch next for how this pressure changes trust, identity, or power.`,
+    ],
+    remember: [pointA, pointB, pointC, spec.themeNotes[index % spec.themeNotes.length]].filter(Boolean).slice(0, 5),
+    questions: [
+      { type: 'Plot', prompt: `What concrete situation defines this chapter entry?` },
+      { type: 'Motivation', prompt: `Why might the main choice feel reasonable to the character or group making it?` },
+      { type: 'Theme', prompt: `What does this entry reveal about ${stripFinalPeriod(spec.themeNotes[index % spec.themeNotes.length]?.toLowerCase() || 'the story’s central pressure')}?` },
+      { type: 'Interpretation', prompt: `What tension is left unresolved at the end of this entry?` },
+    ],
+    keyPoints: [pointA, pointB, pointC].filter(Boolean),
+  };
+}
+
+function buildHistoryChapterEntry(spec, chapter, index) {
+  const anchor = chapter.anchor || spec.timeline[index % spec.timeline.length] || spec.summaryBullets[index % spec.summaryBullets.length] || spec.title;
+  const pointA = chapter.keyPoints[0] || spec.summaryBullets[0] || spec.coreIdea;
+  const pointB = chapter.keyPoints[1] || spec.timeline[index % spec.timeline.length] || spec.coreIdea;
+  const pointC = chapter.keyPoints[2] || spec.themeNotes[index % spec.themeNotes.length] || spec.coreIdea;
+  const summary = [
+    `This section starts with ${anchor.charAt(0).toLowerCase()}${anchor.slice(1)}. ${stripStudyLabel(chapter.summary)}`,
+    `The key is to read the event as a set of constraints, not as a single moral slogan. ${pointA} The people involved had motives, incentives, fears, and blind spots that shaped what seemed possible.`,
+    `The turning pressure is ${pointB.charAt(0).toLowerCase()}${pointB.slice(1)} By the end, ${pointC.charAt(0).toLowerCase()}${pointC.slice(1)} The consequence matters because it changes what later actors inherit.`,
+  ].join('\n\n');
+
+  return {
+    id: `${spec.slug}-chapter-${index + 1}`,
+    number: index + 1,
+    title: `Chapter ${index + 1}: ${anchor.replace(/^\d{3,4}( BCE| CE)?[:/ -]*/i, '').replace(/\.$/, '')}`,
+    summary,
+    retelling: summary.split('\n\n'),
+    whatChanged: `The balance of power, legitimacy, or institutional possibility shifts around ${pointC.toLowerCase()}.`,
+    whyItMatters: `This section matters because it explains a cause-and-consequence pattern inside ${spec.title}, not just a date to memorize.`,
+    breakDown: [
+      `Where it starts: ${stripFinalPeriod(anchor)}.`,
+      `Who or what matters: ${stripFinalPeriod(pointA)}.`,
+      `Central constraint: ${stripFinalPeriod(pointB)}.`,
+      `Turning point or consequence: ${stripFinalPeriod(pointC)}.`,
+      `Common misunderstanding: treating the event as inevitable or morally simple.`,
+    ],
+    remember: [pointA, pointB, pointC, spec.themeNotes[index % spec.themeNotes.length]].filter(Boolean).slice(0, 5),
+    questions: [
+      { type: 'Recall', prompt: `What changed in this section of ${spec.title}?` },
+      { type: 'Scenario', prompt: `Which constraint would a leader inside this moment need to understand first?` },
+      { type: 'Judgment', prompt: `What would be the most misleading simple lesson to draw from this event?` },
+      { type: 'Reflection', prompt: `Where do you see a similar incentive or legitimacy problem today?` },
+    ],
+    keyPoints: [pointA, pointB, pointC].filter(Boolean),
+  };
+}
 
 function buildChapterSummaries(spec) {
   const chapterDrafts = [
@@ -2332,22 +3431,53 @@ function buildChapterSummaries(spec) {
       summary: `The final study note is the memory hook for ${spec.title}: ${spec.themeNotes.join(' ')} Use this as the short recall frame when you come back later and need to remember why this work or historical period matters.`,
       keyPoints: [spec.themeNotes[0], spec.themeNotes[1], spec.themeNotes[2], spec.themeNotes[3]],
     },
+    {
+      anchor: spec.timeline[0] || spec.themeNotes[0] || 'Opening stakes',
+      summary: `Return to the opening stakes of ${spec.title}: ${spec.coreIdea} Ask what assumptions the opening makes feel natural, because later chapters usually reveal that those assumptions were incomplete, naive, or strategically loaded.`,
+      keyPoints: [spec.coreIdea, spec.timeline[0], spec.themeNotes[0]],
+    },
+    {
+      anchor: spec.timeline[1] || spec.themeNotes[1] || 'Middle pressure',
+      summary: `This middle checkpoint matters because pressure stops being abstract here: ${spec.timeline[1] || spec.summaryBullets[1] || spec.coreIdea} The useful reading move is to notice which options shrink, which relationships harden, and which costs become unavoidable.`,
+      keyPoints: [spec.timeline[1], spec.summaryBullets[1], spec.themeNotes[1]],
+    },
+    {
+      anchor: spec.summaryBullets[2] || spec.themeNotes[2] || 'Reversal',
+      summary: `A strong summary slows down the reversal phase: ${spec.summaryBullets[2] || spec.coreIdea} It is the point where characters, institutions, or historical actors discover that the earlier map of the problem was too small.`,
+      keyPoints: [spec.summaryBullets[2], spec.timeline[2], spec.themeNotes[2]],
+    },
+    {
+      anchor: spec.summaryBullets[3] || spec.themeNotes[3] || 'Aftermath',
+      summary: `Use this final chapter card as the aftermath lens for ${spec.title}: ${spec.summaryBullets[3] || spec.coreIdea} The most important question is not only what ended, but what kind of future or memory the ending creates.`,
+      keyPoints: [spec.summaryBullets[3], spec.timeline[3], spec.themeNotes[3]],
+    },
   ];
 
   return chapterDrafts.map((chapter, index) => {
-    const anchor = chapter.anchor || spec.title;
-    const cleanAnchor = anchor.replace(/^\d{3,4}( BCE| CE)?[:/ -]*/i, '').replace(/\.$/, '');
-    return {
-      id: `${spec.slug}-chapter-${index + 1}`,
-      number: index + 1,
-      title: `Chapter ${index + 1}: ${cleanAnchor}`,
-      summary: chapter.summary,
+    const draft = {
+      ...chapter,
       keyPoints: chapter.keyPoints.filter(Boolean),
     };
+    return spec.summaryKind === 'Novel'
+      ? buildFictionChapterEntry(spec, draft, index)
+      : buildHistoryChapterEntry(spec, draft, index);
   });
 }
 
 const summaryLessons = summarySpecs.map((spec, index) => ({
+  ...(() => {
+    const collectionId = summaryCollectionBySlug[spec.slug] || null;
+    const collection = collectionId ? summaryCollections[collectionId] : null;
+    return {
+      collectionId,
+      collectionTitle: collection?.title || null,
+      collectionDescription: collection?.description || null,
+      collectionImageUrl: collection?.imageUrl || null,
+      collectionOrder: collection?.order || 999,
+      coverImageUrl: summaryCoverBySlug[spec.slug] || collection?.imageUrl || null,
+      reflectionLens: summaryReflectionBySlug[spec.slug] || null,
+    };
+  })(),
   id: `lesson-${spec.slug}`,
   slug: spec.slug,
   order: leadershipLessons.length + index + 1,
@@ -2357,20 +3487,24 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
   summaryKind: spec.summaryKind,
   sourceIds: spec.sourceIds,
   coreIdea: spec.coreIdea,
-  whatItGetsRight: 'This study-guide format gives the plot or historical arc, major moving parts, and themes to remember.',
-  whatItMisses: 'A compact summary cannot replace the full book, specialist scholarship, style, primary sources, or contested interpretations.',
-  opposingView: 'The strongest opposing view is that summaries should be used only as maps, because original works and serious histories contain nuance that compressed guides flatten.',
+  whatItGetsRight: 'This study-guide format gives the learner the central movement, major forces, and themes to watch while reading or reviewing.',
+  whatItMisses: 'A compact guide compresses style, primary evidence, specialist debate, and interpretive nuance.',
+  opposingView: 'The strongest opposing view is that summaries should stay humble maps because full books and serious histories contain texture that compressed guides flatten.',
   scenario: 'Use this as a memory map before reading, after reading, or when reviewing a period or book you want to keep straight.',
   decisionOptions: ['Read the original next', 'Review the key points', 'Compare themes with another card', 'Save a private note'],
   preferredOption: 'Review the key points',
   practiceRep: `After reading, recall ${spec.title} in five sentences without looking, then check the key points.`,
   reflectionPrompt: `What is the one fact, scene, character, or theme from ${spec.title} you want to remember?`,
   reviewPrompt: `Recall the central movement of ${spec.title}.`,
-  ethicsCheck: 'Do not treat a short summary as a substitute for the original work, lived historical memory, or careful scholarship.',
+  ethicsCheck: 'Use the guide as a map, then return to the full work, primary evidence, or careful scholarship when accuracy matters.',
   minutes: spec.minutes || 12,
   difficulty: spec.difficulty || 'Intermediate',
   tags: [spec.summaryKind.toLowerCase(), 'summary', ...(spec.tags || [])],
-  articleParagraphs: spec.articleParagraphs,
+  quickVersion: spec.summaryBullets,
+  articleParagraphs: buildSummaryArticle(spec),
+  breakDown: buildSummaryBreakDown(spec),
+  remember: spec.themeNotes,
+  questions: buildSummaryQuestions(spec),
   summaryBullets: spec.summaryBullets,
   timeline: spec.timeline,
   themeNotes: spec.themeNotes,
@@ -2378,7 +3512,7 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
   historicalExample: null,
   sourceBasis: spec.sourceIds.map((id) => sourceTitle(id)),
   fidelityNote:
-    'This is a copyright-safe synthesis and study summary. It paraphrases plot, themes, historical context, and commonly discussed interpretations without copying protected prose.',
+    'This is a copyright-safe synthesis and study guide built from the listed source card and broad public discussion. Verify details before external citation.',
 }));
 
 export const microLessons = [...leadershipLessons, ...summaryLessons];
