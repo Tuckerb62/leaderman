@@ -1165,10 +1165,19 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
 
 function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLessonId, setView }) {
   const [query, setQuery] = useState('');
-  const [folderId, setFolderId] = useState('all');
+  const [folderId, setFolderId] = useState('books');
   const [domain, setDomain] = useState('All');
   const selectedFolder = libraryFolders.find((folder) => folder.id === folderId) || libraryFolders[0];
+  const SelectedIcon = selectedFolder.icon;
   const domainOptions = selectedFolder.id === 'all' ? [] : selectedFolder.domains.filter((item) => state.lessons.some((lesson) => lesson.domain === item));
+  const folderLessonCount = selectedFolder.id === 'all' ? state.lessons.length : state.lessons.filter((lesson) => selectedFolder.domains.includes(lesson.domain)).length;
+  const folderStats = selectedFolder.domains
+    .map((item) => ({
+      domain: item,
+      lessons: state.lessons.filter((lesson) => lesson.domain === item).length,
+      sources: state.sources.filter((source) => source.domain === item).length,
+    }))
+    .filter((item) => item.lessons > 0 || item.sources > 0);
   const filteredLessons = state.lessons.filter((lesson) => {
     const text = `${lesson.title} ${lesson.domain} ${lesson.coreIdea} ${(lesson.tags || []).join(' ')}`.toLowerCase();
     const inFolder = selectedFolder.id === 'all' || selectedFolder.domains.includes(lesson.domain);
@@ -1179,6 +1188,7 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
     const inFolder = selectedFolder.id === 'all' || selectedFolder.domains.includes(source.domain);
     return inFolder && (domain === 'All' || source.domain === domain) && text.includes(query.toLowerCase());
   });
+  const sourcePreview = filteredSources.slice(0, 5);
 
   function openLesson(lessonId) {
     setSelectedLessonId(lessonId);
@@ -1199,23 +1209,25 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search lessons, concepts, or tags" />
         </div>
 
-        <div className="folder-grid" aria-label="Library folders">
-          {libraryFolders.map((folder) => {
-            const Icon = folder.icon;
-            const count = folder.id === 'all' ? state.lessons.length : state.lessons.filter((lesson) => folder.domains.includes(lesson.domain)).length;
-            return (
-              <button key={folder.id} className={folderId === folder.id ? 'folder-card active' : 'folder-card'} onClick={() => chooseFolder(folder.id)}>
-                <span className="folder-icon">
-                  <Icon size={18} />
-                </span>
-                <span>
-                  <strong>{folder.title}</strong>
-                  <small>{count} cards</small>
-                </span>
-                <p>{folder.description}</p>
-              </button>
-            );
-          })}
+        <div className="library-shelf-hero">
+          <span className="library-shelf-icon">
+            <SelectedIcon size={20} />
+          </span>
+          <div className="library-shelf-copy">
+            <p className="section-label">Current shelf</p>
+            <h2>{selectedFolder.title}</h2>
+            <p>{selectedFolder.description}</p>
+          </div>
+          <label className="shelf-switcher">
+            <span>Switch shelf</span>
+            <select value={folderId} onChange={(event) => chooseFolder(event.target.value)}>
+              {libraryFolders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.title}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {domainOptions.length > 0 && (
@@ -1233,7 +1245,7 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
             <p className="section-label">{selectedFolder.title}</p>
             <h3>{domain === 'All' ? 'Choose what to read' : domain}</h3>
           </div>
-          <span>{filteredLessons.length} cards</span>
+          <span>{filteredLessons.length} of {folderLessonCount} cards</span>
         </div>
 
         <div className="library-list">
@@ -1256,17 +1268,29 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
         </div>
       </div>
 
-      <aside className="source-list-panel">
-        <p className="section-label">Source cards</p>
-        {filteredSources.map((source) => (
-          <article key={source.id} className="source-card">
+      <aside className="source-list-panel library-context-panel">
+        <p className="section-label">Inside this shelf</p>
+        <div className="shelf-breakdown">
+          {folderStats.map((item) => (
+            <button key={item.domain} className={domain === item.domain ? 'shelf-breakdown-row active' : 'shelf-breakdown-row'} onClick={() => setDomain(item.domain)}>
+              <span>{item.domain}</span>
+              <small>{item.lessons} cards</small>
+            </button>
+          ))}
+        </div>
+        <div className="source-preview-head">
+          <p className="section-label">Source preview</p>
+          <span>{filteredSources.length}</span>
+        </div>
+        {sourcePreview.map((source) => (
+          <article key={source.id} className="source-card compact">
             <span>{source.domain}</span>
             <h3>{source.title}</h3>
-            <p>{source.usefulIdea}</p>
             <small>{source.author}</small>
           </article>
         ))}
-        {filteredSources.length === 0 && <p className="empty-copy">No source cards match this folder.</p>}
+        {filteredSources.length > sourcePreview.length && <p className="empty-copy">{filteredSources.length - sourcePreview.length} more sources in this shelf.</p>}
+        {filteredSources.length === 0 && <p className="empty-copy">No source cards match this shelf.</p>}
       </aside>
     </section>
   );
