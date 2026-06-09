@@ -195,7 +195,7 @@ p {
 .topbar,
 .top-actions,
 .stat-row,
-.rating-bar,
+.completion-bar,
 .search-row,
 .lesson-header,
 .panel-head {
@@ -529,6 +529,22 @@ select:focus {
   font-size: 0.86rem;
 }
 
+.feed-complete-button {
+  margin-top: 18px;
+  min-height: 38px;
+  border: 1px solid rgba(247, 240, 228, 0.2);
+  border-radius: var(--radius);
+  background: rgba(247, 240, 228, 0.1);
+  color: var(--ink-light);
+  padding: 0 13px;
+  font-size: 0.84rem;
+  font-weight: 720;
+}
+
+.feed-complete-button:hover {
+  background: rgba(247, 240, 228, 0.16);
+}
+
 .text-link {
   border: 0;
   background: transparent;
@@ -775,6 +791,78 @@ select:focus {
   gap: 10px;
 }
 
+.expansion-action {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+}
+
+.expansion-action .secondary-button {
+  justify-self: start;
+}
+
+.expansion-action small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.expansion-error {
+  margin: 0;
+  color: #8b3a2e;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.generated-expansion {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(128, 149, 160, 0.34);
+  border-radius: var(--radius);
+  background: rgba(255, 252, 246, 0.76);
+  padding: 15px;
+}
+
+.generated-expansion-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--paper-line);
+  padding-bottom: 9px;
+}
+
+.generated-expansion-head span {
+  color: var(--accent-dark);
+  font-size: 0.78rem;
+  font-weight: 820;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.generated-expansion-head small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.generated-expansion-body {
+  display: grid;
+  gap: 10px;
+}
+
+.generated-expansion-body h4 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.generated-expansion-body p {
+  margin: 0;
+  color: #4a443b;
+  line-height: 1.62;
+  white-space: pre-wrap;
+}
+
 .summary-hero-image {
   width: 100%;
   max-width: 220px;
@@ -936,7 +1024,7 @@ select:focus {
   font-size: 0.9rem;
 }
 
-.rating-bar {
+.completion-bar {
   flex-wrap: wrap;
 }
 
@@ -1643,7 +1731,7 @@ details summary {
     grid-template-columns: 1fr 1fr;
   }
 
-  .rating-bar,
+  .completion-bar,
   .ai-composer {
     grid-template-columns: 1fr;
   }

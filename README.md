@@ -1,6 +1,6 @@
 # Leaderman
 
-Leaderman is a local-first leadership microlearning app: short lessons, scenario decisions, spaced review, source cards, and private reflections.
+Leaderman is a local-first leadership microlearning app: short lessons, scenario decisions, completion tracking, question accuracy, source cards, and private reflections.
 
 ## For AI Agents and Maintainers
 

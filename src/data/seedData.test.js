@@ -13,8 +13,6 @@ describe('seed lesson articles', () => {
         expect(lesson.summaryBullets.length).toBeGreaterThanOrEqual(4);
         expect(lesson.timeline.length).toBeGreaterThanOrEqual(4);
         expect(lesson.themeNotes.length).toBeGreaterThanOrEqual(4);
-        expect(lesson.chapterSummaries.length).toBeGreaterThanOrEqual(12);
-        expect(lesson.chapterSummaries[0].title).toContain('Chapter 1:');
         expect(lesson.scenario).toContain('memory map');
       } else {
         expect(lesson.quickVersion.length).toBeGreaterThanOrEqual(3);
@@ -47,6 +45,7 @@ describe('seed lesson articles', () => {
     for (const lesson of microLessons) {
       const body = JSON.stringify({
         articleParagraphs: lesson.articleParagraphs,
+        fidelityNote: lesson.fidelityNote,
         breakDown: lesson.breakDown,
         remember: lesson.remember,
         questions: lesson.questions,
@@ -57,7 +56,17 @@ describe('seed lesson articles', () => {
         expect(body).not.toContain(phrase.toLowerCase());
       }
 
-      for (const paragraph of lesson.articleParagraphs || []) {
+      const allParagraphs = [
+        ...(lesson.articleParagraphs || []),
+        ...((lesson.summaryKind === 'Novel' ? lesson.chapterSummaries || [] : []).flatMap((chapter) => [
+          ...(chapter.retellingParagraphs || []),
+          ...(chapter.retelling || []),
+          chapter.whatChanged,
+          chapter.whyItMatters,
+        ]).filter(Boolean)),
+      ];
+
+      for (const paragraph of allParagraphs) {
         const normalized = paragraph
           .toLowerCase()
           .replace(/[“”]/g, '"')
@@ -121,17 +130,27 @@ describe('seed lesson articles', () => {
     expect(microLessons.find((lesson) => lesson.slug === 'history-augustus')?.collectionTitle).toBe('Roman Emperors');
   });
 
-  it('turns fiction chapters into structured story retellings with useful questions', () => {
+  it('does not manufacture fiction chapter retellings from whole-book notes', () => {
     const fictionSummaries = microLessons.filter((lesson) => lesson.summaryKind === 'Novel');
+
     expect(fictionSummaries.length).toBeGreaterThanOrEqual(10);
 
     for (const lesson of fictionSummaries) {
       expect(lesson.articleParagraphs.length).toBeGreaterThanOrEqual(5);
       expect(lesson.remember.length).toBeGreaterThanOrEqual(4);
+      expect(lesson.expansionAvailable).toBe(true);
+
+      if ((lesson.chapterSummaries || []).length === 0) {
+        expect(lesson.chapterSummaries).toEqual([]);
+        continue;
+      }
 
       for (const chapter of lesson.chapterSummaries) {
-        expect(chapter.retelling.length).toBeGreaterThanOrEqual(3);
-        expect(chapter.summary.split(/\n\s*\n/).length).toBeGreaterThanOrEqual(3);
+        expect(chapter.chapterId).toMatch(lesson.slug);
+        expect(chapter.displayNumber).toBeTruthy();
+        expect(chapter.spoilerBoundary).toBeTruthy();
+        expect(chapter.retellingParagraphs.length).toBeGreaterThanOrEqual(3);
+        expect(chapter.summary).toBe(chapter.retellingParagraphs.join('\n\n'));
         expect(chapter.whatChanged).toBeTruthy();
         expect(chapter.whyItMatters).toBeTruthy();
         expect(chapter.breakDown.length).toBeGreaterThanOrEqual(5);
@@ -142,6 +161,35 @@ describe('seed lesson articles', () => {
           'Theme',
           'Interpretation',
         ]);
+      }
+    }
+  });
+
+  it('does not use generated fiction chapter skeletons or whole-book source arrays as chapter retellings', () => {
+    const forbiddenFictionSkeletons = [
+      'The central figure or group is trying to protect something',
+      'The tension rises because',
+      'The story is asking the reader to notice',
+      'By the end of this entry',
+      'This chapter-level study note slows down',
+      'This study movement opens',
+    ];
+
+    for (const lesson of microLessons.filter((item) => item.summaryKind === 'Novel')) {
+      const chapterText = JSON.stringify(lesson.chapterSummaries || []);
+      for (const phrase of forbiddenFictionSkeletons) {
+        expect(chapterText).not.toContain(phrase);
+      }
+
+      for (const chapter of lesson.chapterSummaries || []) {
+        const retelling = chapter.summary.toLowerCase();
+        for (const sourceList of [lesson.summaryBullets, lesson.timeline, lesson.themeNotes]) {
+          for (const sourcePhrase of sourceList || []) {
+            if (sourcePhrase.length > 32) {
+              expect(retelling).not.toContain(sourcePhrase.toLowerCase());
+            }
+          }
+        }
       }
     }
   });

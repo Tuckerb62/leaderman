@@ -1,5 +1,3 @@
-const isoToday = () => new Date().toISOString().slice(0, 10);
-
 const sourceTitle = (id) => sourceCards.find((source) => source.id === id)?.title || 'the source tradition';
 
 const historicalExamples = {
@@ -3311,47 +3309,6 @@ const summaryReflectionBySlug = {
   'history-europe-world-wars': 'The world wars are a good example of systems and plans outrunning moral imagination; industrial capacity and ideology can scale destruction faster than judgment.',
 };
 
-function buildFictionChapterEntry(spec, chapter, index) {
-  const anchor = chapter.anchor || spec.timeline[index % spec.timeline.length] || spec.summaryBullets[index % spec.summaryBullets.length] || spec.title;
-  const opening = stripStudyLabel(chapter.summary);
-  const pointA = chapter.keyPoints[0] || spec.summaryBullets[0] || spec.coreIdea;
-  const pointB = chapter.keyPoints[1] || spec.summaryBullets[1] || spec.coreIdea;
-  const pointC = chapter.keyPoints[2] || spec.themeNotes[index % spec.themeNotes.length] || spec.coreIdea;
-  const lead = index < 4 ? 'chapter' : 'study movement';
-  const retelling = [
-    `This ${lead} opens with this movement: ${anchor.replace(/\.$/, '')}. ${opening} The scene-level pressure is not only what happens, but how the people inside the story understand what is happening to them.`,
-    `The central figure or group is trying to protect something: safety, dignity, love, belief, status, duty, or control. ${pointA} That desire makes the next choice feel reasonable from the inside, even when the reader can already sense the danger forming around it.`,
-    `The tension rises because ${pointB.charAt(0).toLowerCase()}${pointB.slice(1)} A conversation, discovery, public pressure, or private fear narrows the available choices. The story is asking the reader to notice who has room to act and who is being carried by forces they barely understand.`,
-    `By the end of this entry, ${pointC.charAt(0).toLowerCase()}${pointC.slice(1)} The plot has moved, but the more important change is emotional: someone now knows more, wants more, fears more, or has crossed a line that will make the next step harder.`,
-  ];
-
-  return {
-    id: `${spec.slug}-chapter-${index + 1}`,
-    number: index + 1,
-    title: `Chapter ${index + 1}: ${anchor.replace(/^\d{3,4}( BCE| CE)?[:/ -]*/i, '').replace(/\.$/, '')}`,
-    summary: retelling.join('\n\n'),
-    retelling,
-    whatChanged: `By the end, ${stripFinalPeriod(`${pointC.charAt(0).toLowerCase()}${pointC.slice(1)}`)}. The reader has a clearer sense of what the characters are risking and what pressure will carry forward.`,
-    whyItMatters: `This part matters because it develops ${stripFinalPeriod(spec.themeNotes[index % spec.themeNotes.length]?.toLowerCase() || 'the central conflict')} through action rather than lecture. It gives the next section a sharper emotional or moral problem to work with.`,
-    breakDown: [
-      `Where it starts: ${stripFinalPeriod(anchor)}.`,
-      `Central tension: ${stripFinalPeriod(pointA)}.`,
-      `What someone wants: a safer, clearer, freer, or more powerful position than they have now.`,
-      `What complicates the goal: ${stripFinalPeriod(pointB)}.`,
-      `What changes by the end: ${stripFinalPeriod(pointC)}.`,
-      `Watch next for how this pressure changes trust, identity, or power.`,
-    ],
-    remember: [pointA, pointB, pointC, spec.themeNotes[index % spec.themeNotes.length]].filter(Boolean).slice(0, 5),
-    questions: [
-      { type: 'Plot', prompt: `What concrete situation defines this chapter entry?` },
-      { type: 'Motivation', prompt: `Why might the main choice feel reasonable to the character or group making it?` },
-      { type: 'Theme', prompt: `What does this entry reveal about ${stripFinalPeriod(spec.themeNotes[index % spec.themeNotes.length]?.toLowerCase() || 'the story’s central pressure')}?` },
-      { type: 'Interpretation', prompt: `What tension is left unresolved at the end of this entry?` },
-    ],
-    keyPoints: [pointA, pointB, pointC].filter(Boolean),
-  };
-}
-
 function buildHistoryChapterEntry(spec, chapter, index) {
   const anchor = chapter.anchor || spec.timeline[index % spec.timeline.length] || spec.summaryBullets[index % spec.summaryBullets.length] || spec.title;
   const pointA = chapter.keyPoints[0] || spec.summaryBullets[0] || spec.coreIdea;
@@ -3390,6 +3347,8 @@ function buildHistoryChapterEntry(spec, chapter, index) {
 }
 
 function buildChapterSummaries(spec) {
+  if (spec.summaryKind === 'Novel') return spec.chapterSummaries || [];
+
   const chapterDrafts = [
     {
       anchor: spec.timeline[0] || spec.summaryBullets[0] || 'Opening frame',
@@ -3458,9 +3417,7 @@ function buildChapterSummaries(spec) {
       ...chapter,
       keyPoints: chapter.keyPoints.filter(Boolean),
     };
-    return spec.summaryKind === 'Novel'
-      ? buildFictionChapterEntry(spec, draft, index)
-      : buildHistoryChapterEntry(spec, draft, index);
+    return buildHistoryChapterEntry(spec, draft, index);
   });
 }
 
@@ -3508,11 +3465,12 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
   summaryBullets: spec.summaryBullets,
   timeline: spec.timeline,
   themeNotes: spec.themeNotes,
-  chapterSummaries: spec.chapterSummaries || buildChapterSummaries(spec),
+  chapterSummaries: spec.summaryKind === 'Novel' ? (spec.chapterSummaries || []) : buildChapterSummaries(spec),
+  expansionAvailable: true,
   historicalExample: null,
   sourceBasis: spec.sourceIds.map((id) => sourceTitle(id)),
   fidelityNote:
-    'This is a copyright-safe synthesis and study guide built from the listed source card and broad public discussion. Verify details before external citation.',
+    'Source note: built from the listed source card and broad public discussion. Verify details before external citation.',
 }));
 
 export const microLessons = [...leadershipLessons, ...summaryLessons];
@@ -3525,19 +3483,20 @@ export const createInitialState = () => ({
     acc[lesson.id] = {
       lessonId: lesson.id,
       status: 'new',
-      ease: 2,
-      intervalDays: 0,
-      dueAt: index < 12 ? isoToday() : null,
+      completed: false,
+      completedAt: null,
       lastReviewedAt: null,
       attempts: 0,
-      known: 0,
-      needsWork: 0,
+      questionAttempts: 0,
+      correctAnswers: 0,
+      lastQuestionAt: null,
     };
     return acc;
   }, {}),
   sessions: [],
   reflections: [],
   notes: {},
+  lessonExpansions: {},
   readingProgress: {},
   settings: {
     dailyGoalCards: 10,

@@ -14,6 +14,7 @@ import {
   Search,
   Send,
   Settings,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -21,9 +22,9 @@ import { clearAiChat, loadAiChat, saveAiChat } from './data/aiChatStorage.js';
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
-import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askOpenAI, requiresClientApiKey } from './logic/aiClient.js';
-import { isDue, nextReviewState, todayKey } from './logic/reviewScheduler.js';
-import { feedQueue, progressStats, recommendedLessons, sourceById, weakDomains } from './logic/selectors.js';
+import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askOpenAI, expandLearningContent, requiresClientApiKey } from './logic/aiClient.js';
+import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './logic/reviewScheduler.js';
+import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
 import { markStudied, sessionMinutes } from './logic/studyProgress.js';
 
 const navItems = [
@@ -107,23 +108,15 @@ function formatDateLine() {
   return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 }
 
-function formatInterval(days) {
-  if (days <= 0) return 'Back today';
-  if (days === 1) return 'Back tomorrow';
-  if (days < 14) return `Back in ${days} days`;
-  if (days < 60) return `Back in ${Math.round(days / 7)} weeks`;
-  return `Back in ${Math.round(days / 30)} months`;
+function progressBadge(review) {
+  return isLessonComplete(review)
+    ? { label: 'complete', tone: 'complete' }
+    : { label: 'unread', tone: 'new' };
 }
 
-function reviewBadge(review) {
-  if (!review || review.attempts === 0) return { label: 'new', tone: 'new' };
-  if (review.status === 'needs-work') return { label: 'due now', tone: 'urgent' };
-  if (review.status === 'strong') return { label: 'strong', tone: 'strong' };
-  if (isDue(review)) return { label: 'due', tone: 'due' };
-  const today = new Date(`${todayKey()}T12:00:00`);
-  const due = new Date(`${review.dueAt}T12:00:00`);
-  const days = Math.max(1, Math.round((due - today) / 86400000));
-  return { label: `in ${days}d`, tone: 'later' };
+function expansionKeyFor(lesson, chapter = null) {
+  if (!chapter) return `lesson:${lesson.id}`;
+  return `chapter:${lesson.id}:${chapter.chapterId || chapter.id || chapter.number || chapter.title}`;
 }
 
 const domainArtwork = {
@@ -236,30 +229,27 @@ export default function App() {
     };
   }
 
-  function updateReview(lessonId, rating) {
-    const lesson = state.lessons.find((item) => item.id === lessonId);
+  function completeLesson(lessonId) {
     setState((current) => {
       const next = markCurrentStudied(current);
       return {
         ...next,
         reviews: {
           ...next.reviews,
-          [lessonId]: nextReviewState(next.reviews[lessonId], rating),
+          [lessonId]: markLessonComplete(next.reviews[lessonId]),
         },
-        reflections:
-          rating === 'work'
-            ? [
-                {
-                  id: `reflection-${crypto.randomUUID()}`,
-                  lessonId,
-                  text: `Flagged "${lesson?.title}" for more practice.`,
-                  createdAt: new Date().toISOString(),
-                },
-                ...next.reflections,
-              ].slice(0, 100)
-            : next.reflections,
       };
     });
+  }
+
+  function recordLessonQuestion(lessonId, isCorrect) {
+    setState((current) => ({
+      ...current,
+      reviews: {
+        ...current.reviews,
+        [lessonId]: recordQuestionAnswer(current.reviews[lessonId], isCorrect),
+      },
+    }));
   }
 
   function startSession(lessonIds = recommendedLessons(state, 5).map((lesson) => lesson.id)) {
@@ -268,7 +258,7 @@ export default function App() {
       startedAt: new Date().toISOString(),
       lessonIds,
       currentIndex: 0,
-      results: { know: 0, later: 0, work: 0 },
+      results: { completed: 0 },
     };
     setSession(nextSession);
     setSelectedLessonId(lessonIds[0]);
@@ -276,14 +266,14 @@ export default function App() {
     setView('learn');
   }
 
-  function rateCurrentLesson(rating) {
+  function completeCurrentLesson() {
     if (!selectedLesson) return;
-    updateReview(selectedLesson.id, rating);
+    completeLesson(selectedLesson.id);
 
     if (!session) return;
     const nextResults = {
       ...session.results,
-      [rating]: session.results[rating] + 1,
+      completed: (session.results.completed || 0) + 1,
     };
     const nextIndex = session.currentIndex + 1;
     if (nextIndex >= session.lessonIds.length) {
@@ -306,7 +296,7 @@ export default function App() {
       });
       setSession(null);
       setSessionSummary(
-        `Session done. ${nextResults.know} got it · ${nextResults.later} later · ${nextResults.work} again · streak ${projectedSettings.streakDays || 1} days.`,
+        `Session done. ${nextResults.completed} cards complete · streak ${projectedSettings.streakDays || 1} days.`,
       );
       window.setTimeout(() => {
         setSessionSummary('');
@@ -370,6 +360,19 @@ export default function App() {
     });
   }
 
+  function saveLessonExpansion(key, expansion) {
+    setState((current) => ({
+      ...current,
+      lessonExpansions: {
+        ...(current.lessonExpansions || {}),
+        [key]: {
+          ...expansion,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  }
+
   async function importBackup(file) {
     if (!file) return;
     const text = await file.text();
@@ -402,11 +405,13 @@ export default function App() {
     setContextLessonId,
     setView,
     startSession,
-    updateReview,
-    rateCurrentLesson,
+    completeLesson,
+    completeCurrentLesson,
+    recordLessonQuestion,
     saveReflection,
     saveLessonNote,
     saveReadingProgress,
+    saveLessonExpansion,
     rememberFeedLesson,
     session,
   };
@@ -484,7 +489,7 @@ function Metric({ label, value }) {
   );
 }
 
-function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, setContextLessonId, setView, rememberFeedLesson }) {
+function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection, setSelectedLessonId, setContextLessonId, setView, rememberFeedLesson }) {
   const [expandedId, setExpandedId] = useState(null);
   const [ratedCards, setRatedCards] = useState({});
   const [feedIds] = useState(() => feedQueue(state, 100).map((lesson) => lesson.id));
@@ -550,16 +555,15 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
               setExpandedId(nextId);
               if (nextId) setContextLessonId(nextId);
             }}
-            onRate={(rating) => {
-              const nextReview = nextReviewState(state.reviews[lesson.id], rating);
+            onComplete={() => {
               setRatedCards((current) => ({
                 ...current,
                 [lesson.id]: {
-                  rating,
-                  label: rating === 'know' ? formatInterval(nextReview.intervalDays) : 'Back today',
+                  status: 'complete',
+                  label: 'Marked complete',
                 },
               }));
-              updateReview(lesson.id, rating);
+              completeLesson(lesson.id);
               window.setTimeout(() => {
                 setRatedCards((current) => ({
                   ...current,
@@ -573,9 +577,10 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
             onSkip={() =>
               setRatedCards((current) => ({
                 ...current,
-                [lesson.id]: { rating: 'skip', label: 'Skipped', compact: true },
+                [lesson.id]: { status: 'skip', label: 'Skipped', compact: true },
               }))
             }
+            onRecordQuestion={(isCorrect) => recordLessonQuestion(lesson.id, isCorrect)}
             onSaveReflection={(text) => saveReflection(lesson.id, text)}
             onOpenFull={() => openFullLesson(lesson.id)}
           />
@@ -585,8 +590,8 @@ function FeedView({ state, updateReview, saveReflection, setSelectedLessonId, se
   );
 }
 
-function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, onSkip, onSaveReflection, onOpenFull }) {
-  const badge = reviewBadge(review);
+function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onComplete, onSkip, onRecordQuestion, onSaveReflection, onOpenFull }) {
+  const badge = progressBadge(review);
   const artwork = feedArtwork(lesson, sources);
   const summaryLesson = isSummaryLesson(lesson);
   const [decision, setDecision] = useState('');
@@ -632,7 +637,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
       if (expanded) return;
       gesture.current.lastTapAt = 0;
       if (absX > absY) {
-        onRate(dx > 0 ? 'know' : 'work');
+        onComplete();
         return;
       }
       if (dy < 0) {
@@ -656,11 +661,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
     if (expanded && event.key !== 'Enter') return;
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      onRate('know');
-    }
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      onRate('work');
+      onComplete();
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
@@ -685,7 +686,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
         </div>
         <div className="rated-line-content">
           <span>{lesson.title}</span>
-          <small>{rated.rating === 'know' ? 'got it' : rated.rating === 'work' ? 'again' : 'skipped'}</small>
+          <small>{rated.status === 'complete' ? 'complete' : 'skipped'}</small>
         </div>
       </article>
     );
@@ -718,6 +719,11 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
         <p className="core-idea">{lesson.coreIdea}</p>
         <p className="source-line">{artwork.sourceTitle}</p>
         {rated && <p className="rating-feedback">{rated.label}</p>}
+        {!rated && (
+          <button className="feed-complete-button" onClick={onComplete}>
+            Mark complete
+          </button>
+        )}
 
         {expanded && summaryLesson && (
           <SummaryLessonBody lesson={lesson} sources={sources} onOpenFull={onOpenFull} />
@@ -741,7 +747,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
               <p>{lesson.scenario}</p>
               <InfoBlock title="Practice rep" text={lesson.practiceRep} />
             </div>
-            <DecisionOptions lesson={lesson} selected={decision} onSelect={setDecision} />
+            <DecisionOptions lesson={lesson} selected={decision} onSelect={setDecision} onAnswer={onRecordQuestion} />
             <div className="lesson-section">
               <h3>Reflection</h3>
               <p>{lesson.reflectionPrompt}</p>
@@ -769,7 +775,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onRate, 
   );
 }
 
-function DecisionOptions({ lesson, selected, onSelect }) {
+function DecisionOptions({ lesson, selected, onSelect, onAnswer }) {
   const answered = Boolean(selected);
   return (
     <div className="lesson-section">
@@ -782,7 +788,10 @@ function DecisionOptions({ lesson, selected, onSelect }) {
             <button
               key={option}
               className={isPreferred ? 'option-card preferred' : isSelected ? 'option-card selected' : 'option-card'}
-              onClick={() => onSelect(option)}
+              onClick={() => {
+                if (!answered) onAnswer?.(option === lesson.preferredOption);
+                onSelect(option);
+              }}
             >
               {option}
               {isPreferred && <span>best first move</span>}
@@ -861,11 +870,114 @@ function QuestionList({ questions }) {
   );
 }
 
-function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapter, onCompleteChapter }) {
+function GeneratedExpansion({ expansion }) {
+  if (!expansion?.markdown) return null;
+  const blocks = expansion.markdown.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+
+  return (
+    <div className="generated-expansion">
+      <div className="generated-expansion-head">
+        <span>Expanded draft</span>
+        <small>{expansion.model ? `Generated with ${expansion.model}` : 'Generated privately'}</small>
+      </div>
+      <div className="generated-expansion-body">
+        {blocks.map((block, index) => {
+          const heading = block.match(/^#{1,3}\s+(.+)$/);
+          if (heading) return <h4 key={`${heading[1]}-${index}`}>{heading[1]}</h4>;
+          return <p key={`${block.slice(0, 32)}-${index}`}>{block}</p>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+async function resolveExpansionAiTarget() {
+  const settings = loadAiSettings();
+  let serverStatus = 'offline';
+
+  try {
+    const response = await fetch('/api/ai-health');
+    if (!response.ok) throw new Error('No local server');
+    const payload = await response.json();
+    serverStatus = payload.keyConfigured ? 'ready' : 'missing-key';
+  } catch {
+    serverStatus = 'offline';
+  }
+
+  if (serverStatus === 'missing-key') {
+    throw new Error('Open AI Coach settings and save an OpenAI key to Keychain first.');
+  }
+
+  const endpoint = serverStatus === 'ready'
+    ? DEFAULT_AI_SETTINGS.endpoint
+    : settings.endpoint === DEFAULT_AI_SETTINGS.endpoint
+      ? 'https://api.openai.com/v1/responses'
+      : settings.endpoint;
+  const needsKey = requiresClientApiKey(endpoint);
+  const apiKey = needsKey ? settings.apiKey : '';
+
+  if (needsKey && !apiKey) {
+    throw new Error('Open AI Coach settings and save a browser key, or start the local AI server and save a Keychain key.');
+  }
+
+  return {
+    apiKey,
+    endpoint,
+    model: settings.model,
+  };
+}
+
+function ExpansionButton({ lesson, chapter = null, expansionKey, onSaveExpansion, label }) {
+  const [isExpanding, setIsExpanding] = useState(false);
+  const [error, setError] = useState('');
+
+  async function runExpansion() {
+    if (isExpanding) return;
+    setIsExpanding(true);
+    setError('');
+
+    try {
+      const target = await resolveExpansionAiTarget();
+      const markdown = await expandLearningContent({
+        ...target,
+        lesson,
+        chapter,
+      });
+      onSaveExpansion(expansionKey, {
+        lessonId: lesson.id,
+        chapterId: chapter?.chapterId || chapter?.id || null,
+        markdown,
+        model: target.model,
+        source: 'ai-expansion',
+      });
+    } catch (nextError) {
+      setError(nextError.message);
+    } finally {
+      setIsExpanding(false);
+    }
+  }
+
+  return (
+    <div className="expansion-action">
+      <button className="secondary-button" onClick={runExpansion} disabled={isExpanding}>
+        <Sparkles size={16} />
+        {isExpanding ? 'Expanding...' : label}
+      </button>
+      <small>Uses the AI Coach key settings.</small>
+      {error && <p className="expansion-error">{error}</p>}
+    </div>
+  );
+}
+
+function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapter, onCompleteChapter, lessonExpansions, onSaveExpansion }) {
   const currentChapter = chapters[currentIndex] || chapters[0];
   const completed = new Set(progress?.completedChapters || []);
   const completedCount = completed.size;
   const percent = Math.round((completedCount / chapters.length) * 100);
+  const chapterExpansionKey = expansionKeyFor(lesson, currentChapter);
+  const chapterExpansion = lessonExpansions?.[chapterExpansionKey];
+  const chapterNoun = lesson.summaryKind === 'Novel' ? 'chapter retellings' : 'study sections';
+  const chapterParagraphs = currentChapter.retellingParagraphs || currentChapter.retelling || currentChapter.summary?.split(/\n\s*\n/) || [];
 
   return (
     <div className="chapter-reader">
@@ -877,7 +989,7 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
         )}
         <div className="chapter-reader-title">
           <p className="reading-meta">
-            Source basis: {lesson.sourceBasis.join(', ')} · {chapters.length} chapter summaries
+            Source basis: {lesson.sourceBasis.join(', ')} · {chapters.length} {chapterNoun}
           </p>
           <h3>{currentChapter.title}</h3>
           {lesson.collectionTitle && <p className="chapter-collection-tag">{lesson.collectionTitle}</p>}
@@ -890,13 +1002,14 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
       </div>
 
       <div className="chapter-reader-layout">
-        <div className="chapter-list" aria-label={`${lesson.title} chapter summaries`}>
+        <div className="chapter-list" aria-label={`${lesson.title} ${chapterNoun}`}>
           {chapters.map((chapter, index) => {
             const hideFutureNovelTitle = lesson.summaryKind === 'Novel' && index > currentIndex && !completed.has(index);
-            const rowTitle = hideFutureNovelTitle ? `Chapter ${chapter.number}` : chapter.title.replace(/^Chapter \d+:\s*/, '');
+            const rowNumber = chapter.displayNumber || (chapter.number ? `Ch ${chapter.number}` : `Ch ${index + 1}`);
+            const rowTitle = hideFutureNovelTitle ? `Chapter ${chapter.number || index + 1}` : chapter.title.replace(/^Chapter \d+:\s*/, '');
             return (
-              <button key={chapter.id} className={index === currentIndex ? 'chapter-row active' : 'chapter-row'} onClick={() => onSelectChapter(index)}>
-                <span>{completed.has(index) ? 'Read' : `Ch ${chapter.number}`}</span>
+              <button key={chapter.id || chapter.chapterId || `${lesson.id}-chapter-${index}`} className={index === currentIndex ? 'chapter-row active' : 'chapter-row'} onClick={() => onSelectChapter(index)}>
+                <span>{completed.has(index) ? 'Read' : rowNumber}</span>
                 <strong>{rowTitle}</strong>
               </button>
             );
@@ -905,7 +1018,7 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
 
         <article className="chapter-card">
           <div className="article-body">
-            {(currentChapter.retelling || currentChapter.summary.split(/\n\s*\n/)).map((paragraph) => (
+            {chapterParagraphs.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
           </div>
@@ -919,6 +1032,14 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
           </div>
           {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
           <QuestionList questions={currentChapter.questions || []} />
+          <ExpansionButton
+            lesson={lesson}
+            chapter={currentChapter}
+            expansionKey={chapterExpansionKey}
+            onSaveExpansion={onSaveExpansion}
+            label={lesson.summaryKind === 'Novel' ? 'Expand chapter' : 'Expand section'}
+          />
+          <GeneratedExpansion expansion={chapterExpansion} />
           <div className="chapter-actions">
             <button className="secondary-button" onClick={() => onSelectChapter(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
               Previous
@@ -1007,11 +1128,13 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   );
 }
 
-function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, rateCurrentLesson, updateReview, saveReflection, saveLessonNote, saveReadingProgress }) {
+function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, completeCurrentLesson, completeLesson, recordLessonQuestion, saveReflection, saveLessonNote, saveReadingProgress, saveLessonExpansion }) {
   const summaryLesson = isSummaryLesson(selectedLesson);
   const savedReadingProgress = state.readingProgress?.[selectedLesson.id];
   const chapterSummaries = selectedLesson.chapterSummaries || [];
   const savedChapterIndex = Math.max(0, Math.min(chapterSummaries.length - 1, savedReadingProgress?.chapterIndex || 0));
+  const lessonExpansionKey = expansionKeyFor(selectedLesson);
+  const lessonExpansion = state.lessonExpansions?.[lessonExpansionKey];
   const [step, setStep] = useState(() => (summaryLesson ? 'summary' : 'article'));
   const [currentChapterIndex, setCurrentChapterIndex] = useState(savedChapterIndex);
   const [reflection, setReflection] = useState('');
@@ -1067,6 +1190,8 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             progress={savedReadingProgress}
             onSelectChapter={selectChapter}
             onCompleteChapter={completeCurrentChapter}
+            lessonExpansions={state.lessonExpansions || {}}
+            onSaveExpansion={saveLessonExpansion}
           />
         )}
 
@@ -1085,6 +1210,19 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
                 <p key={paragraph}>{paragraph}</p>
               ))}
             </div>
+            {selectedLesson.summaryKind === 'Novel' && (
+              <InfoBlock
+                title="Chapter retellings"
+                text="True chapter retellings have not been authored for this book yet. Expand creates a private draft from the current study guide instead of showing fake chapter cards."
+              />
+            )}
+            <ExpansionButton
+              lesson={selectedLesson}
+              expansionKey={lessonExpansionKey}
+              onSaveExpansion={saveLessonExpansion}
+              label={selectedLesson.summaryKind === 'Novel' ? 'Expand book guide' : 'Expand summary'}
+            />
+            <GeneratedExpansion expansion={lessonExpansion} />
           </div>
         )}
 
@@ -1110,6 +1248,13 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             </div>
             <InfoList title="Remember" items={selectedLesson.remember || selectedLesson.themeNotes || []} />
             {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
+            <ExpansionButton
+              lesson={selectedLesson}
+              expansionKey={lessonExpansionKey}
+              onSaveExpansion={saveLessonExpansion}
+              label="Expand overview"
+            />
+            <GeneratedExpansion expansion={lessonExpansion} />
           </div>
         )}
 
@@ -1154,6 +1299,13 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
               <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
               <InfoList title="Remember" items={selectedLesson.remember || []} />
             </div>
+            <ExpansionButton
+              lesson={selectedLesson}
+              expansionKey={lessonExpansionKey}
+              onSaveExpansion={saveLessonExpansion}
+              label="Expand lesson"
+            />
+            <GeneratedExpansion expansion={lessonExpansion} />
           </div>
         )}
 
@@ -1169,7 +1321,14 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
           </div>
         )}
 
-        {!summaryLesson && step === 'decision' && <DecisionOptions lesson={selectedLesson} selected={decision} onSelect={setDecision} />}
+        {!summaryLesson && step === 'decision' && (
+          <DecisionOptions
+            lesson={selectedLesson}
+            selected={decision}
+            onSelect={setDecision}
+            onAnswer={(isCorrect) => recordLessonQuestion(selectedLesson.id, isCorrect)}
+          />
+        )}
 
         {!summaryLesson && step === 'reflection' && (
           <div className="lesson-section">
@@ -1188,15 +1347,9 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
           </div>
         )}
 
-        <div className="rating-bar">
-          <button className="success-button" onClick={() => (session ? rateCurrentLesson('know') : updateReview(selectedLesson.id, 'know'))}>
-            Know it
-          </button>
-          <button className="secondary-button" onClick={() => (session ? rateCurrentLesson('later') : updateReview(selectedLesson.id, 'later'))}>
-            Review later
-          </button>
-          <button className="warning-button" onClick={() => (session ? rateCurrentLesson('work') : updateReview(selectedLesson.id, 'work'))}>
-            Needs work
+        <div className="completion-bar">
+          <button className="success-button" onClick={() => (session ? completeCurrentLesson() : completeLesson(selectedLesson.id))}>
+            {session ? 'Complete & continue' : 'Mark complete'}
           </button>
         </div>
       </div>
@@ -1443,15 +1596,14 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
 }
 
 function ProgressView({ state, stats, startSession }) {
-  const weak = weakDomains(state).filter((item) => item.needsWork > 0).slice(0, 5);
   return (
     <section className="progress-grid">
       <div className="progress-hero">
         <p className="section-label">Local progress</p>
         <div className="progress-metrics">
-          <Metric label="Streak" value={stats.streakDays} />
-          <Metric label="Lessons touched" value={stats.completed} />
-          <Metric label="Mastery" value={`${stats.mastery}%`} />
+          <Metric label="Complete" value={`${stats.completionPercent}%`} />
+          <Metric label="Questions right" value={stats.questionAccuracy === null ? '-' : `${stats.questionAccuracy}%`} />
+          <Metric label="Cards complete" value={stats.completed} />
         </div>
         <button className="primary-button" onClick={() => startSession()}>
           <Play size={16} />
@@ -1460,14 +1612,15 @@ function ProgressView({ state, stats, startSession }) {
       </div>
 
       <div className="signal-panel">
-        <p className="section-label">Weak areas</p>
-        {weak.length === 0 && <p className="empty-copy">No weak areas yet.</p>}
-        {weak.map((item) => (
-          <div key={item.domain} className="weak-row">
-            <span>{item.domain}</span>
-            <small>{item.needsWorkRate}% needs work</small>
-          </div>
-        ))}
+        <p className="section-label">Question record</p>
+        <div className="weak-row">
+          <span>Answered</span>
+          <small>{stats.questionAttempts}</small>
+        </div>
+        <div className="weak-row">
+          <span>Correct</span>
+          <small>{stats.correctAnswers}</small>
+        </div>
       </div>
 
       <div className="reflection-panel">

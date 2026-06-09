@@ -16,14 +16,14 @@ The tracked `docs/` directory is generated GitHub Pages output. Do not use `docs
 
 ## Product Intent
 
-Leaderman is a serious personal training cockpit for leadership judgment. It teaches through condensed source cards, longer article-style lessons, historical examples, scenario decisions, reflections, spaced review, progress tracking, philosophy tracks, and an optional AI coach.
+Leaderman is a serious personal training cockpit for leadership judgment. It teaches through condensed source cards, longer article-style lessons, historical examples, scenario decisions, reflections, simple completion tracking, question accuracy, philosophy tracks, and an optional AI coach.
 
 The app is designed for one person using it privately tonight, not for a multi-user SaaS product. Preserve the local-first model unless explicitly asked to change it.
 
 ## Architecture Rules
 
 - Keep the frontend static-first. The main app should continue to work from GitHub Pages with no backend.
-- Keep personal data local by default. Notes, reflections, progress, review state, and browser AI settings live in browser storage.
+- Keep personal data local by default. Notes, reflections, progress, completion/question state, and browser AI settings live in browser storage.
 - Keep seeded curriculum deterministic and copyright-safe. Use paraphrase, source attribution, public-domain classics, doctrine, research summaries, and historical cases. Do not invent quotes, citations, dates, or book claims.
 - Treat `scripts/local-ai-server.mjs` as the private personal AI bridge. It may proxy OpenAI calls with a key from environment or macOS Keychain.
 - Do not commit API keys or secrets. Do not add telemetry or remote sync unless the user asks.
@@ -42,4 +42,3 @@ npm run mac:app
 ```
 
 Run `npm test` after logic or docs that describe tested behavior. Run `npm run build` after frontend changes. Run `npm run build:pages` before pushing changes that should appear on the public GitHub Pages site.
-

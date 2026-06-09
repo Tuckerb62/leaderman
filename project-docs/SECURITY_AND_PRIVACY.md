@@ -7,10 +7,11 @@ Leaderman is built for personal, local-first use. Its current privacy posture de
 The app stores these records in browser storage:
 
 - lesson progress
-- review state
+- completion and question-answer state
 - session history
 - reflections
 - notes
+- AI-generated expansion drafts
 - import/export state
 - browser AI settings
 - optional direct-browser API key
@@ -19,7 +20,7 @@ There is no app account, cloud database, server-side profile, analytics pipeline
 
 ## Manual Backup
 
-The app supports manual JSON export and import. Backups may contain private reflections, notes, review history, and settings. Treat exported files as personal data.
+The app supports manual JSON export and import. Backups may contain private reflections, notes, completion history, question-answer history, locally generated expansion drafts, and settings. Treat exported files as personal data.
 
 Import uses the current build's seeded `sources` and `lessons`, then restores user-owned state. This avoids replacing current curriculum with stale backup curriculum.
 
@@ -57,6 +58,7 @@ When the app runs from GitHub Pages:
 - user data is browser-local to that device.
 - `/api/openai-responses` does not exist unless the app is being served by the private local server.
 - AI requires either a direct browser endpoint/key or the Mac-hosted private server URL.
+- expansion drafts remain in that browser's local state unless the user exports a backup.
 
 ## Local Private Server Boundary
 
@@ -67,7 +69,9 @@ When the app runs from GitHub Pages:
 
 It does not write chat transcripts to disk. It forwards the request body to OpenAI and returns the response to the browser.
 
-The request body includes the selected model, the user's question, recent chat turns, optional current-lesson context, and the centralized Leaderman tutor instructions. Do not include API keys, local backups, or unrelated private files in this body.
+The request body includes the selected model, the user's question, recent chat turns, optional current-lesson context, selected expansion context, and the centralized Leaderman tutor or expansion instructions. Do not include API keys, local backups, or unrelated private files in this body.
+
+Expansion responses are Markdown drafts. Treat them as private generated learning aids, not verified source curriculum, until authored and checked.
 
 When run with `--host 0.0.0.0`, the server is reachable by other devices on the same local network. This is useful for personal phone and iPad use, but it should be treated as local network exposure.
 
@@ -80,7 +84,7 @@ If changing the service worker, verify that the app still loads after a refresh 
 ## Rules for Future Changes
 
 - Never commit real API keys.
-- Never add hidden network sync for notes, reflections, sessions, or reviews.
+- Never add hidden network sync for notes, reflections, sessions, generated expansions, completion state, or question-answer state.
 - Never add analytics or telemetry without explicit user approval.
 - Keep AI prompts grounded and cautious about facts.
 - Add source references and uncertainty notes when expanding curriculum.

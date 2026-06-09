@@ -73,4 +73,20 @@ describe('storage import', () => {
 
     expect(parsed.readingProgress['lesson-summary-way-kings']).toMatchObject(backup.readingProgress['lesson-summary-way-kings']);
   });
+
+  it('keeps locally generated lesson expansions when importing a backup', () => {
+    const backup = createInitialState();
+    backup.lessonExpansions = {
+      'lesson:lesson-summary-gatsby': {
+        lessonId: 'lesson-summary-gatsby',
+        markdown: '## Deeper Read\nA privately generated expansion.',
+        model: 'gpt-5-mini',
+        updatedAt: '2026-06-08T12:00:00.000Z',
+      },
+    };
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.lessonExpansions['lesson:lesson-summary-gatsby']).toMatchObject(backup.lessonExpansions['lesson:lesson-summary-gatsby']);
+  });
 });

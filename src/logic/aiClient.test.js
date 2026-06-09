@@ -3,8 +3,10 @@ import {
   AI_MODEL_OPTIONS,
   DEFAULT_AI_SETTINGS,
   askOpenAI,
+  buildExpansionPrompt,
   buildAiInstructions,
   buildResponseInput,
+  expandLearningContent,
   extractResponseText,
   requiresClientApiKey,
 } from './aiClient.js';
@@ -34,6 +36,8 @@ describe('ai client helpers', () => {
     expect(instructions).toContain('Epictetus under empire');
     expect(instructions).toContain('Do not invent book quotes');
     expect(instructions).toContain('Distinguish source-grounded points from your own inference');
+    expect(instructions).toContain('Quick version, Deeper read, Break Down, Remember, and Questions');
+    expect(instructions).toContain('Do not pad lessons with repeated copyright, fidelity, or caution boilerplate');
   });
 
   it('offers curated model choices with the default model included', () => {
@@ -100,5 +104,46 @@ describe('ai client helpers', () => {
     expect(body.instructions).toContain('Leaderman is a local-first leadership formation app');
     expect(body.instructions).toContain('Do not invent book quotes');
     expect(body.instructions).toContain('Control What Is Yours');
+  });
+
+  it('builds expansion prompts for unfinished chapters without asking for generic filler', () => {
+    const prompt = buildExpansionPrompt({
+      lesson: {
+        ...lesson,
+        summaryKind: 'Novel',
+        articleParagraphs: ['A short overview.'],
+      },
+      chapter: {
+        title: 'Chapter 4',
+        summary: 'A thin chapter note.',
+      },
+    });
+
+    expect(prompt).toContain('Expand this into a full Leaderman chapter retelling');
+    expect(prompt).toContain('A thin chapter note.');
+    expect(prompt).toContain('Do not use repeated copyright');
+    expect(prompt).toContain('Return Markdown');
+  });
+
+  it('sends expansion requests with the dedicated prompt and larger output budget', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: 'Expanded lesson.' }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const result = await expandLearningContent({
+      apiKey: '',
+      endpoint: '/api/openai-responses',
+      model: 'gpt-5-mini',
+      lesson,
+      chapter: null,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(result).toBe('Expanded lesson.');
+    expect(body.instructions).toContain('Leaderman AI expansion engine');
+    expect(body.input[0].content).toContain('Expand this into a full Leaderman lesson');
+    expect(body.max_output_tokens).toBeGreaterThan(2500);
   });
 });

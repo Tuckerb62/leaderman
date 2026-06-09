@@ -6,11 +6,11 @@ Leaderman is a Vite React single-page app with optional local Node tooling for p
 
 - `src/App.jsx`: main React application, Feed, navigation, view composition, session flow, import/export controls, floating AI Coach UI, and local state updates.
 - `src/styles.css`: full app styling, responsive layout, dashboard surfaces, controls, lesson cards, and mobile behavior.
-- `src/data/seedData.js`: deterministic source cards, domains, philosophy schools, micro-lessons, initial reviews, and app state factory.
+- `src/data/seedData.js`: deterministic source cards, domains, philosophy schools, micro-lessons, initial progress records, and app state factory.
 - `src/data/storage.js`: local state load/save, backup export, and backup import normalization.
 - `src/data/aiSettings.js`: browser AI settings and optional browser-side key storage.
-- `src/logic/reviewScheduler.js`: spaced-review date math and rating transitions.
-- `src/logic/selectors.js`: due lessons, recommendations, source lookup, progress stats, and weak-domain sorting.
+- `src/logic/reviewScheduler.js`: completion tracking and question-answer transitions.
+- `src/logic/selectors.js`: unread lesson recommendations, source lookup, progress stats, and feed ordering.
 - `src/logic/aiClient.js`: AI instructions, lesson context, Responses API payload construction, response parsing, and endpoint behavior.
 - `scripts/local-ai-server.mjs`: static file server plus private OpenAI proxy and macOS Keychain saving.
 - `scripts/save-openai-key-to-keychain.mjs`: terminal-based Keychain setup.
@@ -28,10 +28,11 @@ The app state is created by `createInitialState()` in `src/data/seedData.js`. Th
   schemaVersion: 1,
   sources: SourceCard[],
   lessons: MicroLesson[],
-  reviews: Record<lessonId, ReviewState>,
+  reviews: Record<lessonId, LessonProgress>,
   sessions: Session[],
   reflections: Reflection[],
   notes: Record<lessonId, string>,
+  lessonExpansions: Record<expansionKey, GeneratedExpansion>,
   settings: object
 }
 ```
@@ -80,17 +81,17 @@ The app state is created by `createInitialState()` in `src/data/seedData.js`. Th
 }
 ```
 
-`ReviewState` is produced and updated by `src/logic/reviewScheduler.js`:
+`LessonProgress` is produced and updated by `src/logic/reviewScheduler.js`:
 
 ```js
 {
   status,
-  ease,
-  intervalDays,
-  dueAt,
+  completed,
+  completedAt,
   attempts,
-  known,
-  needsWork,
+  questionAttempts,
+  correctAnswers,
+  lastQuestionAt,
   lastReviewedAt
 }
 ```
@@ -116,7 +117,7 @@ flowchart LR
   Browser["localStorage"] --> Load
   Load --> React["App state"]
   React --> Views["Feed / Learn / Philosophy / Library / Progress / Floating AI"]
-  Views --> Actions["review, note, reflection, session, import"]
+  Views --> Actions["complete, answer question, note, reflection, expand, session, import"]
   Actions --> React
   React --> Save["saveState()"]
   Save --> Browser
@@ -124,23 +125,25 @@ flowchart LR
   Import["manual JSON import"] --> Load
 ```
 
-`loadState()` always keeps source cards and lessons from the current seed data. Imported or saved user state restores progress, notes, reflections, sessions, reviews, and settings. This prevents stale exported curriculum from overwriting newer built-in curriculum.
+`lessonExpansions` stores local AI-generated Markdown drafts for expanded lessons, summaries, and authored chapter/section entries. These drafts are user-owned local data, not deterministic curriculum.
 
-## Review Scheduler
+`loadState()` always keeps source cards and lessons from the current seed data. Imported or saved user state restores completion state, question-answer counts, notes, reflections, sessions, lesson expansion drafts, and settings. This prevents stale exported curriculum from overwriting newer built-in curriculum.
 
-The review scheduler has three ratings:
+## Progress Tracker
 
-- `Know it`: increases ease, expands the interval, and eventually marks the lesson `strong`.
-- `Review later`: keeps the lesson in review and makes it due tomorrow.
-- `Needs work`: lowers ease, keeps it due today, and marks it `needs-work`.
+The progress tracker is intentionally simple:
 
-Due lessons are sorted by `src/logic/selectors.js`, with `needs-work` lessons first, then curriculum order.
+- `markLessonComplete(...)` marks a lesson complete and records a completion timestamp.
+- `recordQuestionAnswer(...)` increments local question attempts and correct answers.
+- `isLessonComplete(...)` treats explicit completions, and older imported touched lessons, as complete.
+
+Feed ordering puts unread lessons first, then completed lessons. Progress displays percent complete and question percent right instead of rating status.
 
 ## AI Flow
 
 ```mermaid
 flowchart LR
-  UI["Floating AI panel"] --> Client["src/logic/aiClient.js"]
+  UI["Floating AI panel / Expand buttons"] --> Client["src/logic/aiClient.js"]
   Client --> Endpoint{"Endpoint"}
   Endpoint -->|"default /api/openai-responses"| LocalServer["scripts/local-ai-server.mjs"]
   LocalServer --> Key{"API key source"}
@@ -156,6 +159,8 @@ The default endpoint is `/api/openai-responses`. That only works when using the 
 The selected model is stored with AI settings. Curated model choices and descriptions live in `AI_MODEL_OPTIONS`; `DEFAULT_AI_SETTINGS.model` sets the default. The UI also supports a custom model ID.
 
 The API request body includes a centralized `instructions` prompt. It gives the AI an overview of Leaderman, defines the tutor role, requires factual caveats, asks for examples and practical drills, and includes current lesson context when enabled.
+
+Expansion requests use the same endpoint and key settings as AI Coach. The expansion prompt asks for structured Markdown, avoids repeated boilerplate, keeps source uncertainty separate from teaching content, and stores the result only in local state.
 
 ## Build Outputs
 
@@ -173,7 +178,7 @@ Current automated tests use Vitest and cover:
 - AI chat persistence behavior.
 - AI client payload and response parsing behavior.
 - Feed queue ordering and domain interleaving.
-- Review scheduler transitions.
+- Completion and question-answer transitions.
 - Streak and session-minute helpers.
 - seed data integrity.
 - storage import/export normalization.

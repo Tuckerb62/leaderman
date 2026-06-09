@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../data/seedData.js';
-import { feedQueue, weakDomains } from './selectors.js';
+import { feedQueue, progressStats } from './selectors.js';
 
 describe('selectors', () => {
-  it('prioritizes needs-work cards before new feed material', () => {
+  it('prioritizes incomplete cards before completed feed material', () => {
     const state = createInitialState();
-    const target = state.lessons[20];
-    state.reviews[target.id] = {
-      ...state.reviews[target.id],
-      status: 'needs-work',
-      attempts: 2,
-      needsWork: 1,
-    };
+    const first = state.lessons[0];
+    state.reviews[first.id] = { ...state.reviews[first.id], status: 'complete', completed: true, completedAt: '2026-06-07T12:00:00.000Z', attempts: 1 };
 
-    expect(feedQueue(state, 5)[0].id).toBe(target.id);
+    expect(feedQueue(state, 5)[0].id).not.toBe(first.id);
   });
 
   it('prevents more than two same-domain cards in a row', () => {
@@ -29,13 +24,14 @@ describe('selectors', () => {
     }
   });
 
-  it('computes weak-domain rate as a percentage of attempts', () => {
+  it('computes completion and question accuracy percentages', () => {
     const state = createInitialState();
-    const lessons = state.lessons.filter((lesson) => lesson.domain === 'Judgment').slice(0, 2);
-    state.reviews[lessons[0].id] = { ...state.reviews[lessons[0].id], attempts: 3, needsWork: 1 };
-    state.reviews[lessons[1].id] = { ...state.reviews[lessons[1].id], attempts: 1, needsWork: 1 };
+    const lessons = state.lessons.slice(0, 2);
+    state.reviews[lessons[0].id] = { ...state.reviews[lessons[0].id], completed: true, completedAt: '2026-06-07T12:00:00.000Z', attempts: 1, questionAttempts: 2, correctAnswers: 1 };
+    state.reviews[lessons[1].id] = { ...state.reviews[lessons[1].id], questionAttempts: 2, correctAnswers: 2 };
 
-    const judgment = weakDomains(state).find((item) => item.domain === 'Judgment');
-    expect(judgment.needsWorkRate).toBe(50);
+    const stats = progressStats(state);
+    expect(stats.completionPercent).toBe(Math.round((1 / state.lessons.length) * 100));
+    expect(stats.questionAccuracy).toBe(75);
   });
 });

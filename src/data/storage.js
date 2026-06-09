@@ -19,6 +19,7 @@ function normalizeUserState(parsed) {
       ...seeded.reviews,
       ...(parsed.reviews || {}),
     },
+    lessonExpansions: parsed.lessonExpansions || {},
     settings: {
       ...seeded.settings,
       ...(parsed.settings || {}),
