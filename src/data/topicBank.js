@@ -36,12 +36,6 @@ const SUBJECT_DEFINITIONS = [
     subtopics: ['character', 'moral-complexity', 'power', 'obsession', 'mercy'],
   },
   {
-    id: 'novels',
-    title: 'Novels',
-    description: 'Reading-oriented shelves, chapter guides, and story companions.',
-    subtopics: ['epic-fantasy', 'classics', 'dystopia', 'political-fiction'],
-  },
-  {
     id: 'writing',
     title: 'Writing',
     description: 'Clear thinking, explanation, framing, and disciplined communication.',
@@ -127,7 +121,6 @@ function subjectIdsForLesson(lesson) {
   const text = normalizedLessonText(lesson);
   const ids = new Set();
 
-  if (lesson.summaryKind === 'Novel') ids.add('novels');
   if (lesson.domain === 'Philosophy' || includesAny(text, ['stoic', 'epictetus', 'marcus aurelius', 'existential', 'aristotle', 'epicurean', 'confuc', 'dao', 'buddhist'])) {
     ids.add('philosophy');
   }

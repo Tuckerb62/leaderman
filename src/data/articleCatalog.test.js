@@ -6,6 +6,7 @@ import {
   articles,
   calculateArticleProgress,
   getSubjectProgress,
+  interestSubjectHierarchy,
   searchArticles,
   TOP_LEVEL_SUBJECTS,
 } from './articleCatalog.js';
@@ -25,6 +26,19 @@ describe('article catalog', () => {
     expect(articleHierarchy.find((subject) => subject.id === 'leadership')?.topics[0]).toMatchObject({
       title: 'Leadership Foundations',
     });
+  });
+
+  it('builds an account interest hierarchy without emergency medicine', () => {
+    expect(interestSubjectHierarchy.some((subject) => subject.id === 'emergency-medicine-critical-care')).toBe(false);
+
+    const leadership = interestSubjectHierarchy.find((subject) => subject.id === 'leadership');
+    const foundations = leadership?.topics.find((topic) => topic.id === 'leadership-foundations');
+
+    expect(leadership?.title).toBe('Leadership');
+    expect(foundations).toMatchObject({
+      title: 'Leadership Foundations',
+    });
+    expect(foundations?.children.some((child) => child.title === 'Core Leadership Concepts')).toBe(true);
   });
 
   it('indexes articles by stable article key and slug', () => {

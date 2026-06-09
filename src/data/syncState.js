@@ -33,6 +33,13 @@ function mergeUpdatedMap(localMap = {}, remoteMap = {}) {
   return merged;
 }
 
+function mergeMissingMap(localMap = {}, remoteMap = {}) {
+  return {
+    ...(remoteMap || {}),
+    ...(localMap || {}),
+  };
+}
+
 function mergeReviews(localReviews = {}, remoteReviews = {}) {
   const merged = { ...localReviews };
   for (const [lessonId, review] of Object.entries(remoteReviews || {})) {
@@ -53,6 +60,42 @@ function mergeSessions(localSessions = [], remoteSessions = []) {
     .slice(0, 10);
 }
 
+function mergeReflections(localReflections = [], remoteReflections = []) {
+  return [...new Map([...localReflections, ...remoteReflections].map((reflection) => [reflection.id, reflection])).values()]
+    .sort((left, right) => (right.createdAt || '').localeCompare(left.createdAt || ''))
+    .slice(0, 100);
+}
+
+function mergeAiChatMessages(localMessages = [], remoteMessages = []) {
+  return [...new Map([...localMessages, ...remoteMessages].map((message) => [message.id, message])).values()]
+    .sort((left, right) => (left.createdAt || '').localeCompare(right.createdAt || ''))
+    .slice(-80);
+}
+
+function mergeNotes(localNotes = {}, remoteNotes = {}, localUpdatedAtByKey = {}, remoteUpdatedAtByKey = {}) {
+  const keys = new Set([
+    ...Object.keys(localNotes || {}),
+    ...Object.keys(remoteNotes || {}),
+    ...Object.keys(localUpdatedAtByKey || {}),
+    ...Object.keys(remoteUpdatedAtByKey || {}),
+  ]);
+  const notes = {};
+  const noteUpdatedAtByKey = {};
+
+  for (const key of keys) {
+    const localUpdatedAt = localUpdatedAtByKey?.[key] || '';
+    const remoteUpdatedAt = remoteUpdatedAtByKey?.[key] || '';
+    const useRemote = remoteUpdatedAt >= localUpdatedAt;
+
+    notes[key] = useRemote
+      ? (remoteNotes?.[key] ?? '')
+      : (localNotes?.[key] ?? '');
+    noteUpdatedAtByKey[key] = useRemote ? remoteUpdatedAt : localUpdatedAt;
+  }
+
+  return { notes, noteUpdatedAtByKey };
+}
+
 function syncSettingsFromState(settings = {}) {
   const {
     dailyGoalCards,
@@ -60,6 +103,7 @@ function syncSettingsFromState(settings = {}) {
     streakDays,
     lastStudiedDate,
     profile = {},
+    onboarding = {},
   } = settings;
 
   return {
@@ -68,6 +112,7 @@ function syncSettingsFromState(settings = {}) {
     streakDays,
     lastStudiedDate,
     profile,
+    onboarding,
   };
 }
 
@@ -77,6 +122,10 @@ export function buildSyncSnapshot(state, syncedAt = new Date().toISOString()) {
     syncedAt,
     reviews: state.reviews || {},
     sessions: (state.sessions || []).slice(0, 10),
+    reflections: (state.reflections || []).slice(0, 100),
+    notes: state.notes || {},
+    noteUpdatedAtByKey: state.noteUpdatedAtByKey || {},
+    aiChatMessages: (state.aiChatMessages || []).slice(-80),
     readingProgress: state.readingProgress || {},
     lessonExpansions: state.lessonExpansions || {},
     completedArticlesByKey: state.completedArticlesByKey || {},
@@ -95,6 +144,13 @@ export function mergeSyncSnapshot(localState, remoteSnapshot) {
   if (!remoteSnapshot) return localState;
 
   const seeded = createInitialState();
+  const mergedNotes = mergeNotes(
+    localState.notes,
+    remoteSnapshot.notes,
+    localState.noteUpdatedAtByKey,
+    remoteSnapshot.noteUpdatedAtByKey,
+  );
+
   return {
     ...localState,
     schemaVersion: seeded.schemaVersion,
@@ -102,10 +158,14 @@ export function mergeSyncSnapshot(localState, remoteSnapshot) {
     lessons: localState.lessons,
     reviews: mergeReviews(localState.reviews, remoteSnapshot.reviews),
     sessions: mergeSessions(localState.sessions, remoteSnapshot.sessions),
+    reflections: mergeReflections(localState.reflections, remoteSnapshot.reflections),
+    notes: mergedNotes.notes,
+    noteUpdatedAtByKey: mergedNotes.noteUpdatedAtByKey,
+    aiChatMessages: mergeAiChatMessages(localState.aiChatMessages, remoteSnapshot.aiChatMessages),
     readingProgress: mergeUpdatedMap(localState.readingProgress, remoteSnapshot.readingProgress),
-    lessonExpansions: mergeUpdatedMap(localState.lessonExpansions, remoteSnapshot.lessonExpansions),
+    lessonExpansions: mergeMissingMap(localState.lessonExpansions, remoteSnapshot.lessonExpansions),
     completedArticlesByKey: mergeUpdatedMap(localState.completedArticlesByKey, remoteSnapshot.completedArticlesByKey),
-    generatedArticlesByKey: mergeUpdatedMap(localState.generatedArticlesByKey, remoteSnapshot.generatedArticlesByKey),
+    generatedArticlesByKey: mergeMissingMap(localState.generatedArticlesByKey, remoteSnapshot.generatedArticlesByKey),
     articleTutorThreadsByKey: mergeUpdatedMap(localState.articleTutorThreadsByKey, remoteSnapshot.articleTutorThreadsByKey),
     followedTopics: mergeUpdatedMap(localState.followedTopics, remoteSnapshot.followedTopics),
     savedItems: mergeUpdatedMap(localState.savedItems, remoteSnapshot.savedItems),

@@ -1,6 +1,6 @@
 # Feed Feature Spec
 
-This tracked spec replaces the older additive Feed spec. Feed is now the primary Leaderman experience, not a side feature.
+This tracked spec replaces the older additive Feed spec. Feed is now the primary Curiosity experience, not a side feature.
 
 ## Purpose
 

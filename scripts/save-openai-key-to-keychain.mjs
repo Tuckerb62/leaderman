@@ -63,4 +63,4 @@ execFileSync('/usr/bin/security', [
   stdio: ['ignore', 'ignore', 'inherit'],
 });
 
-console.log('Saved OpenAI API key to macOS Keychain for Leaderman.');
+console.log('Saved OpenAI API key to macOS Keychain for Curiosity.');

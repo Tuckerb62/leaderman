@@ -82,9 +82,9 @@ Future-facing limits kept explicit:
 
 Changed:
 
-- Simplified the user-facing sync story around one working free path: the Mac is the home base, and the phone opens the Mac-hosted Leaderman address directly.
+- Simplified the user-facing sync story around one working free path: the Mac is the home base, and the phone opens the Mac-hosted Curiosity address directly.
 - Replaced the in-app shared-sync setup flow with a `Phone` launcher that shows the phone-ready LAN address from the private server.
-- Updated the desktop launcher so `Leaderman.app` starts the private server in LAN mode while still opening `http://127.0.0.1:4174/` on the Mac itself.
+- Updated the desktop launcher so `Curiosity.app` starts the private server in LAN mode while still opening `http://127.0.0.1:4174/` on the Mac itself.
 - Updated the private server health response to report local and phone URLs, and changed Keychain saving so it is allowed only from the Mac itself rather than from any other device on the network.
 - Removed the half-built separate remote sync service from the current product path and docs.
 

@@ -5,3 +5,5 @@ dist/
 .env.*
 npm-debug.log*
 .tmp-mac-app/
+test-results/
+.agents/

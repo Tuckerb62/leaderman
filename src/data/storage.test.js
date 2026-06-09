@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 describe('storage import', () => {
-  it('accepts a valid Leaderman backup', () => {
+  it('accepts a valid Curiosity backup', () => {
     const backup = createInitialState();
     const parsed = parseImportedState(JSON.stringify(backup));
     expect(parsed.schemaVersion).toBe(2);
@@ -32,12 +32,15 @@ describe('storage import', () => {
   });
 
   it('rejects unrelated JSON', () => {
-    expect(() => parseImportedState(JSON.stringify({ hello: 'world' }))).toThrow('Leaderman backup');
+    expect(() => parseImportedState(JSON.stringify({ hello: 'world' }))).toThrow('Curiosity backup');
   });
 
   it('caps imported sessions at 10', () => {
     const backup = createInitialState();
-    backup.sessions = Array.from({ length: 12 }, (_, index) => ({ id: `session-${index}` }));
+    backup.sessions = Array.from({ length: 12 }, (_, index) => ({
+      id: `session-${index}`,
+      lessonIds: ['lesson-stoic-control'],
+    }));
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
@@ -61,8 +64,8 @@ describe('storage import', () => {
   it('keeps reading bookmarks when importing a backup', () => {
     const backup = createInitialState();
     backup.readingProgress = {
-      'lesson-summary-way-kings': {
-        lessonId: 'lesson-summary-way-kings',
+      'lesson-stoic-control': {
+        lessonId: 'lesson-stoic-control',
         chapterIndex: 2,
         completedChapters: [0, 1],
         updatedAt: '2026-06-07T12:00:00.000Z',
@@ -71,14 +74,29 @@ describe('storage import', () => {
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
-    expect(parsed.readingProgress['lesson-summary-way-kings']).toMatchObject(backup.readingProgress['lesson-summary-way-kings']);
+    expect(parsed.readingProgress['lesson-stoic-control']).toMatchObject(backup.readingProgress['lesson-stoic-control']);
+  });
+
+  it('keeps note timestamps when importing a backup', () => {
+    const backup = createInitialState();
+    backup.notes = {
+      'lesson-stoic-control': 'Keep the distinction between control and influence tight.',
+    };
+    backup.noteUpdatedAtByKey = {
+      'lesson-stoic-control': '2026-06-09T12:00:00.000Z',
+    };
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.notes['lesson-stoic-control']).toBe(backup.notes['lesson-stoic-control']);
+    expect(parsed.noteUpdatedAtByKey['lesson-stoic-control']).toBe('2026-06-09T12:00:00.000Z');
   });
 
   it('keeps locally generated lesson expansions when importing a backup', () => {
     const backup = createInitialState();
     backup.lessonExpansions = {
-      'lesson:lesson-summary-gatsby': {
-        lessonId: 'lesson-summary-gatsby',
+      'lesson:lesson-stoic-control': {
+        lessonId: 'lesson-stoic-control',
         markdown: '## Deeper Read\nA privately generated expansion.',
         structured: {
           sections: [
@@ -98,7 +116,15 @@ describe('storage import', () => {
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
-    expect(parsed.lessonExpansions['lesson:lesson-summary-gatsby']).toMatchObject(backup.lessonExpansions['lesson:lesson-summary-gatsby']);
+    expect(parsed.lessonExpansions['lesson:lesson-stoic-control']).toMatchObject(backup.lessonExpansions['lesson:lesson-stoic-control']);
+  });
+
+  it('migrates legacy AI chat into app state when no synced copy exists yet', () => {
+    localStorage.setItem('leaderman.ai.chat.v1', JSON.stringify([{ id: 'chat-1', role: 'user', content: 'Hello', createdAt: '2026-06-09T12:00:00.000Z' }]));
+
+    const loaded = loadState();
+
+    expect(loaded.aiChatMessages).toEqual([{ id: 'chat-1', role: 'user', content: 'Hello', createdAt: '2026-06-09T12:00:00.000Z' }]);
   });
 
   it('adds the new sync and news slices to fresh state', () => {
@@ -111,6 +137,8 @@ describe('storage import', () => {
     expect(state.savedItems).toEqual({});
     expect(state.dismissedItems).toEqual({});
     expect(state.itemActivity).toEqual({});
+    expect(state.noteUpdatedAtByKey).toEqual({});
+    expect(state.aiChatMessages).toEqual([]);
     expect(state.news).toMatchObject({
       items: [],
       topicLedger: {},
@@ -129,6 +157,8 @@ describe('storage import', () => {
     delete backup.completedArticlesByKey;
     delete backup.generatedArticlesByKey;
     delete backup.articleTutorThreadsByKey;
+    delete backup.noteUpdatedAtByKey;
+    delete backup.aiChatMessages;
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
@@ -137,7 +167,50 @@ describe('storage import', () => {
     expect(parsed.generatedArticlesByKey).toEqual({});
     expect(parsed.articleTutorThreadsByKey).toEqual({});
     expect(parsed.followedTopics).toEqual({});
+    expect(parsed.noteUpdatedAtByKey).toEqual({});
+    expect(parsed.aiChatMessages).toEqual([]);
     expect(parsed.news.items).toEqual([]);
+  });
+
+  it('removes legacy novel-summary state while keeping current literature articles', () => {
+    const backup = createInitialState();
+    backup.savedItems = {
+      'novels:lesson-summary-way-kings': {
+        itemKey: 'novels:lesson-summary-way-kings',
+        updatedAt: '2026-06-08T12:00:00.000Z',
+      },
+      'article:literature-classic-novels-american-classics-the-great-gatsby-the-great-gatsby-chapter-1': {
+        itemKey: 'article:literature-classic-novels-american-classics-the-great-gatsby-the-great-gatsby-chapter-1',
+        updatedAt: '2026-06-09T12:00:00.000Z',
+      },
+    };
+    backup.itemActivity = {
+      'novels:lesson-summary-way-kings': {
+        itemKey: 'novels:lesson-summary-way-kings',
+        openCount: 3,
+        updatedAt: '2026-06-08T12:00:00.000Z',
+      },
+    };
+    backup.notes = {
+      'lesson-summary-way-kings': 'Old novel guide note',
+      'article:literature-classic-novels-american-classics-the-great-gatsby-the-great-gatsby-chapter-1': 'Keep the green light symbol in view.',
+    };
+    backup.reviews = {
+      ...backup.reviews,
+      'lesson-summary-way-kings': {
+        lessonId: 'lesson-summary-way-kings',
+        completed: true,
+      },
+    };
+
+    const parsed = parseImportedState(JSON.stringify(backup));
+
+    expect(parsed.savedItems['novels:lesson-summary-way-kings']).toBeUndefined();
+    expect(parsed.itemActivity['novels:lesson-summary-way-kings']).toBeUndefined();
+    expect(parsed.notes['lesson-summary-way-kings']).toBeUndefined();
+    expect(parsed.reviews['lesson-summary-way-kings']).toBeUndefined();
+    expect(parsed.savedItems['article:literature-classic-novels-american-classics-the-great-gatsby-the-great-gatsby-chapter-1']).toBeTruthy();
+    expect(parsed.notes['article:literature-classic-novels-american-classics-the-great-gatsby-the-great-gatsby-chapter-1']).toBe('Keep the green light symbol in view.');
   });
 
   it('round-trips saved items and news through local storage', () => {
@@ -192,17 +265,27 @@ describe('storage import', () => {
     state.notes = {
       'article:leadership-foundations-authority': 'My article note.',
     };
+    state.noteUpdatedAtByKey = {
+      'article:leadership-foundations-authority': '2026-06-09T12:07:00.000Z',
+    };
+    state.aiChatMessages = [
+      { id: 'chat-1', role: 'user', content: 'Hello', createdAt: '2026-06-09T12:08:00.000Z' },
+    ];
 
     const imported = parseImportedState(JSON.stringify(state));
     expect(imported.completedArticlesByKey).toEqual(state.completedArticlesByKey);
     expect(imported.generatedArticlesByKey).toEqual(state.generatedArticlesByKey);
     expect(imported.articleTutorThreadsByKey).toEqual(state.articleTutorThreadsByKey);
     expect(imported.notes['article:leadership-foundations-authority']).toBe('My article note.');
+    expect(imported.noteUpdatedAtByKey['article:leadership-foundations-authority']).toBe('2026-06-09T12:07:00.000Z');
+    expect(imported.aiChatMessages).toEqual(state.aiChatMessages);
 
     saveState(state);
     const loaded = loadState();
     expect(loaded.completedArticlesByKey).toEqual(state.completedArticlesByKey);
     expect(loaded.generatedArticlesByKey).toEqual(state.generatedArticlesByKey);
     expect(loaded.articleTutorThreadsByKey).toEqual(state.articleTutorThreadsByKey);
+    expect(loaded.noteUpdatedAtByKey).toEqual(state.noteUpdatedAtByKey);
+    expect(loaded.aiChatMessages).toEqual(state.aiChatMessages);
   });
 });

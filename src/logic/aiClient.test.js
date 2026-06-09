@@ -37,7 +37,7 @@ describe('ai client helpers', () => {
   it('builds lesson-grounded instructions without asking the model to invent facts', () => {
     const instructions = buildAiInstructions(lesson, true);
 
-    expect(instructions).toContain('Leaderman is a local-first leadership formation app');
+    expect(instructions).toContain('Curiosity is a local-first personal learning cockpit');
     expect(instructions).toContain('source cards, article-style lessons, historical examples');
     expect(instructions).toContain('Control What Is Yours');
     expect(instructions).toContain('Epictetus under empire');
@@ -50,6 +50,18 @@ describe('ai client helpers', () => {
   it('offers curated model choices with the default model included', () => {
     expect(AI_MODEL_OPTIONS.map((option) => option.id)).toContain(DEFAULT_AI_SETTINGS.model);
     expect(AI_MODEL_OPTIONS[0].id).toBe(DEFAULT_AI_SETTINGS.model);
+    expect(DEFAULT_AI_SETTINGS.model).toBe('gpt-5.4');
+  });
+
+  it('uses Curiosity as the visible AI product name', () => {
+    const instructions = buildAiInstructions(lesson, true);
+    const overview = buildExpansionOverviewPrompt();
+
+    expect(instructions).toContain('Curiosity AI Coach');
+    expect(instructions).toContain('Curiosity is a local-first personal learning cockpit');
+    expect(instructions).not.toContain('Leaderman is a local-first leadership formation app');
+    expect(overview).toContain('Curiosity AI expansion engine');
+    expect(overview).not.toContain('Leaderman AI expansion engine');
   });
 
   it('builds recent chat input for the Responses API', () => {
@@ -89,7 +101,7 @@ describe('ai client helpers', () => {
     expect(requiresClientApiKey('https://api.openai.com/v1/responses')).toBe(true);
   });
 
-  it('sends the Leaderman overview and chosen model in the OpenAI request body', async () => {
+  it('sends the Curiosity overview and chosen model in the OpenAI request body', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ output_text: 'Answer.' }),
@@ -108,7 +120,7 @@ describe('ai client helpers', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.model).toBe('gpt-5-mini');
-    expect(body.instructions).toContain('Leaderman is a local-first leadership formation app');
+    expect(body.instructions).toContain('Curiosity is a local-first personal learning cockpit');
     expect(body.instructions).toContain('Do not invent book quotes');
     expect(body.instructions).toContain('Control What Is Yours');
   });
@@ -116,7 +128,7 @@ describe('ai client helpers', () => {
   it('builds a reusable expansion overview prompt with content-quality instructions', () => {
     const overview = buildExpansionOverviewPrompt();
 
-    expect(overview).toContain('Leaderman AI expansion engine');
+    expect(overview).toContain('Curiosity AI expansion engine');
     expect(overview).toContain('Turn thin local-first learning content into deeper microlearning content');
     expect(overview).toContain('Do not pad with repeated copyright');
     expect(overview).toContain('For fiction, write compressed story retellings');
@@ -149,7 +161,7 @@ describe('ai client helpers', () => {
     });
 
     expect(prompt).toContain('# Expansion Request');
-    expect(prompt).toContain('Target: full Leaderman chapter retelling');
+    expect(prompt).toContain('Target: full Curiosity chapter retelling');
     expect(prompt).toContain('# Task Profile');
     expect(prompt).toContain('Mode: Fiction chapter reading companion');
     expect(prompt).toContain('Retell the selected chapter as a readable, spoiler-bounded story');
@@ -256,10 +268,10 @@ describe('ai client helpers', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(result).toBe('Expanded lesson.');
-    expect(body.instructions).toContain('Leaderman AI expansion engine');
+    expect(body.instructions).toContain('Curiosity AI expansion engine');
     expect(body.instructions).toContain('Do not pad with repeated copyright');
     expect(body.instructions).toBe(EXPANSION_OVERVIEW_PROMPT);
-    expect(body.input[0].content).toContain('Target: full Leaderman lesson');
+    expect(body.input[0].content).toContain('Target: full Curiosity lesson');
     expect(body.input[0].content).not.toContain('Do not pad with repeated copyright');
     expect(body.max_output_tokens).toBeGreaterThan(2500);
   });
@@ -270,7 +282,7 @@ describe('ai client helpers', () => {
       articleType: 'standard',
     });
 
-    expect(instructions).toContain('Leaderman AI article expansion engine');
+    expect(instructions).toContain('Curiosity AI article expansion engine');
     expect(instructions).toContain('Do not invent URLs, attribution, licenses, quotes, dates, citations, or source claims');
     expect(instructions).toContain('not patient-specific medical advice');
     expect(instructions).toContain('Do not invent ECG, radiology, ultrasound, pathology, lab, dosing, procedural, or medical image findings');
@@ -283,7 +295,7 @@ describe('ai client helpers', () => {
       articleType: 'standard',
     });
 
-    expect(instructions).toContain('Leaderman article-specific tutor');
+    expect(instructions).toContain('Curiosity article-specific tutor');
     expect(instructions).toContain('Tutor responses may use markdown');
     expect(instructions).toContain('Do not return JSON');
     expect(instructions).not.toContain('Return JSON with exactly these top-level fields');
@@ -347,8 +359,8 @@ describe('ai client helpers', () => {
     });
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.instructions).toContain('Leaderman AI article expansion engine');
-    expect(body.instructions).toContain('Do not map output into old Leaderman lesson fields');
+    expect(body.instructions).toContain('Curiosity AI article expansion engine');
+    expect(body.instructions).toContain('Do not map output into old Curiosity lesson fields');
     expect(JSON.stringify(body.input)).toContain('Authority is the recognized right to direct decisions.');
     expect(JSON.stringify(body.input)).toContain('leadership-framework-complete.md');
     expect(JSON.stringify(body.input)).toContain('Core Leadership Concepts');

@@ -810,9 +810,12 @@ export const domains = [
   'Self-Help',
   'Literature',
   'History',
-  'Novel Summaries',
   'World History',
 ];
+
+export function isLegacyNovelSummaryLesson(lesson) {
+  return lesson?.summaryKind === 'Novel' || lesson?.domain === 'Novel Summaries';
+}
 
 export const philosophySchools = [
   {
@@ -3475,7 +3478,8 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
     'Source note: built from the listed source card and broad public discussion. Verify details before external citation.',
 }));
 
-export const microLessons = [...leadershipLessons, ...summaryLessons];
+export const microLessons = [...leadershipLessons, ...summaryLessons]
+  .filter((lesson) => !isLegacyNovelSummaryLesson(lesson));
 
 export const createInitialState = () => ({
   schemaVersion: 2,
@@ -3498,6 +3502,8 @@ export const createInitialState = () => ({
   sessions: [],
   reflections: [],
   notes: {},
+  noteUpdatedAtByKey: {},
+  aiChatMessages: [],
   lessonExpansions: {},
   completedArticlesByKey: {},
   generatedArticlesByKey: {},
@@ -3519,6 +3525,9 @@ export const createInitialState = () => ({
       articleKey: null,
       feedLessonId: null,
       updatedAt: null,
+    },
+    onboarding: {
+      overviewSeenByUserId: {},
     },
   },
 });

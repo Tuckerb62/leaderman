@@ -1,6 +1,6 @@
-# Codex Rebuild Prompt — Leaderman
+# Codex Rebuild Prompt — Curiosity
 
-You are working on **Leaderman**, a local-first leadership microlearning app. Read `AGENTS.md`, `project-docs/README_FOR_AGENTS.md`, `project-docs/ARCHITECTURE.md`, and `project-docs/FEED_FEATURE_SPEC.md` before making any changes. Understand the codebase fully before touching anything.
+You are working on **Curiosity**, a local-first leadership microlearning app. Read `AGENTS.md`, `project-docs/README_FOR_AGENTS.md`, `project-docs/ARCHITECTURE.md`, and `project-docs/FEED_FEATURE_SPEC.md` before making any changes. Understand the codebase fully before touching anything.
 
 This prompt describes a significant but focused evolution of the app. These are **directions and suggestions, not rigid instructions.** You are expected to read the existing code, understand what's already working, and make judgment calls about the best way to implement each idea. If something described here conflicts with the architecture or would break existing functionality, use your best judgment and note what you changed and why.
 
@@ -154,7 +154,7 @@ These things exist in the current app and should be removed or significantly red
 
 **Sidebar explanation card.** The "Local only / No account or cloud sync" card in the sidebar. Remove it. The user knows what their own app does.
 
-**The brand subtitle.** "Leadership Formation" under the Leaderman logo. Remove. The app's purpose is self-evident.
+**The brand subtitle.** "Leadership Formation" under the Curiosity logo. Remove. The app's purpose is self-evident.
 
 **Fidelity panel always open.** In LearnView, the right-rail fidelity panel (Source basis, History lens, Analogy, Caution, Fidelity) competes with the lesson. Collapse it behind a "Show sources & fidelity" toggle. Closed by default.
 

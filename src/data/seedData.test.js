@@ -9,6 +9,8 @@ describe('seed lesson articles', () => {
     expect(state.generatedArticlesByKey).toEqual({});
     expect(state.articleTutorThreadsByKey).toEqual({});
     expect(state.notes).toEqual({});
+    expect(state.noteUpdatedAtByKey).toEqual({});
+    expect(state.aiChatMessages).toEqual([]);
     expect(state.savedItems).toEqual({});
   });
 
@@ -120,96 +122,23 @@ describe('seed lesson articles', () => {
     expect(microLessons.find((lesson) => lesson.slug === 'melian-power')?.sourceBasis).toContain('History of the Peloponnesian War');
   });
 
-  it('includes standalone novel and world history study summaries', () => {
-    const novelSummaries = microLessons.filter((lesson) => lesson.domain === 'Novel Summaries');
+  it('keeps world history summaries while removing legacy novel-summary lessons', () => {
     const worldHistory = microLessons.filter((lesson) => lesson.domain === 'World History');
 
-    expect(domains).toContain('Novel Summaries');
     expect(domains).toContain('World History');
-    expect(novelSummaries.length).toBeGreaterThanOrEqual(24);
     expect(worldHistory.length).toBeGreaterThanOrEqual(21);
-    expect(novelSummaries.every((lesson) => lesson.contentType === 'summary')).toBe(true);
+    expect(microLessons.every((lesson) => lesson.domain !== 'Novel Summaries')).toBe(true);
+    expect(microLessons.every((lesson) => lesson.summaryKind !== 'Novel')).toBe(true);
     expect(worldHistory.every((lesson) => lesson.summaryKind === 'History')).toBe(true);
-    expect(microLessons.find((lesson) => lesson.slug === 'summary-final-empire')?.sourceBasis).toContain('Mistborn: The Final Empire');
-    expect(microLessons.find((lesson) => lesson.slug === 'summary-way-kings')?.sourceBasis).toContain('The Way of Kings');
     expect(microLessons.find((lesson) => lesson.slug === 'history-sengoku-japan')?.sourceBasis).toContain('Sengoku Japan and Unification');
     expect(microLessons.find((lesson) => lesson.slug === 'history-roman-empire')?.sourceBasis).toContain('The Roman Empire');
-    expect(microLessons.find((lesson) => lesson.slug === 'summary-alloy-law')?.collectionTitle).toBe('Mistborn Era 2');
-    expect(microLessons.find((lesson) => lesson.slug === 'summary-tress')?.collectionTitle).toBe('Cosmere Standalones');
     expect(microLessons.find((lesson) => lesson.slug === 'history-julius-caesar')?.reflectionLens).toContain('Caesar is a good example');
     expect(microLessons.find((lesson) => lesson.slug === 'history-augustus')?.collectionTitle).toBe('Roman Emperors');
   });
 
-  it('does not manufacture fiction chapter retellings from whole-book notes', () => {
-    const fictionSummaries = microLessons.filter((lesson) => lesson.summaryKind === 'Novel');
-
-    expect(fictionSummaries.length).toBeGreaterThanOrEqual(10);
-
-    for (const lesson of fictionSummaries) {
-      expect(lesson.articleParagraphs.length).toBeGreaterThanOrEqual(5);
-      expect(lesson.remember.length).toBeGreaterThanOrEqual(4);
-      expect(lesson.expansionAvailable).toBe(true);
-
-      if ((lesson.chapterSummaries || []).length === 0) {
-        expect(lesson.chapterSummaries).toEqual([]);
-        continue;
-      }
-
-      for (const chapter of lesson.chapterSummaries) {
-        expect(chapter.chapterId).toMatch(lesson.slug);
-        expect(chapter.displayNumber).toBeTruthy();
-        expect(chapter.spoilerBoundary).toBeTruthy();
-        expect(chapter.retellingParagraphs.length).toBeGreaterThanOrEqual(3);
-        expect(chapter.summary).toBe(chapter.retellingParagraphs.join('\n\n'));
-        expect(chapter.whatChanged).toBeTruthy();
-        expect(chapter.whyItMatters).toBeTruthy();
-        expect(chapter.breakDown.length).toBeGreaterThanOrEqual(5);
-        expect(chapter.remember.length).toBeGreaterThanOrEqual(3);
-        expect(chapter.questions || []).toEqual([]);
-      }
-    }
-  });
-
-  it('keeps novels in reading mode instead of quiz mode', () => {
-    const fictionSummaries = microLessons.filter((lesson) => lesson.summaryKind === 'Novel');
-
-    expect(fictionSummaries.length).toBeGreaterThanOrEqual(10);
-
-    for (const lesson of fictionSummaries) {
-      expect(lesson.questions || []).toEqual([]);
-      for (const chapter of lesson.chapterSummaries || []) {
-        expect(chapter.questions || []).toEqual([]);
-      }
-    }
-  });
-
-  it('does not use generated fiction chapter skeletons or whole-book source arrays as chapter retellings', () => {
-    const forbiddenFictionSkeletons = [
-      'The central figure or group is trying to protect something',
-      'The tension rises because',
-      'The story is asking the reader to notice',
-      'By the end of this entry',
-      'This chapter-level study note slows down',
-      'This study movement opens',
-    ];
-
-    for (const lesson of microLessons.filter((item) => item.summaryKind === 'Novel')) {
-      const chapterText = JSON.stringify(lesson.chapterSummaries || []);
-      for (const phrase of forbiddenFictionSkeletons) {
-        expect(chapterText).not.toContain(phrase);
-      }
-
-      for (const chapter of lesson.chapterSummaries || []) {
-        const retelling = chapter.summary.toLowerCase();
-        for (const sourceList of [lesson.summaryBullets, lesson.timeline, lesson.themeNotes]) {
-          for (const sourcePhrase of sourceList || []) {
-            if (sourcePhrase.length > 32) {
-              expect(retelling).not.toContain(sourcePhrase.toLowerCase());
-            }
-          }
-        }
-      }
-    }
+  it('does not keep legacy fiction chapter-retelling lessons in seed state', () => {
+    expect(microLessons.filter((item) => item.summaryKind === 'Novel')).toEqual([]);
+    expect(microLessons.every((lesson) => lesson.domain !== 'Novel Summaries')).toBe(true);
   });
 
   it('creates a local-first initial state with the new canonical feed slices', () => {

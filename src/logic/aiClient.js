@@ -1,14 +1,29 @@
 export const DEFAULT_AI_SETTINGS = {
   endpoint: '/api/openai-responses',
-  model: 'gpt-5.2',
+  model: 'gpt-5.4',
   persistKey: false,
 };
 
 export const AI_MODEL_OPTIONS = [
   {
+    id: 'gpt-5.4',
+    label: 'GPT-5.4',
+    description: 'Best default for deep learning questions, historical comparison, and nuanced judgment.',
+  },
+  {
+    id: 'gpt-5.4-mini',
+    label: 'GPT-5.4 mini',
+    description: 'Faster and cheaper for focused coaching, quizzes, and summaries.',
+  },
+  {
+    id: 'gpt-5.4-nano',
+    label: 'GPT-5.4 nano',
+    description: 'Lowest-cost GPT-5.4 option for quick recall prompts and simple explanations.',
+  },
+  {
     id: 'gpt-5.2',
     label: 'GPT-5.2',
-    description: 'Best default for deep leadership questions, historical comparison, and nuanced judgment.',
+    description: 'Previous default for deep leadership questions, historical comparison, and nuanced judgment.',
   },
   {
     id: 'gpt-5.1',
@@ -58,10 +73,10 @@ export function buildLessonContext(lesson) {
 export function buildAiInstructions(lesson, includeLessonContext = true) {
   const context = includeLessonContext ? `\n\nLesson context:\n${buildLessonContext(lesson)}` : '';
   return [
-    'You are Leaderman AI Coach, the in-app tutor for Leaderman.',
+    'You are Curiosity AI Coach, the in-app tutor for Curiosity.',
     '',
     'App overview:',
-    'Leaderman is a local-first leadership formation app for a person training judgment, self-command, communication, influence, ethics, power literacy, conflict skill, systems thinking, technology awareness, history, and philosophy. The app teaches through source cards, article-style lessons, historical examples, scenario decisions, reflection prompts, completion tracking, question accuracy, and progress signals. It is not a generic chatbot, course marketplace, motivational app, or passive book-summary app.',
+    'Curiosity is a local-first personal learning cockpit for a person training judgment, self-command, communication, influence, ethics, power literacy, conflict skill, systems thinking, technology awareness, history, philosophy, science, politics, and literature. The app teaches through source cards, article-style lessons, historical examples, scenario decisions, reflection prompts, completion tracking, question accuracy, and progress signals. It is not a generic chatbot, course marketplace, motivational app, or passive book-summary app.',
     '',
     'Your role:',
     'Act as a serious leadership tutor and thinking partner. Help the user understand the current lesson, compare ideas, practice judgment, and connect material to history and real decisions. Be direct, precise, and useful. Assume the user wants to become more capable without becoming shallow, reckless, manipulative, or ungrounded.',
@@ -103,7 +118,7 @@ function compactList(items = []) {
 
 export const EXPANSION_OVERVIEW_PROMPT = [
   '# Identity',
-  'You are the Leaderman AI expansion engine.',
+  'You are the Curiosity AI expansion engine.',
   '',
   '# Purpose',
   'Turn thin local-first learning content into deeper microlearning content that is genuinely useful, specific, memorable, and easy to study.',
@@ -295,7 +310,7 @@ export function buildExpansionPrompt({ lesson, chapter = null }) {
 
   return [
     '# Expansion Request',
-    `Target: full Leaderman ${profile.target}`,
+    `Target: full Curiosity ${profile.target}`,
     '',
     '# Task Profile',
     `Mode: ${profile.mode}`,
@@ -385,14 +400,14 @@ function articleModeInstruction(article = {}) {
 export function buildArticleAiInstructions(article = {}) {
   return [
     '# Identity',
-    'You are the Leaderman AI article expansion engine.',
+    'You are the Curiosity AI article expansion engine.',
     '',
     '# Role',
     'Expand one opened markdown-derived article into a private generated learning aid for a single local-first user.',
     '',
     '# Output Contract',
     'Return JSON with exactly these top-level fields: title, articleMarkdown, imageCards, imageQueries, practicalTakeaway.',
-    'Do not map output into old Leaderman lesson fields such as quickVersion, breakdown, scenario, decision, or reflection.',
+    'Do not map output into old Curiosity lesson fields such as quickVersion, breakdown, scenario, decision, or reflection.',
     '',
     '# Article Mode',
     articleModeInstruction(article),
@@ -415,7 +430,7 @@ export function buildArticleAiInstructions(article = {}) {
 
 export function buildArticleTutorInstructions(article = {}) {
   return [
-    'You are Leaderman article-specific tutor.',
+    'You are Curiosity article-specific tutor.',
     'Answer only within the current article, generated article draft, hierarchy path, and local thread history.',
     'Tutor responses may use markdown.',
     'Do not return JSON, code fences that wrap a JSON object, or old lesson field names.',

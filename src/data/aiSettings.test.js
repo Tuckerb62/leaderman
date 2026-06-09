@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { DEFAULT_AI_SETTINGS } from '../logic/aiClient.js';
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './aiSettings.js';
 
 function makeStore() {
@@ -25,8 +26,21 @@ describe('AI settings storage', () => {
       hasStoredKey: true,
     });
 
-    expect(localStorage.getItem('leaderman.ai.settings.v1')).not.toContain('sk-secret');
+    const savedSettings = localStorage.getItem('leaderman.ai.settings.v1');
+    expect(savedSettings).not.toContain('sk-secret');
+    expect(savedSettings).not.toContain('https://example.test/responses');
     expect(loadAiSettings().model).toBe('test-model');
+    expect(loadAiSettings().endpoint).toBe(DEFAULT_AI_SETTINGS.endpoint);
+  });
+
+  it('ignores legacy browser-saved endpoints', () => {
+    localStorage.setItem('leaderman.ai.settings.v1', JSON.stringify({
+      endpoint: 'https://example.test/responses',
+      model: 'legacy-model',
+    }));
+
+    expect(loadAiSettings().model).toBe('legacy-model');
+    expect(loadAiSettings().endpoint).toBe(DEFAULT_AI_SETTINGS.endpoint);
   });
 
   it('stores session-only keys in session storage', () => {

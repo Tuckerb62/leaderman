@@ -1,6 +1,6 @@
 # Security and Privacy
 
-Leaderman is built for personal, local-first use. Its privacy posture depends on keeping user data in the browser by default, keeping API keys out of the public website build, and limiting private-server sync to the user's own Mac.
+Curiosity is built for personal, local-first use. Its privacy posture depends on keeping user data in the browser by default, keeping API keys out of the public website build, and limiting private-server sync to the user's own Mac.
 
 ## What Stays Local
 
@@ -65,7 +65,7 @@ When the app runs from GitHub Pages:
 - user data is browser-local to that device
 - `/api/openai-responses` does not exist unless the app is being served by the private local server
 - `/api/sync-state` and `/api/news-refresh` do not exist unless the app is being served by the private local server
-- AI requires either a direct browser endpoint and key or the Mac-hosted private server URL
+- AI requires either a direct browser OpenAI key or the Mac-hosted private server URL
 - expansion drafts and News state remain in that browser's local state unless the user exports a backup or uses the Mac-hosted sync bridge
 - the public GitHub Pages site is not the free live-sync path for Mac-hosted AI and News, because a secure public page cannot reliably call an insecure local-network API
 
@@ -80,9 +80,11 @@ If Supabase sync is configured, the public site can still sync the user-owned sn
 
 It does not write chat transcripts to disk. It forwards the request body to OpenAI and returns the response to the browser.
 
+If the user saves a custom upstream AI endpoint from the desktop app, that endpoint is written to the local app data folder on the Mac through `scripts/private-ai-settings-store.mjs`. That setting is intentionally not stored in browser state, not synced through Supabase, and not returned to non-loopback devices on the local network.
+
 The sync bridge writes a single-user sync snapshot file on the Mac. That file is intended for the same user moving between their own devices on the same network. It is not an account system and should not be repurposed into one casually.
 
-The request body includes the selected model, the user's question, recent chat turns, optional current-lesson or News-story context, selected expansion context, and the centralized Leaderman tutor or expansion instructions. Do not include API keys, local backups, or unrelated private files in this body.
+The request body includes the selected model, the user's question, recent chat turns, optional current-lesson or News-story context, selected expansion context, and the centralized Curiosity tutor or expansion instructions. Do not include API keys, local backups, or unrelated private files in this body.
 
 Expansion responses are Markdown drafts. Treat them as private generated learning aids, not verified source curriculum, until authored and checked.
 
@@ -108,6 +110,7 @@ If Supabase sync is enabled, it should only store the same user-owned sync snaps
 The sync layer must not sync:
 
 - API keys
+- desktop-only AI endpoint settings
 - Keychain material
 - local private-server secrets
 - arbitrary local files

@@ -1,8 +1,8 @@
 {
-  "name": "Leaderman",
-  "short_name": "Leaderman",
-  "description": "Leadership microlearning, philosophy, review, and private AI coaching.",
-  "start_url": "./?view=today",
+  "name": "Curiosity",
+  "short_name": "Curiosity",
+  "description": "Private microlearning, source cards, progress, and optional AI coaching.",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6f8",

@@ -53,7 +53,47 @@ export async function sendSupabaseMagicLink(email) {
     },
   });
 
-  if (error) throw formatSupabaseAuthError(error, 'Could not send the magic link.');
+  if (error) throw formatSupabaseAuthError(error, 'Could not send the sign-in email.');
+}
+
+function authRedirectUrl() {
+  if (typeof window === 'undefined') return 'http://localhost/';
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+export async function signInSupabaseWithPassword(email, password) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase auth is not configured.');
+
+  const cleanEmail = email.trim();
+  if (!cleanEmail || !password) throw new Error('Enter an email and password.');
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
+  });
+
+  if (error) throw formatSupabaseAuthError(error, 'Could not sign in.');
+  return data;
+}
+
+export async function createSupabaseAccount(email, password) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase auth is not configured.');
+
+  const cleanEmail = email.trim();
+  if (!cleanEmail || !password) throw new Error('Enter an email and password.');
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      emailRedirectTo: authRedirectUrl(),
+    },
+  });
+
+  if (error) throw formatSupabaseAuthError(error, 'Could not create your account.');
+  return data;
 }
 
 export async function signOutSupabase() {

@@ -9,7 +9,7 @@ import {
 } from './itemIdentity.js';
 
 describe('item identity helpers', () => {
-  it('maps novel lessons to the novels domain', () => {
+  it('maps seeded lessons to the shared library domain', () => {
     const lesson = {
       id: 'lesson-summary-way-kings',
       title: 'The Way of Kings',
@@ -17,10 +17,10 @@ describe('item identity helpers', () => {
       domain: 'Novel Summaries',
     };
 
-    expect(canonicalLessonDomain(lesson)).toBe('novels');
+    expect(canonicalLessonDomain(lesson)).toBe('library');
     expect(canonicalLessonItem(lesson)).toMatchObject({
-      key: 'novels:lesson-summary-way-kings',
-      domain: 'novels',
+      key: 'library:lesson-summary-way-kings',
+      domain: 'library',
       itemId: 'lesson-summary-way-kings',
     });
   });

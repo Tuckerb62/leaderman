@@ -166,8 +166,8 @@ export function mergeNewsState(localNews, remoteNews) {
   return {
     ...merged,
     expansions: {
-      ...(localNews?.expansions || {}),
       ...(remoteNews.expansions || {}),
+      ...(localNews?.expansions || {}),
     },
     lastRequestedAt: latestTimestamp(localNews?.lastRequestedAt, remoteNews.lastRequestedAt),
   };

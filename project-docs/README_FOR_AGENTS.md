@@ -1,10 +1,10 @@
-# Leaderman Context for Future Agents
+# Curiosity Context for Future Agents
 
-Leaderman is a standalone personal learning cockpit in `/Users/jonathan/Documents/leaderman`. It is still local-first, single-user, and static-first where practical. The public version can run as a static GitHub Pages site. The private version can run from the user's Mac with a small local server that keeps the OpenAI API key out of the browser and also provides private News refresh plus optional local sync. The app can also sync user-owned state through Supabase when the user signs in with a magic link.
+Curiosity is a standalone personal learning cockpit in `/Users/jonathan/Documents/leaderman`. It is still local-first, single-user, and static-first where practical. The public version can run as a static GitHub Pages site. The private version can run from the user's Mac with a small local server that keeps the OpenAI API key out of the browser and also provides private News refresh plus optional local sync. The app can also sync user-owned state through Supabase after the user creates an account or signs in.
 
 ## What the App Allows
 
-Leaderman now teaches across a curated serious subject map rather than leadership alone. It still uses source cards, article-style lessons, historical examples, decision scenarios, reflection prompts, completion tracking, question accuracy, and optional AI expansion, but the product surface is organized around canonical items and tabs instead of a leadership-only flow.
+Curiosity now teaches across a curated serious subject map rather than leadership alone. It still uses source cards, article-style lessons, historical examples, decision scenarios, reflection prompts, completion tracking, question accuracy, and optional AI expansion, but the product surface is organized around canonical items and tabs instead of a leadership-only flow.
 
 The current app supports these user-facing areas:
 
@@ -56,7 +56,7 @@ Future curriculum expansion should keep claims grounded. If adding material from
 
 ## Local-First Behavior
 
-User progress is stored in browser `localStorage` through `src/data/storage.js`. The same local state also stores `settings.resume`, which remembers the last view, selected lesson, selected news item, and last visible Feed item so the app can reopen where the user left off. AI key preferences for direct browser mode are stored by `src/data/aiSettings.js`. Session-only keys use `sessionStorage`; persisted browser keys use `localStorage`.
+User progress is stored in browser `localStorage` through `src/data/storage.js`. The same local state also stores `settings.resume`, which remembers the last view, selected lesson, selected news item, and last visible Feed item so the app can reopen where the user left off. AI key preferences for direct browser mode are stored by `src/data/aiSettings.js`. Session-only keys use `sessionStorage`; persisted browser keys use `localStorage`. A custom AI endpoint is different: the desktop app stores that in its own local app data file through `scripts/private-ai-settings-store.mjs`, not in browser storage and not in sync.
 
 The sidebar includes manual JSON export and import so the user can back up progress or move it to another browser manually. Import merges seeded source and lesson records from the current build, then restores user-owned completion state, question-answer counts, sessions, notes, reflections, generated expansion drafts, saved items, followed topics, dismissed items, activity history, News state, and settings.
 
@@ -67,7 +67,7 @@ The private local server also exposes a minimal sync bridge. When both the deskt
 The floating AI Coach has two operating modes:
 
 - Private local server mode: the frontend calls `/api/openai-responses`. `scripts/local-ai-server.mjs` reads the OpenAI key from `OPENAI_API_KEY` or macOS Keychain and proxies the request to the OpenAI Responses API. The browser never receives the key.
-- Direct browser mode: the frontend can call a full HTTPS endpoint directly and attach a pasted API key in the browser. This is convenient but exposes the key to that browser environment and should remain a fallback for personal use only.
+- Direct browser mode: when the private server is unavailable, the frontend can call the OpenAI Responses API directly and attach a pasted API key in the browser. This is convenient but exposes the key to that browser environment and should remain a fallback for personal use only.
 
 The floating AI Coach also includes a model selector. Curated options live in `AI_MODEL_OPTIONS` in `src/logic/aiClient.js`, and the default model lives in `DEFAULT_AI_SETTINGS`. Keep the custom model option available so the user can try newer or account-specific model IDs without a code change.
 
@@ -78,6 +78,7 @@ The private server also exposes:
 - `GET /api/ai-health`: tells the app whether a key is configured and whether it came from environment or Keychain.
 - `POST /api/openai-responses`: local proxy to OpenAI Responses API.
 - `POST /api/save-openai-key`: saves a pasted key to macOS Keychain, allowed only when the request comes from the Mac itself.
+- `GET /api/desktop-ai-settings` and `POST /api/desktop-ai-settings`: read or update the desktop-only custom AI endpoint, allowed only from the Mac itself.
 - `GET /api/sync-health`: reports whether the local sync bridge is available and where its local file lives.
 - `GET /api/sync-state` and `POST /api/sync-state`: minimal single-user sync snapshot endpoints.
 - `POST /api/news-refresh`: fetches source material and returns compact daily briefing items.
@@ -85,17 +86,17 @@ The private server also exposes:
 
 Supabase sync is handled in the browser through `@supabase/supabase-js`, `src/logic/supabaseAuth.js`, and `src/logic/syncClient.js`. The app uses magic-link email auth and stores the same sync snapshot shape in `public.user_profiles.app_state`.
 
-AI prompts are assembled in `src/logic/aiClient.js`. Every request should include the Leaderman app overview, the tutor role, factuality rules, teaching style, and optional current-item context. Keep these guardrails strong if the AI feature changes.
+AI prompts are assembled in `src/logic/aiClient.js`. Every request should include the Curiosity app overview, the tutor role, factuality rules, teaching style, and optional current-item context. Keep these guardrails strong if the AI feature changes.
 
 ## Install and Hosting Options
 
-Leaderman can be used in several ways:
+Curiosity can be used in several ways:
 
 - Local development: `npm run dev`, usually on `http://127.0.0.1:5173/`.
 - Phone testing without private AI: `npm run phone`, usually on port `5174` and reachable by LAN IP.
 - Private AI, private News, and sync on Mac: `npm run local:ai`, served from `http://127.0.0.1:4174/`.
 - Private AI, private News, and sync from phone or iPad: `npm run phone:ai`, served from the Mac on the local network.
-- Desktop launcher: `npm run mac:app`, which creates `Leaderman.app` on the Desktop, opens the private local app, and exposes a phone-ready LAN address.
+- Desktop launcher: `npm run mac:app`, which creates `Curiosity.app` on the Desktop, opens the private local app, and exposes a phone-ready LAN address.
 - Public static site: `npm run build:pages`, committed to `docs/`, then served by GitHub Pages.
 - iPhone or iPad home screen app: open the GitHub Pages URL in Safari and use Add to Home Screen.
 

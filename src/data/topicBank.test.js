@@ -15,10 +15,11 @@ describe('topic bank', () => {
     expect(emergency?.title).toBe('Emergency Medicine');
   });
 
-  it('keeps novel summaries out of the library lesson index', () => {
+  it('builds the library lesson index without legacy novel summaries', () => {
     const lessons = buildLibraryLessonIndex(microLessons);
 
     expect(lessons.length).toBeGreaterThan(20);
     expect(lessons.every((lesson) => lesson.summaryKind !== 'Novel')).toBe(true);
+    expect(lessons.every((lesson) => lesson.domain !== 'Novel Summaries')).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 # Operations
 
-This page is for future agents and maintainers who need to run, test, publish, sync, or troubleshoot Leaderman.
+This page is for future agents and maintainers who need to run, test, publish, sync, or troubleshoot Curiosity.
 
 ## First-Time Setup
 
@@ -50,23 +50,26 @@ The server serves the built app from `dist/` and exposes:
 
 - the local AI proxy at `/api/openai-responses`
 - the AI health check at `/api/ai-health`
+- the desktop-only AI endpoint controls at `/api/desktop-ai-settings`
 - the sync bridge at `/api/sync-health` and `/api/sync-state`
 - private News refresh and expansion endpoints
+
+When Curiosity is running inside the Mac wrapper, the custom AI endpoint is saved on the computer itself in the app's local data folder. That setting is not written into browser storage and is not synced to other devices.
 
 ## Tonight Setup for Mac and Phone
 
 The free working setup is:
 
-- the Mac runs Leaderman
+- the Mac runs Curiosity
 - the Mac keeps the OpenAI key
-- the phone opens the Mac-hosted Leaderman address on the same Wi-Fi
+- the phone opens the Mac-hosted Curiosity address on the same Wi-Fi
 - both devices share the same saved state through the Mac
 
 This is the setup to use when the goal is "make it work on my phone tonight" without adding a paid service or a separate internet sync backend.
 
 ## Supabase Sync Setup
 
-Leaderman can also read and write its sync snapshot through Supabase when these environment variables are present:
+Curiosity can also read and write its sync snapshot through Supabase when these environment variables are present:
 
 ```bash
 VITE_SUPABASE_URL=...
@@ -156,9 +159,9 @@ Do not write real API keys into source files, docs, commits, shell history examp
 
 The simplest phone path is now the desktop app:
 
-1. Run `npm run mac:app` once to create `Leaderman.app`.
-2. Open `Leaderman.app` on the Mac.
-3. In Leaderman, press the `Phone` button.
+1. Run `npm run mac:app` once to create `Curiosity.app`.
+2. Open `Curiosity.app` on the Mac.
+3. In Curiosity, press the `Phone` button.
 4. Open the shown phone address on the phone, usually:
 
 ```text
@@ -178,7 +181,7 @@ Requirements:
 - If you used `npm run phone:ai`, the terminal running the private server stays open.
 - The local network allows device-to-device connections.
 
-Saving a key to Keychain must be done from the Mac itself. Open Leaderman on the Mac and save the key there. The phone can then use AI and News through that same Mac server.
+Saving a key to Keychain must be done from the Mac itself. Open Curiosity on the Mac and save the key there. The phone can then use AI and News through that same Mac server.
 
 When the phone uses the Mac-hosted address, it gets:
 
@@ -197,13 +200,13 @@ npm run mac:app
 This creates:
 
 ```text
-/Users/jonathan/Desktop/Leaderman.app
+/Users/jonathan/Desktop/Curiosity.app
 ```
 
-Double-clicking the app starts the private local server on port `4174`, opens Leaderman on the Mac, and makes the same server reachable from the phone on the local network. Logs are written to:
+Double-clicking the app starts the private local server on port `4174`, opens Curiosity on the Mac, and makes the same server reachable from the phone on the local network. Logs are written to:
 
 ```text
-~/Library/Logs/Leaderman/launcher.log
+~/Library/Logs/Curiosity/launcher.log
 ```
 
 The launcher is local and unsigned. It is not an App Store app and does not require an Apple Developer account.
@@ -217,7 +220,7 @@ To update the published website after app changes:
 ```bash
 npm run build:pages
 git add .
-git commit -m "Update Leaderman site"
+git commit -m "Update Curiosity site"
 git push
 ```
 
@@ -280,7 +283,7 @@ For desktop launcher changes:
 npm run mac:app
 ```
 
-Then verify `/Users/jonathan/Desktop/Leaderman.app` exists and opens the app.
+Then verify `/Users/jonathan/Desktop/Curiosity.app` exists and opens the app.
 
 For changes touching the private server:
 

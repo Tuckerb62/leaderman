@@ -1,6 +1,6 @@
 # Architecture
 
-Leaderman is a Vite React single-page app with optional local Node tooling for private AI, private News, single-user sync, and desktop launching. The main product is intentionally static-first: it can run from GitHub Pages without a server, while the private server version runs from the user's Mac. Optional Supabase Auth plus `public.user_profiles` adds cloud sync for the user's own state snapshot.
+Curiosity is a Vite React single-page app with optional local Node tooling for private AI, private News, single-user sync, and desktop launching. The main product is intentionally static-first: it can run from GitHub Pages without a server, while the private server version runs from the user's Mac. Optional Supabase Auth plus `public.user_profiles` adds cloud sync for the user's own state snapshot.
 
 ## Key Files
 
@@ -12,7 +12,7 @@ Leaderman is a Vite React single-page app with optional local Node tooling for p
 - `src/data/newsStorage.js`: News storage, dedupe ledger, retention, saved story state, and expansion persistence.
 - `src/data/syncState.js`: sync snapshot building and merge logic for both the Mac-hosted sync bridge and the Supabase-backed user profile snapshot.
 - `src/logic/supabaseAuth.js`: magic-link sign-in, session lookup, and auth-state subscription for Supabase sync.
-- `src/data/aiSettings.js`: browser AI settings and optional browser-side key storage.
+- `src/data/aiSettings.js`: browser AI settings and optional browser-side key storage, excluding the desktop-only custom endpoint.
 - `src/logic/reviewScheduler.js`: completion tracking and question-answer transitions.
 - `src/logic/selectors.js`: source lookup and progress stats from the seeded lesson model.
 - `src/logic/itemIdentity.js`: canonical keys for library, novels, and news items.
@@ -20,10 +20,11 @@ Leaderman is a Vite React single-page app with optional local Node tooling for p
 - `src/logic/feedAggregation.js`: Feed aggregation, scoring, domain interleaving, and reason-line generation.
 - `src/logic/aiClient.js`: AI instructions, lesson context, Responses API payload construction, response parsing, and endpoint behavior.
 - `scripts/local-ai-server.mjs`: static file server plus private OpenAI proxy, sync endpoints, news endpoints, and macOS Keychain saving.
+- `scripts/private-ai-settings-store.mjs`: desktop-only custom AI endpoint storage in the local app data folder on the Mac.
 - `scripts/private-sync-store.mjs`: sync snapshot file storage on the user's Mac.
 - `scripts/private-news.mjs`: curated source fetching, clustering, summarization fallback, and News expansion helpers.
 - `scripts/save-openai-key-to-keychain.mjs`: terminal-based Keychain setup.
-- `scripts/create-mac-app.mjs`: creates the local macOS `Leaderman.app` launcher.
+- `scripts/create-mac-app.mjs`: creates the local macOS `Curiosity.app` launcher.
 - `public/manifest.webmanifest`, `public/icon.svg`, `public/sw.js`: installable web app assets.
 - `docs/`: generated GitHub Pages output from `npm run build:pages`.
 - `project-docs/`: maintainable source documentation.
@@ -211,19 +212,20 @@ flowchart LR
   UI["Floating AI panel / Expand buttons"] --> Client["src/logic/aiClient.js"]
   Client --> Endpoint{"Endpoint"}
   Endpoint -->|"default /api/openai-responses"| LocalServer["scripts/local-ai-server.mjs"]
+  LocalServer --> DesktopEndpoint["desktop-only endpoint file"]
   LocalServer --> Key{"API key source"}
   Key --> Env["OPENAI_API_KEY"]
   Key --> Keychain["macOS Keychain"]
   LocalServer --> OpenAI["OpenAI Responses API"]
-  Endpoint -->|"full HTTPS URL"| Direct["Direct browser request with pasted key"]
+  Endpoint -->|"fallback direct OpenAI"| Direct["Direct browser request with pasted key"]
   Direct --> OpenAI
 ```
 
-The default endpoint is `/api/openai-responses`. That only works when using the private local server. On GitHub Pages, the app can still run without AI, or the user can configure a direct HTTPS endpoint and provide a key in the browser.
+The default endpoint is `/api/openai-responses`. That only works when using the private local server. The server may itself use a desktop-only custom upstream endpoint saved in the local app data folder on the Mac. On GitHub Pages, the app can still run without AI, or the user can fall back to a direct OpenAI browser request with a pasted key.
 
 The selected model is stored with AI settings. Curated model choices and descriptions live in `AI_MODEL_OPTIONS`; `DEFAULT_AI_SETTINGS.model` sets the default. The UI also supports a custom model ID.
 
-The API request body includes a centralized `instructions` prompt. It gives the AI an overview of Leaderman, defines the tutor role, requires factual caveats, asks for examples and practical drills, and includes current lesson context when enabled.
+The API request body includes a centralized `instructions` prompt. It gives the AI an overview of Curiosity, defines the tutor role, requires factual caveats, asks for examples and practical drills, and includes current lesson context when enabled.
 
 Expansion requests use the same endpoint and key settings as AI Coach. The expansion prompt asks for structured Markdown, avoids repeated boilerplate, keeps source uncertainty separate from teaching content, and stores the result only in local or synced user-owned state.
 
@@ -245,7 +247,7 @@ flowchart LR
   Merge --> BrowserState
 ```
 
-The sync bridge is intentionally small. Leaderman now has two providers at this seam:
+The sync bridge is intentionally small. Curiosity now has two providers at this seam:
 
 - default local bridge through the Mac-hosted private server
 - optional Supabase sync through `public.user_profiles` when `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are present and the user is signed in

@@ -105,7 +105,7 @@ async function fetchSingleFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent': 'Leaderman private briefing',
+        'User-Agent': 'Curiosity private briefing',
       },
       signal: controller.signal,
     });
@@ -139,7 +139,7 @@ function withTimeout(promise, ms, message) {
 
 async function summarizeNewsArticles(articles, apiKey) {
   const prompt = [
-    'You are the Leaderman private news briefing engine.',
+    'You are the Curiosity private news briefing engine.',
     'Use only the supplied article titles, snippets, categories, timestamps, and source names.',
     'Do not invent facts, dates, causal claims, or quotations that are not supported by the provided article data.',
     'Group duplicate or near-duplicate stories by topicKey.',
@@ -263,7 +263,7 @@ export async function buildPrivateNewsBriefing({ apiKey }) {
 
 export async function expandPrivateNewsStory({ story, apiKey }) {
   const prompt = [
-    'You are the Leaderman private news expansion engine.',
+    'You are the Curiosity private news expansion engine.',
     'Use only the supplied compact story fields and sources.',
     'Do not invent facts, quotes, dates, or analysis that is not supported by the provided material.',
     'Return Markdown with these exact sections:',

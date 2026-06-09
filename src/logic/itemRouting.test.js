@@ -5,20 +5,14 @@ import { articles } from '../data/articleCatalog.js';
 import { resolveCanonicalItemRoute } from './itemRouting.js';
 
 describe('item routing', () => {
-  it('routes library and novels items into the shared lesson detail view', () => {
+  it('routes library items into the shared lesson detail view', () => {
     const state = createInitialState();
-    const novel = state.lessons.find((lesson) => lesson.summaryKind === 'Novel');
     const lesson = state.lessons.find((item) => item.summaryKind !== 'Novel');
 
     expect(resolveCanonicalItemRoute(state, `library:${lesson.id}`)).toMatchObject({
       view: 'learn',
       domain: 'library',
       lessonId: lesson.id,
-    });
-    expect(resolveCanonicalItemRoute(state, `novels:${novel.id}`)).toMatchObject({
-      view: 'learn',
-      domain: 'novels',
-      lessonId: novel.id,
     });
   });
 

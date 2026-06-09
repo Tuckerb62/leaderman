@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const APP_NAME = 'Leaderman';
+const APP_NAME = 'Curiosity';
 const BUNDLE_ID = 'com.leaderman.local';
 const targetArgIndex = process.argv.indexOf('--target');
 const targetDir = targetArgIndex === -1 ? join(process.env.HOME, 'Desktop') : resolve(process.argv[targetArgIndex + 1]);
@@ -20,7 +20,7 @@ function run(command, args) {
 
 async function buildIcon() {
   const thumbnailDir = join(tempDir, 'thumbnail');
-  const iconsetDir = join(tempDir, 'Leaderman.iconset');
+  const iconsetDir = join(tempDir, 'Curiosity.iconset');
   await rm(tempDir, { recursive: true, force: true });
   await mkdir(thumbnailDir, { recursive: true });
   await mkdir(iconsetDir, { recursive: true });
@@ -45,7 +45,7 @@ async function buildIcon() {
     run('/usr/bin/sips', ['-z', size, size, sourcePng, '--out', join(iconsetDir, name)]);
   }
 
-  run('/usr/bin/iconutil', ['-c', 'icns', iconsetDir, '-o', join(resourcesDir, 'Leaderman.icns')]);
+  run('/usr/bin/iconutil', ['-c', 'icns', iconsetDir, '-o', join(resourcesDir, 'Curiosity.icns')]);
 }
 
 const launcher = `#!/bin/zsh
@@ -56,18 +56,18 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 PROJECT_DIR="${ROOT}"
 PORT="4174"
 URL="http://127.0.0.1:\${PORT}/"
-LOG_DIR="$HOME/Library/Logs/Leaderman"
+LOG_DIR="$HOME/Library/Logs/Curiosity"
 LOG_FILE="$LOG_DIR/launcher.log"
 
 mkdir -p "$LOG_DIR"
 cd "$PROJECT_DIR" || exit 1
 
 notify() {
-  /usr/bin/osascript -e "display notification \\"$1\\" with title \\"Leaderman\\"" >/dev/null 2>&1 || true
+  /usr/bin/osascript -e "display notification \\"$1\\" with title \\"Curiosity\\"" >/dev/null 2>&1 || true
 }
 
 fail() {
-  /usr/bin/osascript -e "display alert \\"Leaderman could not start\\" message \\"$1\\" as warning" >/dev/null 2>&1 || true
+  /usr/bin/osascript -e "display alert \\"Curiosity could not start\\" message \\"$1\\" as warning" >/dev/null 2>&1 || true
   exit 1
 }
 
@@ -128,7 +128,7 @@ const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleExecutable</key>
   <string>${APP_NAME}</string>
   <key>CFBundleIconFile</key>
-  <string>Leaderman</string>
+  <string>Curiosity</string>
   <key>CFBundleIdentifier</key>
   <string>${BUNDLE_ID}</string>
   <key>CFBundleName</key>

@@ -6,12 +6,14 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { networkInterfaces, userInfo } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { buildPrivateNewsBriefing, expandPrivateNewsStory } from './private-news.mjs';
+import { AI_SETTINGS_PATH, readPrivateAiSettings, writePrivateAiSettings } from './private-ai-settings-store.mjs';
 import { readSyncState, SYNC_STATE_PATH, writeSyncState } from './private-sync-store.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST_DIR = join(ROOT, 'dist');
 const SERVICE_NAME = 'leaderman-openai-key';
 const DEFAULT_PORT = Number(process.env.PORT || 4174);
+const DEFAULT_UPSTREAM_ENDPOINT = 'https://api.openai.com/v1/responses';
 
 function argValue(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -92,6 +94,15 @@ function getApiKey() {
   return { key: '', source: 'missing' };
 }
 
+async function getPrivateAiSettings() {
+  const settings = await readPrivateAiSettings();
+  const endpoint = String(settings.endpoint || '').trim();
+  return {
+    endpoint: endpoint || DEFAULT_UPSTREAM_ENDPOINT,
+    hasCustomEndpoint: Boolean(endpoint && endpoint !== DEFAULT_UPSTREAM_ENDPOINT),
+  };
+}
+
 function json(res, statusCode, body) {
   const payload = JSON.stringify(body);
   res.writeHead(statusCode, {
@@ -132,7 +143,8 @@ async function proxyOpenAI(req, res) {
     return;
   }
 
-  const upstream = await fetch('https://api.openai.com/v1/responses', {
+  const privateAiSettings = await getPrivateAiSettings();
+  const upstream = await fetch(privateAiSettings.endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -240,7 +252,7 @@ async function saveOpenAIKey(req, res) {
   if (!isLoopbackRequest(req)) {
     json(res, 403, {
       error: {
-        message: 'Save the API key from the Leaderman app on your Mac itself, not from another device.',
+        message: 'Save the API key from the Curiosity app on your Mac itself, not from another device.',
       },
     });
     return;
@@ -266,6 +278,59 @@ async function saveOpenAIKey(req, res) {
   } catch (error) {
     json(res, 500, { error: { message: error.message || 'Could not save key to Keychain.' } });
   }
+}
+
+async function desktopAiSettingsHealth(req, res) {
+  if (!isLoopbackRequest(req)) {
+    json(res, 403, {
+      error: {
+        message: 'Desktop AI settings are only available from the Curiosity app on your Mac itself.',
+      },
+    });
+    return;
+  }
+
+  const privateAiSettings = await getPrivateAiSettings();
+  json(res, 200, {
+    canSaveDesktopSettings: true,
+    settingsPath: AI_SETTINGS_PATH,
+    endpoint: privateAiSettings.endpoint,
+    hasCustomEndpoint: privateAiSettings.hasCustomEndpoint,
+  });
+}
+
+async function saveDesktopAiSettings(req, res) {
+  if (!isLoopbackRequest(req)) {
+    json(res, 403, {
+      error: {
+        message: 'Save the AI endpoint from the Curiosity app on your Mac itself, not from another device.',
+      },
+    });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (error) {
+    json(res, 400, { error: { message: error.message } });
+    return;
+  }
+
+  const endpoint = String(body.endpoint || '').trim();
+  if (!endpoint) {
+    await writePrivateAiSettings({});
+    json(res, 200, { ok: true, endpoint: DEFAULT_UPSTREAM_ENDPOINT, hasCustomEndpoint: false });
+    return;
+  }
+
+  if (!/^https?:\/\//i.test(endpoint)) {
+    json(res, 400, { error: { message: 'The desktop AI endpoint must be a full http or https URL.' } });
+    return;
+  }
+
+  await writePrivateAiSettings({ endpoint });
+  json(res, 200, { ok: true, endpoint, hasCustomEndpoint: endpoint !== DEFAULT_UPSTREAM_ENDPOINT });
 }
 
 async function serveStatic(req, res) {
@@ -311,10 +376,15 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && req.url?.startsWith('/api/ai-health')) {
       const { key, source } = getApiKey();
       const urls = serverUrls();
+      const privateAiSettings = await getPrivateAiSettings();
       json(res, 200, {
         keyConfigured: Boolean(key),
         source: key ? source : 'missing',
         canSaveKeychain: isLoopbackRequest(req),
+        canSaveDesktopSettings: isLoopbackRequest(req),
+        desktopAiEndpoint: isLoopbackRequest(req) ? privateAiSettings.endpoint : '',
+        hasCustomDesktopEndpoint: isLoopbackRequest(req) ? privateAiSettings.hasCustomEndpoint : false,
+        desktopSettingsPath: isLoopbackRequest(req) ? AI_SETTINGS_PATH : '',
         localUrl: urls.localUrl,
         phoneUrls: urls.phoneUrls,
         hostMode: urls.hostMode,
@@ -324,6 +394,10 @@ const server = createServer(async (req, res) => {
           newsExpand: true,
         },
       });
+      return;
+    }
+    if (req.method === 'GET' && req.url?.startsWith('/api/desktop-ai-settings')) {
+      await desktopAiSettingsHealth(req, res);
       return;
     }
     if (req.method === 'GET' && req.url?.startsWith('/api/sync-health')) {
@@ -354,6 +428,10 @@ const server = createServer(async (req, res) => {
       await saveOpenAIKey(req, res);
       return;
     }
+    if (req.method === 'POST' && req.url?.startsWith('/api/desktop-ai-settings')) {
+      await saveDesktopAiSettings(req, res);
+      return;
+    }
     if (req.method === 'GET' || req.method === 'HEAD') {
       await serveStatic(req, res);
       return;
@@ -374,7 +452,7 @@ try {
 
 server.listen(port, host, () => {
   const keyInfo = getApiKey();
-  console.log(`Leaderman private AI server running at http://${host}:${port}/`);
+  console.log(`Curiosity private AI server running at http://${host}:${port}/`);
   if (host === '0.0.0.0') {
     for (const address of lanAddresses()) {
       console.log(`Phone URL: http://${address}:${port}/`);

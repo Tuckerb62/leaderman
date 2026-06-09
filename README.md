@@ -1,6 +1,6 @@
-# Leaderman
+# Curiosity
 
-Leaderman is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional sync through either the user's Mac or Supabase.
+Curiosity is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional sync through either the user's Mac or Supabase.
 
 ## For AI Agents and Maintainers
 
@@ -41,7 +41,7 @@ npm run phone
 
 ## Private AI Setup
 
-For personal use, the safest setup is to keep your OpenAI API key on your Mac and let Leaderman call a local private server. The browser never receives the key.
+For personal use, the safest setup is to keep your OpenAI API key on your Mac and let Curiosity call a local private server. The browser never receives the key.
 
 Option A: save your key inside the app:
 
@@ -63,7 +63,7 @@ Option B: save your key from the terminal:
 npm run keychain:set
 ```
 
-Then run Leaderman with private AI on your Mac:
+Then run Curiosity with private AI on your Mac:
 
 ```bash
 npm run local:ai
@@ -98,7 +98,7 @@ OPENAI_API_KEY=sk-your-key npm run local:ai
 The working free sync path is simple:
 
 - your Mac is the home base
-- your phone opens the Mac-hosted Leaderman address on the same Wi-Fi
+- your phone opens the Mac-hosted Curiosity address on the same Wi-Fi
 - the Mac keeps the OpenAI key
 - both devices read and write the same synced state through the Mac
 
@@ -117,7 +117,7 @@ Important:
 
 ## Install Without the App Store
 
-Leaderman is installable as a web app, so you do not need an Apple Developer account or App Store publishing.
+Curiosity is installable as a web app, so you do not need an Apple Developer account or App Store publishing.
 
 Mac:
 
@@ -127,7 +127,7 @@ Option A, Desktop launcher app:
 npm run mac:app
 ```
 
-This creates `Leaderman.app` on your Desktop. Double-click it to start the private local server, open Leaderman on your Mac, and make the same app reachable from your phone on the same Wi-Fi.
+This creates `Curiosity.app` on your Desktop. Double-click it to start the private local server, open Curiosity on your Mac, and make the same app reachable from your phone on the same Wi-Fi.
 
 Option B, browser-installed app:
 
@@ -139,7 +139,7 @@ iPhone or iPad:
 
 For the synced phone version that shares your Mac state tonight:
 
-1. Open `Leaderman.app` on your Mac.
+1. Open `Curiosity.app` on your Mac.
 2. Press the in-app `Phone` button.
 3. On your phone, open the shown `http://192.168.x.x:4174/` address in Safari while both devices are on the same Wi-Fi.
 4. If you want a shortcut, use Share -> Add to Home Screen.
@@ -163,7 +163,7 @@ To update the published site after code changes:
 ```bash
 npm run build:pages
 git add .
-git commit -m "Update Leaderman site"
+git commit -m "Update Curiosity site"
 git push
 ```
 

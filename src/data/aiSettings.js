@@ -7,9 +7,10 @@ const SESSION_KEY = 'leaderman.ai.sessionKey.v1';
 export function loadAiSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    const { endpoint, ...safeSaved } = saved || {};
     return {
       ...DEFAULT_AI_SETTINGS,
-      ...saved,
+      ...safeSaved,
       hasStoredKey: Boolean(localStorage.getItem(LOCAL_KEY) || sessionStorage.getItem(SESSION_KEY)),
       apiKey: localStorage.getItem(LOCAL_KEY) || sessionStorage.getItem(SESSION_KEY) || '',
     };
@@ -23,7 +24,7 @@ export function loadAiSettings() {
 }
 
 export function saveAiSettings(settings) {
-  const { apiKey, hasStoredKey, ...safeSettings } = settings;
+  const { apiKey, hasStoredKey, endpoint, ...safeSettings } = settings;
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(safeSettings));
 }
 

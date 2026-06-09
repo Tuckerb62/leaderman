@@ -11,7 +11,7 @@ export function parseCanonicalItemKey(value) {
 }
 
 export function canonicalLessonDomain(lesson) {
-  return lesson?.summaryKind === 'Novel' ? 'novels' : 'library';
+  return 'library';
 }
 
 export function canonicalLessonItem(lesson) {
