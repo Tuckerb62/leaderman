@@ -77,7 +77,7 @@ The private server also exposes:
 
 - `GET /api/ai-health`: tells the app whether a key is configured and whether it came from environment or Keychain.
 - `POST /api/openai-responses`: local proxy to OpenAI Responses API.
-- `POST /api/save-openai-key`: saves a pasted key to macOS Keychain, allowed only when the server is bound to `127.0.0.1` or `localhost`.
+- `POST /api/save-openai-key`: saves a pasted key to macOS Keychain, allowed only when the request comes from the Mac itself.
 - `GET /api/sync-health`: reports whether the local sync bridge is available and where its local file lives.
 - `GET /api/sync-state` and `POST /api/sync-state`: minimal single-user sync snapshot endpoints.
 - `POST /api/news-refresh`: fetches source material and returns compact daily briefing items.
@@ -93,11 +93,11 @@ Leaderman can be used in several ways:
 - Phone testing without private AI: `npm run phone`, usually on port `5174` and reachable by LAN IP.
 - Private AI, private News, and sync on Mac: `npm run local:ai`, served from `http://127.0.0.1:4174/`.
 - Private AI, private News, and sync from phone or iPad: `npm run phone:ai`, served from the Mac on the local network.
-- Desktop launcher: `npm run mac:app`, which creates `Leaderman.app` on the Desktop and opens the private local app.
+- Desktop launcher: `npm run mac:app`, which creates `Leaderman.app` on the Desktop, opens the private local app, and exposes a phone-ready LAN address.
 - Public static site: `npm run build:pages`, committed to `docs/`, then served by GitHub Pages.
 - iPhone or iPad home screen app: open the GitHub Pages URL in Safari and use Add to Home Screen.
 
-For personal private AI, private News, and sync from phone or iPad, the Mac must remain awake, on the same Wi-Fi, and running the private server.
+For personal private AI, private News, and sync from phone or iPad, the Mac must remain awake, on the same Wi-Fi, and running the private server. The working free path is for the phone to open the Mac-hosted address directly, not for GitHub Pages to proxy back into the Mac.
 
 ## Source Documentation Location
 

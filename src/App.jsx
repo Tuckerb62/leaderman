@@ -18,6 +18,7 @@ import {
   Search,
   Send,
   Settings,
+  Smartphone,
   Sparkles,
   Trash2,
   Wifi,
@@ -27,7 +28,7 @@ import {
 import { clearAiChat, loadAiChat, saveAiChat } from './data/aiChatStorage.js';
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
-import { createInitialNewsState, expireNewsItems, isNewsRefreshDue, mergeNewsRefresh, saveNewsExpansion as saveNewsExpansionState, saveNewsItem as saveNewsItemState } from './data/newsStorage.js';
+import { createInitialNewsState, describeNewsFreshness, expireNewsItems, isNewsRefreshDue, mergeNewsRefresh, saveNewsExpansion as saveNewsExpansionState, saveNewsItem as saveNewsItemState } from './data/newsStorage.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
 import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
@@ -37,6 +38,7 @@ import { buildFeedItems } from './logic/feedAggregation.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
 import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './logic/reviewScheduler.js';
+import { fetchSyncHealth, fetchSyncSnapshot, pushSyncSnapshot } from './logic/syncClient.js';
 import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
 import { markStudied, sessionMinutes } from './logic/studyProgress.js';
 
@@ -264,7 +266,16 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [sessionSummary, setSessionSummary] = useState('');
   const [contextLessonId, setContextLessonId] = useState(null);
-  const [syncStatus, setSyncStatus] = useState({ available: false, updatedAt: null, path: '', error: '' });
+  const [syncStatus, setSyncStatus] = useState({
+    available: false,
+    updatedAt: null,
+    path: '',
+    error: '',
+    mode: 'local',
+    localUrl: '',
+    phoneUrls: [],
+    hostMode: 'local',
+  });
   const [isSyncing, setIsSyncing] = useState(false);
   const [newsStatus, setNewsStatus] = useState({ refreshing: false, error: '' });
   const syncReadyRef = useRef(false);
@@ -550,9 +561,21 @@ export default function App() {
     try {
       const response = await fetch('/api/news-refresh', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: loadAiSettings().apiKey || '' }),
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error?.message || 'Could not refresh private news.');
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          payload?.error?.message
+            || (response.status === 404 || response.status === 405
+              ? 'Your private Leaderman server is out of date. Restart Leaderman.app or rerun npm run local:ai, then refresh News again.'
+              : 'Could not refresh private news.'),
+        );
+      }
+      if (!payload || !Array.isArray(payload.stories)) {
+        throw new Error('Your private Leaderman server did not return a valid News response. Restart the private server and try again.');
+      }
       setState((current) => ({
         ...current,
         news: mergeNewsRefresh(
@@ -565,7 +588,11 @@ export default function App() {
     } catch (error) {
       setNewsStatus({
         refreshing: false,
-        error: automatic ? '' : error.message,
+        error: automatic
+          ? ''
+          : error?.message === 'Failed to fetch'
+            ? 'News refresh needs the Mac-hosted private server URL. A browser key alone is not enough on the public site.'
+            : error.message,
       });
     }
   }
@@ -574,7 +601,7 @@ export default function App() {
     const response = await fetch('/api/news-expand', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ story: newsItem }),
+      body: JSON.stringify({ story: newsItem, apiKey: loadAiSettings().apiKey || '' }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload?.error?.message || 'Could not expand this story.');
@@ -614,8 +641,7 @@ export default function App() {
   }, []);
 
   async function pullRemoteSnapshot() {
-    const response = await fetch('/api/sync-state');
-    const payload = await response.json().catch(() => ({}));
+    const payload = await fetchSyncSnapshot();
     if (payload.snapshot) {
       setState((current) => mergeSyncSnapshot(current, payload.snapshot));
       setSyncStatus((current) => ({
@@ -628,18 +654,21 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    syncReadyRef.current = false;
 
     async function bootstrapSync() {
       try {
-        const health = await fetch('/api/sync-health');
-        if (!health.ok) throw new Error('No local sync bridge.');
-        const healthPayload = await health.json();
+        const healthPayload = await fetchSyncHealth();
         if (cancelled) return;
         setSyncStatus({
           available: true,
           updatedAt: healthPayload.updatedAt || null,
           path: healthPayload.path || '',
           error: '',
+          mode: healthPayload.mode || 'local',
+          localUrl: healthPayload.localUrl || '',
+          phoneUrls: healthPayload.phoneUrls || [],
+          hostMode: healthPayload.hostMode || 'local',
         });
         if (!cancelled) await pullRemoteSnapshot();
       } catch (error) {
@@ -649,6 +678,10 @@ export default function App() {
             updatedAt: null,
             path: '',
             error: error.message,
+            mode: 'local',
+            localUrl: '',
+            phoneUrls: [],
+            hostMode: 'local',
           });
         }
       } finally {
@@ -688,12 +721,7 @@ export default function App() {
       setIsSyncing(true);
       try {
         const snapshot = buildSyncSnapshot(state);
-        const response = await fetch('/api/sync-state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ snapshot }),
-        });
-        const payload = await response.json().catch(() => ({}));
+        const payload = await pushSyncSnapshot(snapshot);
         setSyncStatus((current) => ({
           ...current,
           updatedAt: payload.snapshot?.syncedAt || snapshot.syncedAt,
@@ -801,9 +829,12 @@ export default function App() {
                 <Play size={16} />
                 Session
               </button>
-              <div className="sync-chip" title={syncStatus.available ? syncStatus.path : syncStatus.error || 'No local sync bridge'}>
+              <div
+                className="sync-chip"
+                title={syncStatus.available ? syncStatus.phoneUrls?.[0] || syncStatus.localUrl || syncStatus.path : syncStatus.error || 'No sync yet'}
+              >
                 {syncStatus.available ? <Wifi size={14} /> : <WifiOff size={14} />}
-                <span>{isSyncing ? 'Syncing' : syncStatus.available ? 'Sync ready' : 'Local only'}</span>
+                <span>{isSyncing ? 'Syncing' : syncStatus.phoneUrls?.length ? 'Phone ready' : syncStatus.available ? 'Mac sync' : 'Local only'}</span>
               </div>
             </div>
           </header>
@@ -818,6 +849,8 @@ export default function App() {
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
       </main>
 
+      <PhoneSetupLauncher syncStatus={syncStatus} isSyncing={isSyncing} />
+      <AiSetupLauncher />
       <FloatingAiPanel lesson={aiContextLesson} />
     </div>
   );
@@ -2148,6 +2181,7 @@ function NovelsView({ state, selectedLesson, openCanonicalItem, toggleSavedItem 
 function NewsView({ state, selectedNewsItem, setSelectedNewsId, newsStatus, refreshNews, expandNewsItem, toggleSavedItem }) {
   const [query, setQuery] = useState('');
   const [expandingId, setExpandingId] = useState('');
+  const freshness = describeNewsFreshness(state.news || createInitialNewsState(), new Date().toISOString());
   const stories = (state.news?.items || []).filter((item) => {
     const text = `${item.title} ${item.category} ${item.whatHappened}`.toLowerCase();
     return text.includes(query.toLowerCase());
@@ -2181,6 +2215,9 @@ function NewsView({ state, selectedNewsItem, setSelectedNewsId, newsStatus, refr
             <p className="section-label">Private briefing room</p>
             <h2>Daily news</h2>
             <p>Compact real-source briefings first, deeper analysis only when you explicitly expand a story.</p>
+            <small className={freshness.stale ? 'news-refresh-note stale' : 'news-refresh-note'}>
+              {newsStatus.refreshing ? 'Refreshing now...' : freshness.label}
+            </small>
           </div>
           <button className="secondary-button" onClick={() => refreshNews()} disabled={newsStatus.refreshing}>
             <RefreshCw size={16} />
@@ -2300,6 +2337,276 @@ function ProgressView({ state, stats, startSession }) {
   );
 }
 
+function PhoneSetupLauncher({ syncStatus, isSyncing }) {
+  const [open, setOpen] = useState(false);
+  const phoneUrl = syncStatus.phoneUrls?.[0] || '';
+
+  async function copyPhoneUrl() {
+    if (!phoneUrl || !navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(phoneUrl);
+    } catch {
+      // Ignore clipboard failures. The user can still read the URL.
+    }
+  }
+
+  return (
+    <>
+      <button className="sync-setup-button" onClick={() => setOpen(true)}>
+        <Smartphone size={16} />
+        <span>Phone</span>
+      </button>
+      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close phone setup" />}
+      {open && (
+        <aside className="sync-setup-modal" aria-label="Phone setup">
+          <div className="floating-ai-head">
+            <div>
+              <span>Phone setup</span>
+              <strong>Use your Mac as the home base</strong>
+            </div>
+            <button className="icon-button light" onClick={() => setOpen(false)} title="Close">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="ai-settings-drawer">
+            <div className={`server-status ${syncStatus.available ? 'ready' : 'offline'}`}>
+              <span>{phoneUrl ? 'Phone sync is ready' : syncStatus.available ? 'Mac sync is ready' : 'Sync offline'}</span>
+              <p>
+                {phoneUrl
+                  ? 'Your Mac is serving Leaderman to the local network. Open the phone address below on the same Wi-Fi and the phone will share the same saved state, News, and AI bridge.'
+                  : syncStatus.available
+                    ? 'Leaderman is syncing on this Mac, but there is no phone-ready network address yet. Open Leaderman.app or run the LAN server so your phone can reach it.'
+                    : 'No Mac sync server is available right now. The app is still working locally on this device.'}
+              </p>
+            </div>
+
+            {phoneUrl && (
+              <div className="ai-field">
+                <label htmlFor="phone-url">Phone address</label>
+                <input id="phone-url" value={phoneUrl} readOnly />
+                <div className="ai-settings-actions">
+                  <button className="secondary-button" onClick={copyPhoneUrl}>
+                    Copy address
+                  </button>
+                </div>
+                <p className="field-help">On your phone: open this address in Safari on the same Wi-Fi, then add it to the Home Screen if you want a shortcut.</p>
+              </div>
+            )}
+
+            <p className="settings-notice">
+              {isSyncing
+                ? 'Sync is running now.'
+                : syncStatus.available
+                  ? syncStatus.updatedAt
+                    ? `Last synced at ${new Date(syncStatus.updatedAt).toLocaleString()}. Keep the Mac awake while using the phone.`
+                    : 'Sync is connected.'
+                  : syncStatus.error || 'Open Leaderman.app on your Mac to turn on phone sync.'}
+            </p>
+          </div>
+        </aside>
+      )}
+    </>
+  );
+}
+
+function AiSetupLauncher() {
+  const [open, setOpen] = useState(false);
+  const [settings, setSettings] = useState(() => loadAiSettings());
+  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
+  const [notice, setNotice] = useState('');
+  const [serverStatus, setServerStatus] = useState('checking');
+  const [canSaveKeychain, setCanSaveKeychain] = useState(false);
+  const [keychainKey, setKeychainKey] = useState('');
+  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
+  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
+  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
+  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
+  const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
+    ? DEFAULT_AI_SETTINGS.endpoint
+    : settings.endpoint === DEFAULT_AI_SETTINGS.endpoint
+      ? 'https://api.openai.com/v1/responses'
+      : settings.endpoint;
+  const endpointNeedsKey = requiresClientApiKey(effectiveEndpoint);
+
+  function refreshServerStatus() {
+    setServerStatus('checking');
+    fetch('/api/ai-health')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
+      .then((payload) => {
+        setCanSaveKeychain(Boolean(payload.canSaveKeychain));
+        setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
+      })
+      .catch(() => {
+        setCanSaveKeychain(false);
+        setServerStatus('offline');
+      });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const latest = loadAiSettings();
+    setSettings(latest);
+    setDraftKey(latest.apiKey);
+    setNotice('');
+    refreshServerStatus();
+  }, [open]);
+
+  function updateSettings(nextSettings) {
+    setSettings(nextSettings);
+    saveAiSettings(nextSettings);
+  }
+
+  function updateModelSelection(modelId) {
+    if (modelId === 'custom') {
+      setUseCustomModel(true);
+      return;
+    }
+    setUseCustomModel(false);
+    updateSettings({ ...settings, model: modelId });
+  }
+
+  function saveBrowserKey() {
+    if (!draftKey.trim()) return;
+    saveApiKey(draftKey.trim(), settings.persistKey);
+    setSettings({ ...settings, apiKey: draftKey.trim(), hasStoredKey: true });
+    setNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
+  }
+
+  function removeBrowserKey() {
+    clearApiKey();
+    setDraftKey('');
+    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
+    setNotice('API key cleared.');
+  }
+
+  async function saveKeychainKey() {
+    const cleanKey = keychainKey.trim();
+    if (!cleanKey || isSavingKeychain) return;
+    setIsSavingKeychain(true);
+    setNotice('');
+    try {
+      const response = await fetch('/api/save-openai-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: cleanKey }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the key.');
+      setKeychainKey('');
+      setNotice('API key saved to macOS Keychain.');
+      refreshServerStatus();
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setIsSavingKeychain(false);
+    }
+  }
+
+  return (
+    <>
+      <button className="ai-setup-button" onClick={() => setOpen(true)}>
+        <Settings size={16} />
+        <span>API key</span>
+      </button>
+      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close API key setup" />}
+      {open && (
+        <aside className="ai-setup-modal" aria-label="AI setup">
+          <div className="floating-ai-head">
+            <div>
+              <span>AI setup</span>
+              <strong>Keys and model settings</strong>
+            </div>
+            <button className="icon-button light" onClick={() => setOpen(false)} title="Close">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="ai-settings-drawer">
+            <div className={`server-status ${serverStatus}`}>
+              <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
+              <p>
+                {serverStatus === 'ready'
+                  ? 'Your Mac server will make the API call.'
+                  : serverStatus === 'missing-key'
+                    ? canSaveKeychain
+                      ? 'Save a key to Keychain on this Mac.'
+                      : 'The Mac server is running, but the key must be saved from the Mac itself.'
+                    : 'No private server was found, so the browser will call OpenAI directly.'}
+              </p>
+            </div>
+            {serverStatus !== 'offline' && canSaveKeychain && (
+              <div className="ai-field">
+                <label htmlFor="launcher-keychain-key">Save key to Mac Keychain</label>
+                <input
+                  id="launcher-keychain-key"
+                  type="password"
+                  value={keychainKey}
+                  onChange={(event) => setKeychainKey(event.target.value)}
+                  placeholder="Paste once, save to Keychain"
+                  autoComplete="off"
+                />
+                <button className="secondary-button" onClick={saveKeychainKey} disabled={!keychainKey.trim() || isSavingKeychain}>
+                  {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
+                </button>
+              </div>
+            )}
+            {endpointNeedsKey && (
+              <>
+                <div className="ai-field">
+                  <label htmlFor="launcher-ai-key">OpenAI API key</label>
+                  <input
+                    id="launcher-ai-key"
+                    type="password"
+                    value={draftKey}
+                    onChange={(event) => setDraftKey(event.target.value)}
+                    placeholder="sk-..."
+                    autoComplete="off"
+                  />
+                </div>
+                <label className="toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.persistKey}
+                    onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
+                  />
+                  Remember key in this browser
+                </label>
+                <div className="ai-settings-actions">
+                  <button className="secondary-button" onClick={saveBrowserKey}>Save key</button>
+                  <button className="secondary-button" onClick={removeBrowserKey}>Clear key</button>
+                </div>
+              </>
+            )}
+            <div className="ai-field">
+              <label htmlFor="launcher-ai-model">Model</label>
+              <select id="launcher-ai-model" value={modelSelectValue} onChange={(event) => updateModelSelection(event.target.value)}>
+                {AI_MODEL_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+                <option value="custom">Custom model</option>
+              </select>
+              <p className="field-help">{selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}</p>
+            </div>
+            {modelSelectValue === 'custom' && (
+              <div className="ai-field">
+                <label htmlFor="launcher-ai-custom-model">Custom model ID</label>
+                <input id="launcher-ai-custom-model" value={settings.model} onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })} placeholder="gpt-..." />
+              </div>
+            )}
+            <details>
+              <summary>Advanced endpoint</summary>
+              <div className="ai-field">
+                <label htmlFor="launcher-ai-endpoint">Endpoint</label>
+                <input id="launcher-ai-endpoint" value={settings.endpoint} onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })} />
+              </div>
+            </details>
+            {notice && <p className="settings-notice">{notice}</p>}
+          </div>
+        </aside>
+      )}
+    </>
+  );
+}
+
 function FloatingAiPanel({ lesson }) {
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -2310,6 +2617,7 @@ function FloatingAiPanel({ lesson }) {
   const [isAsking, setIsAsking] = useState(false);
   const [notice, setNotice] = useState('');
   const [serverStatus, setServerStatus] = useState('checking');
+  const [canSaveKeychain, setCanSaveKeychain] = useState(false);
   const [keychainKey, setKeychainKey] = useState('');
   const [isSavingKeychain, setIsSavingKeychain] = useState(false);
   const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
@@ -2328,11 +2636,25 @@ function FloatingAiPanel({ lesson }) {
     setServerStatus('checking');
     fetch('/api/ai-health')
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
-      .then((payload) => setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key'))
-      .catch(() => setServerStatus('offline'));
+      .then((payload) => {
+        setCanSaveKeychain(Boolean(payload.canSaveKeychain));
+        setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
+      })
+      .catch(() => {
+        setCanSaveKeychain(false);
+        setServerStatus('offline');
+      });
   }
 
   useEffect(() => refreshServerStatus(), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const latest = loadAiSettings();
+    setSettings(latest);
+    setDraftKey(latest.apiKey);
+    refreshServerStatus();
+  }, [open]);
 
   function updateSettings(nextSettings) {
     setSettings(nextSettings);
@@ -2481,9 +2803,17 @@ function FloatingAiPanel({ lesson }) {
           <div className="ai-settings-drawer">
             <div className={`server-status ${serverStatus}`}>
               <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
-              <p>{serverStatus === 'ready' ? 'Your Mac server will make the API call.' : serverStatus === 'missing-key' ? 'Save a key to Keychain on this Mac.' : 'The local server was not found, so the browser will call OpenAI directly.'}</p>
+              <p>
+                {serverStatus === 'ready'
+                  ? 'Your Mac server will make the API call.'
+                  : serverStatus === 'missing-key'
+                    ? canSaveKeychain
+                      ? 'Save a key to Keychain on this Mac.'
+                      : 'The Mac server is running, but the key must be saved from the Mac itself.'
+                    : 'The local server was not found, so the browser will call OpenAI directly.'}
+              </p>
             </div>
-            {serverStatus !== 'offline' && (
+            {serverStatus !== 'offline' && canSaveKeychain && (
               <div className="ai-field">
                 <label htmlFor="keychain-key">Save key to Mac Keychain</label>
                 <input

@@ -21,7 +21,7 @@ The app stores these records in browser storage:
 - browser AI settings
 - optional direct-browser API key
 
-There is no app account, cloud database, server-side profile, analytics pipeline, or multi-user sync service in the current product.
+There is no app account, cloud database with user profiles, analytics pipeline, or multi-user sync service in the current product.
 
 ## Manual Backup
 
@@ -45,7 +45,7 @@ npm run local:ai
 
 Then save the key through the floating AI panel's Keychain setup area. The browser sends the key once to the local Mac server at `/api/save-openai-key`, and the server stores it in macOS Keychain.
 
-`/api/save-openai-key` refuses to run when the server is bound to `0.0.0.0`, because that mode is intended for phone or iPad access over the local network.
+`/api/save-openai-key` is allowed only when the request comes from the Mac itself. Other devices on the network can use the Mac-held key through the server, but they cannot save or overwrite it remotely.
 
 ## Direct Browser Key Risk
 
@@ -65,6 +65,7 @@ When the app runs from GitHub Pages:
 - `/api/sync-state` and `/api/news-refresh` do not exist unless the app is being served by the private local server
 - AI requires either a direct browser endpoint and key or the Mac-hosted private server URL
 - expansion drafts and News state remain in that browser's local state unless the user exports a backup or uses the Mac-hosted sync bridge
+- the public GitHub Pages site is not the free live-sync path for Mac-hosted AI and News, because a secure public page cannot reliably call an insecure local-network API
 
 ## Local Private Server Boundary
 
@@ -85,7 +86,7 @@ When run with `--host 0.0.0.0`, the server is reachable by other devices on the 
 
 ## Sync Boundaries
 
-The private sync bridge is allowed to sync user-owned state such as:
+The Mac-hosted sync layer is allowed to sync user-owned state such as:
 
 - followed topics and subtopics
 - saved items
@@ -98,12 +99,13 @@ The private sync bridge is allowed to sync user-owned state such as:
 - generated News expansions
 - lightweight profile basics when present
 
-The private sync bridge must not sync:
+The sync layer must not sync:
 
 - API keys
 - Keychain material
 - local private-server secrets
 - arbitrary local files
+- OpenAI API keys
 
 The current sync model is deliberately small and single-user. It trades off rich conflict resolution for a simple last-write and per-slice merge approach suitable for one person's desktop and phone.
 

@@ -177,3 +177,36 @@ export function isNewsRefreshDue(newsState, now = new Date().toISOString()) {
   if (!newsState?.lastRefreshedAt) return true;
   return newsState.lastRefreshedAt.slice(0, 10) !== now.slice(0, 10);
 }
+
+function relativeAgeLabel(lastRefreshedAt, now) {
+  const diffMs = Math.max(0, new Date(now).getTime() - new Date(lastRefreshedAt).getTime());
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+export function describeNewsFreshness(newsState, now = new Date().toISOString()) {
+  if (!newsState?.lastRefreshedAt) {
+    return {
+      label: 'Not refreshed yet',
+      stale: true,
+    };
+  }
+
+  const age = relativeAgeLabel(newsState.lastRefreshedAt, now);
+  if (isNewsRefreshDue(newsState, now)) {
+    return {
+      label: `Last refreshed ${age} · refresh due`,
+      stale: true,
+    };
+  }
+
+  return {
+    label: `Refreshed ${age}`,
+    stale: false,
+  };
+}

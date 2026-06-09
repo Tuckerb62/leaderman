@@ -1,6 +1,6 @@
 # Leaderman
 
-Leaderman is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional local-network sync through the user's Mac.
+Leaderman is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional Mac-hosted sync.
 
 ## For AI Agents and Maintainers
 
@@ -24,7 +24,7 @@ After GitHub Pages finishes deploying, open:
 
 https://Tuckerb62.github.io/leaderman/
 
-The public GitHub Pages build stays static-first. It has no account system and no cloud backend. Your notes, progress, saved items, generated lesson drafts, and preferences are stored in your browser on the device you use unless you choose the private Mac sync bridge described below.
+The public GitHub Pages build stays static-first. It has no account system. Your notes, progress, saved items, generated lesson drafts, and preferences are stored in your browser on the device you use.
 
 ## Run Locally
 
@@ -93,16 +93,27 @@ Keep that terminal window open while using the app. If Keychain is not available
 OPENAI_API_KEY=sk-your-key npm run local:ai
 ```
 
-## Private Sync and News
+## Sync and News
 
-Leaderman supports optional single-user sync between desktop and phone when both devices connect to the Mac-hosted private server URL.
+The working free sync path is simple:
 
-- The private server keeps the synced state file on the Mac.
-- The app remains usable locally if the server is unavailable.
-- API keys and Keychain material never enter synced state.
-- The public GitHub Pages site still works without sync or News refresh.
+- your Mac is the home base
+- your phone opens the Mac-hosted Leaderman address on the same Wi-Fi
+- the Mac keeps the OpenAI key
+- both devices read and write the same synced state through the Mac
 
-News refresh also depends on the private server. The app fetches source material, stores source URLs and titles, and uses AI only for summarization and optional expansion when available.
+News refresh still depends on the private Mac server. The app fetches source material, stores source URLs and titles, and uses AI only for summarization and optional expansion when available.
+
+The simple split is:
+
+- synced through the Mac: progress, saved items, generated content, and News history
+- stays only on your Mac: the OpenAI key
+
+Important:
+
+- the public GitHub Pages site is still useful as a static copy of the app
+- but the public site is not the synced phone setup for private AI, News, or live shared state
+- for the synced phone setup, use the phone address shown by the Mac-hosted app
 
 ## Install Without the App Store
 
@@ -116,7 +127,7 @@ Option A, Desktop launcher app:
 npm run mac:app
 ```
 
-This creates `Leaderman.app` on your Desktop. Double-click it to start the private local server and open Leaderman.
+This creates `Leaderman.app` on your Desktop. Double-click it to start the private local server, open Leaderman on your Mac, and make the same app reachable from your phone on the same Wi-Fi.
 
 Option B, browser-installed app:
 
@@ -126,17 +137,22 @@ Option B, browser-installed app:
 
 iPhone or iPad:
 
+For the synced phone version that shares your Mac state tonight:
+
+1. Open `Leaderman.app` on your Mac.
+2. Press the in-app `Phone` button.
+3. On your phone, open the shown `http://192.168.x.x:4174/` address in Safari while both devices are on the same Wi-Fi.
+4. If you want a shortcut, use Share -> Add to Home Screen.
+
+That phone address is the real synced version. It gives the phone the same saved state, News, and AI bridge as the Mac app, while the API key stays on the Mac.
+
+The public GitHub Pages URL is still useful as the public static copy of the app:
+
 1. Open `https://Tuckerb62.github.io/leaderman/` in Safari.
 2. Tap Share.
 3. Tap Add to Home Screen.
 
-For private AI, News refresh, and local sync on phone or iPad, run this on your Mac first:
-
-```bash
-npm run phone:ai
-```
-
-Then open the printed `http://192.168.x.x:4174/` URL on your phone or iPad while both devices are on the same Wi-Fi. Using that LAN URL is what enables the private sync bridge and News refresh on the phone.
+Use that public copy when you want the static app only. Use the Mac-hosted phone address when you want live shared state, News, and private AI.
 
 ## Deploy
 

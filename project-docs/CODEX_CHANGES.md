@@ -77,3 +77,17 @@ Future-facing limits kept explicit:
 
 - Subject coverage is broader than the original leadership app, but some subjects currently have lighter deterministic seed depth than leadership, philosophy, history, or business.
 - The sync bridge is intentionally single-user and minimal. It is not an account system or a generalized conflict-resolution backend.
+
+## 2026-06-08 Mac Home-Base Phone Sync
+
+Changed:
+
+- Simplified the user-facing sync story around one working free path: the Mac is the home base, and the phone opens the Mac-hosted Leaderman address directly.
+- Replaced the in-app shared-sync setup flow with a `Phone` launcher that shows the phone-ready LAN address from the private server.
+- Updated the desktop launcher so `Leaderman.app` starts the private server in LAN mode while still opening `http://127.0.0.1:4174/` on the Mac itself.
+- Updated the private server health response to report local and phone URLs, and changed Keychain saving so it is allowed only from the Mac itself rather than from any other device on the network.
+- Removed the half-built separate remote sync service from the current product path and docs.
+
+Decision:
+
+- The public GitHub Pages build remains the static public copy of the app, but the working zero-cost synced phone setup is the Mac-hosted address, not GitHub Pages talking back into the Mac.

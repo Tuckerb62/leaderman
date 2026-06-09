@@ -256,7 +256,7 @@ This is enough for one person using desktop and phone against the same Mac-hoste
 
 `npm run build:pages` creates `docs/` for GitHub Pages with `VITE_BASE=/leaderman/`. This folder is generated output and should be considered replaceable.
 
-The desktop launcher does not bundle a copy of the app. It points to this repo path, runs `npm run build`, starts `scripts/local-ai-server.mjs`, and opens `http://127.0.0.1:4174/`.
+The desktop launcher does not bundle a copy of the app. It points to this repo path, runs `npm run build`, starts `scripts/local-ai-server.mjs` in LAN mode, and opens `http://127.0.0.1:4174/` on the Mac while also making a phone-ready local-network address available.
 
 ## Testing
 

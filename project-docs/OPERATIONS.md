@@ -53,6 +53,17 @@ The server serves the built app from `dist/` and exposes:
 - the sync bridge at `/api/sync-health` and `/api/sync-state`
 - private News refresh and expansion endpoints
 
+## Tonight Setup for Mac and Phone
+
+The free working setup is:
+
+- the Mac runs Leaderman
+- the Mac keeps the OpenAI key
+- the phone opens the Mac-hosted Leaderman address on the same Wi-Fi
+- both devices share the same saved state through the Mac
+
+This is the setup to use when the goal is "make it work on my phone tonight" without adding a paid service or a separate internet sync backend.
+
 ## Save the OpenAI Key
 
 Option A, save inside the app:
@@ -76,30 +87,39 @@ OPENAI_API_KEY=sk-your-key npm run local:ai
 
 Do not write real API keys into source files, docs, commits, shell history examples, or screenshots.
 
-## Private AI, News, and Sync on Phone or iPad
+## Private AI and News on Phone or iPad
 
-Run this on the Mac:
+The simplest phone path is now the desktop app:
 
-```bash
-npm run phone:ai
-```
-
-Open the printed URL, usually like:
+1. Run `npm run mac:app` once to create `Leaderman.app`.
+2. Open `Leaderman.app` on the Mac.
+3. In Leaderman, press the `Phone` button.
+4. Open the shown phone address on the phone, usually:
 
 ```text
 http://192.168.x.x:4174/
+```
+
+The command-line fallback is still:
+
+```bash
+npm run phone:ai
 ```
 
 Requirements:
 
 - Mac and phone or iPad are on the same Wi-Fi network.
 - The Mac remains awake.
-- The terminal running the private server stays open.
+- If you used `npm run phone:ai`, the terminal running the private server stays open.
 - The local network allows device-to-device connections.
 
-Saving a key to Keychain from the app is only allowed on the Mac-only server bound to `127.0.0.1` or `localhost`. Use `npm run local:ai` for that setup step, then use `npm run phone:ai`.
+Saving a key to Keychain must be done from the Mac itself. Open Leaderman on the Mac and save the key there. The phone can then use AI and News through that same Mac server.
 
-When the phone uses the printed LAN URL from the Mac server, it can also use the private sync bridge and News refresh. The public GitHub Pages URL does not provide those endpoints.
+When the phone uses the Mac-hosted address, it gets:
+
+- shared progress sync
+- private News refresh
+- AI through the Mac-held key
 
 ## Desktop App Icon
 
@@ -115,7 +135,7 @@ This creates:
 /Users/jonathan/Desktop/Leaderman.app
 ```
 
-Double-clicking the app starts the private local server on port `4174` if it is not already running, then opens Leaderman. Logs are written to:
+Double-clicking the app starts the private local server on port `4174`, opens Leaderman on the Mac, and makes the same server reachable from the phone on the local network. Logs are written to:
 
 ```text
 ~/Library/Logs/Leaderman/launcher.log
@@ -152,7 +172,9 @@ For the public static app:
 2. Tap Share.
 3. Tap Add to Home Screen.
 
-This creates a home screen icon backed by the website manifest. It does not provide private local AI unless the phone is opening the Mac's `phone:ai` LAN URL.
+This creates a home screen icon backed by the website manifest. It is the public static copy of the app.
+
+For the synced phone setup with private AI and News, use the Mac-hosted phone address instead of the public GitHub Pages URL.
 
 ## Sync Verification
 
@@ -208,6 +230,7 @@ Then verify:
 - `/api/sync-health`
 - News refresh in the app
 - the expected local sync status chip
+- the `Phone` modal shows a phone-ready address when the server is in LAN mode
 
 ## Troubleshooting
 
@@ -228,6 +251,8 @@ http://127.0.0.1:4174/api/sync-health
 ```
 
 It should report whether the sync bridge is available and where its local file lives.
+
+The public GitHub Pages site is not the same as the Mac-hosted phone address. Browsers block a normal secure public page from quietly calling an insecure local-network API, so the working free setup is to open the Mac-hosted address directly on the phone.
 
 If News does not refresh, confirm the app is running from the private server rather than GitHub Pages, then check whether source fetching succeeds and whether a key is available for AI summarization or only deterministic fallback.
 

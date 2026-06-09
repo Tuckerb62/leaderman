@@ -36,6 +36,11 @@ const NEWS_FEEDS = [
   },
 ];
 
+const MAX_ITEMS_PER_FEED = 4;
+const MAX_SUMMARY_ARTICLES = 18;
+const FEED_FETCH_TIMEOUT_MS = 3500;
+const AI_SUMMARY_TIMEOUT_MS = 5000;
+
 function decodeHtml(text = '') {
   return text
     .replace(/<!\[CDATA\[|\]\]>/g, '')
@@ -69,7 +74,7 @@ function parseSourceTitle(title = '') {
 
 function parseFeedXml(xml, category, priority) {
   const blocks = xml.match(/<item[\s\S]*?<\/item>/gi) || xml.match(/<entry[\s\S]*?<\/entry>/gi) || [];
-  return blocks.slice(0, 6).map((block, index) => {
+  return blocks.slice(0, MAX_ITEMS_PER_FEED).map((block, index) => {
     const title = extractTag(block, 'title');
     const description = extractTag(block, 'description') || extractTag(block, 'summary') || extractTag(block, 'content');
     const publishedAt = extractTag(block, 'pubDate') || extractTag(block, 'published') || new Date().toISOString();
@@ -93,19 +98,43 @@ function parseFeedXml(xml, category, priority) {
   });
 }
 
-async function fetchFeedArticles() {
-  const allArticles = [];
-  for (const feed of NEWS_FEEDS) {
+async function fetchSingleFeed(feed) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FEED_FETCH_TIMEOUT_MS);
+
+  try {
     const response = await fetch(feed.url, {
       headers: {
         'User-Agent': 'Leaderman private briefing',
       },
+      signal: controller.signal,
     });
-    if (!response.ok) continue;
+    if (!response.ok) return [];
     const xml = await response.text();
-    allArticles.push(...parseFeedXml(xml, feed.category, feed.priority));
+    return parseFeedXml(xml, feed.category, feed.priority);
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return allArticles;
+}
+
+async function fetchFeedArticles() {
+  const results = await Promise.all(NEWS_FEEDS.map((feed) => fetchSingleFeed(feed)));
+  return results.flat();
+}
+
+function trimArticlesForSummary(articles) {
+  return [...articles]
+    .sort((left, right) => (right.publishedAt || '').localeCompare(left.publishedAt || ''))
+    .slice(0, MAX_SUMMARY_ARTICLES);
+}
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
 }
 
 async function summarizeNewsArticles(articles, apiKey) {
@@ -129,7 +158,7 @@ async function summarizeNewsArticles(articles, apiKey) {
     `publishedAt: ${article.publishedAt}`,
     `sourceTitle: ${article.sourceTitle}`,
     `url: ${article.url}`,
-    `summary: ${article.summary}`,
+    `summary: ${(article.summary || '').slice(0, 280)}`,
   ].join('\n')).join('\n\n---\n\n');
 
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -196,8 +225,13 @@ export async function buildPrivateNewsBriefing({ apiKey }) {
     };
   }
 
+  const summaryArticles = trimArticlesForSummary(articles);
   const briefing = apiKey
-    ? await summarizeNewsArticles(articles, apiKey).catch(() => fallbackStories(articles))
+    ? await withTimeout(
+        summarizeNewsArticles(summaryArticles, apiKey),
+        AI_SUMMARY_TIMEOUT_MS,
+        'AI summarization timed out.',
+      ).catch(() => fallbackStories(articles))
     : fallbackStories(articles);
 
   return {

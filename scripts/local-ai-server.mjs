@@ -32,6 +32,21 @@ const mimeTypes = {
   '.webp': 'image/webp',
 };
 
+function serverUrls() {
+  return {
+    localUrl: `http://127.0.0.1:${port}/`,
+    phoneUrls: host === '0.0.0.0' ? lanAddresses().map((address) => `http://${address}:${port}/`) : [],
+    hostMode: host === '0.0.0.0' ? 'lan' : 'local',
+  };
+}
+
+function isLoopbackRequest(req) {
+  const remoteAddress = req.socket.remoteAddress || '';
+  return remoteAddress === '127.0.0.1'
+    || remoteAddress === '::1'
+    || remoteAddress === '::ffff:127.0.0.1';
+}
+
 function keyFromKeychain() {
   if (process.platform !== 'darwin') return '';
   try {
@@ -134,12 +149,17 @@ async function proxyOpenAI(req, res) {
   res.end(text);
 }
 
-async function syncHealth(res) {
+async function syncHealth(req, res) {
   const snapshot = await readSyncState();
+  const urls = serverUrls();
   json(res, 200, {
     available: true,
     path: SYNC_STATE_PATH,
     updatedAt: snapshot?.syncedAt || null,
+    localUrl: urls.localUrl,
+    phoneUrls: urls.phoneUrls,
+    hostMode: urls.hostMode,
+    canSaveKeychain: isLoopbackRequest(req),
   });
 }
 
@@ -172,22 +192,21 @@ async function saveSyncState(req, res) {
 }
 
 async function refreshPrivateNews(req, res) {
+  let body = {};
+  try {
+    body = await readJson(req);
+  } catch (error) {
+    json(res, 400, { error: { message: error.message } });
+    return;
+  }
+
   const { key } = getApiKey();
-  const briefing = await buildPrivateNewsBriefing({ apiKey: key || '' });
+  const apiKey = String(body?.apiKey || '').trim() || key || '';
+  const briefing = await buildPrivateNewsBriefing({ apiKey });
   json(res, 200, briefing);
 }
 
 async function expandPrivateNews(req, res) {
-  const { key } = getApiKey();
-  if (!key) {
-    json(res, 503, {
-      error: {
-        message: 'No OpenAI API key found for private news expansion.',
-      },
-    });
-    return;
-  }
-
   let body;
   try {
     body = await readJson(req);
@@ -202,15 +221,26 @@ async function expandPrivateNews(req, res) {
     return;
   }
 
-  const markdown = await expandPrivateNewsStory({ story, apiKey: key });
+  const { key } = getApiKey();
+  const apiKey = String(body?.apiKey || '').trim() || key || '';
+  if (!apiKey) {
+    json(res, 503, {
+      error: {
+        message: 'No OpenAI API key found for private news expansion.',
+      },
+    });
+    return;
+  }
+
+  const markdown = await expandPrivateNewsStory({ story, apiKey });
   json(res, 200, { markdown });
 }
 
 async function saveOpenAIKey(req, res) {
-  if (host !== '127.0.0.1' && host !== 'localhost') {
+  if (!isLoopbackRequest(req)) {
     json(res, 403, {
       error: {
-        message: 'Saving to Keychain is only allowed from the Mac-only local server. Use npm run local:ai.',
+        message: 'Save the API key from the Leaderman app on your Mac itself, not from another device.',
       },
     });
     return;
@@ -280,11 +310,24 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url?.startsWith('/api/ai-health')) {
       const { key, source } = getApiKey();
-      json(res, 200, { keyConfigured: Boolean(key), source: key ? source : 'missing' });
+      const urls = serverUrls();
+      json(res, 200, {
+        keyConfigured: Boolean(key),
+        source: key ? source : 'missing',
+        canSaveKeychain: isLoopbackRequest(req),
+        localUrl: urls.localUrl,
+        phoneUrls: urls.phoneUrls,
+        hostMode: urls.hostMode,
+        capabilities: {
+          sync: true,
+          news: true,
+          newsExpand: true,
+        },
+      });
       return;
     }
     if (req.method === 'GET' && req.url?.startsWith('/api/sync-health')) {
-      await syncHealth(res);
+      await syncHealth(req, res);
       return;
     }
     if (req.method === 'GET' && req.url?.startsWith('/api/sync-state')) {

@@ -71,13 +71,32 @@ fail() {
   exit 1
 }
 
+server_ready() {
+  /usr/bin/curl -fsS "http://127.0.0.1:\${PORT}/api/ai-health" >/dev/null 2>&1 || return 1
+  /usr/bin/curl -fsS "http://127.0.0.1:\${PORT}/api/sync-health" >/dev/null 2>&1 || return 1
+}
+
+restart_stale_server() {
+  local pid
+  pid=$(/usr/sbin/lsof -ti tcp:"$PORT" 2>/dev/null | head -n 1 || true)
+  if [[ -n "$pid" ]]; then
+    /bin/kill "$pid" >/dev/null 2>&1 || true
+    sleep 0.4
+  fi
+}
+
 if ! command -v npm >/dev/null 2>&1; then
   fail "npm was not found. Open Terminal, run cd ${ROOT} && npm install, then try again."
 fi
 
-if /usr/bin/curl -fsS "http://127.0.0.1:\${PORT}/api/ai-health" >/dev/null 2>&1; then
+if server_ready; then
   /usr/bin/open "$URL"
   exit 0
+fi
+
+if /usr/bin/curl -fsS "http://127.0.0.1:\${PORT}/api/ai-health" >/dev/null 2>&1; then
+  notify "Restarting outdated private server..."
+  restart_stale_server
 fi
 
 notify "Starting private app server..."
@@ -86,11 +105,11 @@ notify "Starting private app server..."
   echo ""
   echo "---- $(date) ----"
   npm run build
-  nohup node scripts/local-ai-server.mjs --host 127.0.0.1 --port "$PORT" >> "$LOG_FILE" 2>&1 &
+  nohup node scripts/local-ai-server.mjs --host 0.0.0.0 --port "$PORT" >> "$LOG_FILE" 2>&1 &
 } >> "$LOG_FILE" 2>&1
 
 for attempt in {1..40}; do
-  if /usr/bin/curl -fsS "http://127.0.0.1:\${PORT}/api/ai-health" >/dev/null 2>&1; then
+  if server_ready; then
     /usr/bin/open "$URL"
     exit 0
   fi

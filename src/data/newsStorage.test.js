@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createInitialNewsState,
+  describeNewsFreshness,
   expireNewsItems,
   isNewsRefreshDue,
   mergeNewsRefresh,
@@ -121,5 +122,28 @@ describe('news storage', () => {
 
     expect(isNewsRefreshDue(news, '2026-06-08T21:00:00.000Z')).toBe(false);
     expect(isNewsRefreshDue(news, '2026-06-09T08:00:00.000Z')).toBe(true);
+  });
+
+  it('describes freshness so the UI can show whether news is current', () => {
+    expect(describeNewsFreshness(createInitialNewsState(), '2026-06-08T21:00:00.000Z')).toEqual({
+      label: 'Not refreshed yet',
+      stale: true,
+    });
+
+    expect(describeNewsFreshness({
+      ...createInitialNewsState(),
+      lastRefreshedAt: '2026-06-08T20:45:00.000Z',
+    }, '2026-06-08T21:00:00.000Z')).toEqual({
+      label: 'Refreshed 15m ago',
+      stale: false,
+    });
+
+    expect(describeNewsFreshness({
+      ...createInitialNewsState(),
+      lastRefreshedAt: '2026-06-07T20:45:00.000Z',
+    }, '2026-06-08T21:00:00.000Z')).toEqual({
+      label: 'Last refreshed 1d ago · refresh due',
+      stale: true,
+    });
   });
 });
