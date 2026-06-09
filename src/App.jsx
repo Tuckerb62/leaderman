@@ -5,6 +5,7 @@ import {
   BookmarkCheck,
   Brain,
   ChevronRight,
+  Cloud,
   Download,
   FileUp,
   Layers,
@@ -18,7 +19,6 @@ import {
   Search,
   Send,
   Settings,
-  Smartphone,
   Sparkles,
   Trash2,
   Wifi,
@@ -28,11 +28,24 @@ import {
 import { clearAiChat, loadAiChat, saveAiChat } from './data/aiChatStorage.js';
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
+import {
+  articleByKey,
+  articleBySlug,
+  articleHierarchy,
+  articlePathLabel,
+  articles,
+  calculateArticleProgress,
+  getSubjectProgress,
+  getSubtopicProgress,
+  getTopicProgress,
+  searchArticles,
+} from './data/articleCatalog.js';
 import { createInitialNewsState, describeNewsFreshness, expireNewsItems, isNewsRefreshDue, mergeNewsRefresh, saveNewsExpansion as saveNewsExpansionState, saveNewsItem as saveNewsItemState } from './data/newsStorage.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
 import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
-import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askOpenAI, expandLearningContent, requiresClientApiKey } from './logic/aiClient.js';
+import { onSupabaseAuthStateChange, sendSupabaseMagicLink, signOutSupabase } from './logic/supabaseAuth.js';
+import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, requiresClientApiKey } from './logic/aiClient.js';
 import { parseExpansionMarkdown } from './logic/expansionMapper.js';
 import { buildFeedItems } from './logic/feedAggregation.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
@@ -41,6 +54,7 @@ import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './lo
 import { fetchSyncHealth, fetchSyncSnapshot, pushSyncSnapshot } from './logic/syncClient.js';
 import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
 import { markStudied, sessionMinutes } from './logic/studyProgress.js';
+import { buildFeedPreviewActivityPatch } from './logic/feedActivity.js';
 
 const navItems = [
   { id: 'feed', label: 'Feed', icon: Layers },
@@ -48,10 +62,11 @@ const navItems = [
   { id: 'novels', label: 'Novels', icon: BookOpen },
   { id: 'news', label: 'News', icon: Newspaper },
   { id: 'progress', label: 'Progress', icon: LineChart },
+  { id: 'account', label: 'Account', icon: Settings },
 ];
 
 const visibleViews = new Set(navItems.map((item) => item.id));
-const addressableViews = new Set([...visibleViews, 'learn']);
+const addressableViews = new Set([...visibleViews, 'learn', 'article']);
 
 const libraryFolders = [
   {
@@ -99,6 +114,8 @@ function queryParam(name) {
 function initialView(state) {
   const requestedView = queryParam('view');
   const requestedLesson = queryParam('lesson');
+  const requestedArticle = queryParam('article');
+  if (requestedArticle) return 'article';
   if (requestedLesson) return 'learn';
   if (addressableViews.has(requestedView)) return requestedView;
   const resumeView = state.settings?.resume?.view;
@@ -112,15 +129,37 @@ function initialLessonId(state) {
   return matchingLesson?.id || resumeLesson?.id || recommendedLessons(state, 1)[0]?.id;
 }
 
+function initialArticleKey(state) {
+  const requestedArticle = queryParam('article');
+  if (requestedArticle) {
+    const article = articleBySlug[requestedArticle] || articleByKey[requestedArticle];
+    if (article) return article.key;
+  }
+  const resumeArticle = articleByKey[state.settings?.resume?.articleKey];
+  return resumeArticle?.key || articles[0]?.key || null;
+}
+
 function viewTitle(view) {
   return {
     feed: 'Feed',
     learn: 'Detail',
+    article: 'Article',
     library: 'Library',
     novels: 'Novels',
     news: 'News',
     progress: 'Progress',
+    account: 'Account',
   }[view];
+}
+
+function syncStatusLabel(syncStatus, isSyncing) {
+  if (isSyncing) return 'Syncing';
+  if (syncStatus.mode === 'supabase' && syncStatus.configured && !syncStatus.authenticated) return 'Sign in to sync';
+  if (syncStatus.mode === 'supabase' && syncStatus.error) return 'Sync issue';
+  if (syncStatus.mode === 'supabase' && syncStatus.available) return 'Supabase sync';
+  if (syncStatus.phoneUrls?.length) return 'Phone ready';
+  if (syncStatus.available) return 'Mac sync';
+  return 'Local only';
 }
 
 function formatDateLine() {
@@ -242,6 +281,7 @@ function withResume(current, patch) {
   const unchanged =
     currentResume.view === nextResume.view &&
     currentResume.lessonId === nextResume.lessonId &&
+    currentResume.articleKey === nextResume.articleKey &&
     currentResume.feedLessonId === nextResume.feedLessonId;
 
   if (unchanged) return current;
@@ -262,6 +302,7 @@ export default function App() {
   const [state, setState] = useState(() => loadState());
   const [view, setView] = useState(() => initialView(state));
   const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(state));
+  const [selectedArticleKey, setSelectedArticleKey] = useState(() => initialArticleKey(state));
   const [selectedNewsId, setSelectedNewsId] = useState(() => state.news?.items?.[0]?.id || null);
   const [session, setSession] = useState(null);
   const [sessionSummary, setSessionSummary] = useState('');
@@ -275,6 +316,11 @@ export default function App() {
     localUrl: '',
     phoneUrls: [],
     hostMode: 'local',
+    configured: false,
+    authenticated: false,
+    requiresSignIn: false,
+    userEmail: '',
+    userId: '',
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [newsStatus, setNewsStatus] = useState({ refreshing: false, error: '' });
@@ -287,9 +333,10 @@ export default function App() {
       withResume(current, {
         view,
         lessonId: selectedLessonId || null,
+        articleKey: selectedArticleKey || null,
       }),
     );
-  }, [view, selectedLessonId]);
+  }, [view, selectedLessonId, selectedArticleKey]);
 
   useEffect(() => {
     setState((current) => ({
@@ -303,6 +350,7 @@ export default function App() {
 
   const stats = useMemo(() => progressStats(state), [state]);
   const selectedLesson = state.lessons.find((lesson) => lesson.id === selectedLessonId) || state.lessons[0];
+  const selectedArticle = articleByKey[selectedArticleKey] || articles[0] || null;
   const selectedNewsItem = state.news?.items?.find((item) => item.id === selectedNewsId) || state.news?.items?.[0] || null;
   const aiContextLesson = state.lessons.find((lesson) => lesson.id === contextLessonId) || selectedLesson;
 
@@ -422,6 +470,51 @@ export default function App() {
     }));
   }
 
+  function setArticleCompletion(articleKey, completed = true) {
+    setState((current) => {
+      const next = completed ? markCurrentStudied(current) : current;
+      const updatedAt = new Date().toISOString();
+      return {
+        ...next,
+        completedArticlesByKey: {
+          ...(next.completedArticlesByKey || {}),
+          [articleKey]: {
+            articleKey,
+            completed,
+            completedAt: completed ? (next.completedArticlesByKey?.[articleKey]?.completedAt || updatedAt) : null,
+            updatedAt,
+          },
+        },
+      };
+    });
+  }
+
+  function saveGeneratedArticle(articleKey, generatedArticle) {
+    setState((current) => ({
+      ...current,
+      generatedArticlesByKey: {
+        ...(current.generatedArticlesByKey || {}),
+        [articleKey]: {
+          ...generatedArticle,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  }
+
+  function saveArticleTutorThread(articleKey, messages) {
+    setState((current) => ({
+      ...current,
+      articleTutorThreadsByKey: {
+        ...(current.articleTutorThreadsByKey || {}),
+        [articleKey]: {
+          messages,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  }
+
   function saveReadingProgress(lessonId, chapterIndex, markComplete = false) {
     setState((current) => {
       const existing = current.readingProgress?.[lessonId] || { completedChapters: [] };
@@ -483,6 +576,17 @@ export default function App() {
     if (route.view === 'news') {
       setSelectedNewsId(route.newsId);
       setView('news');
+      recordItemActivity(itemKey, {
+        ...details,
+        lastOpenedAt: new Date().toISOString(),
+        openCount: (state.itemActivity?.[itemKey]?.openCount || 0) + 1,
+      });
+      return;
+    }
+
+    if (route.view === 'article') {
+      setSelectedArticleKey(route.articleKey);
+      setView('article');
       recordItemActivity(itemKey, {
         ...details,
         lastOpenedAt: new Date().toISOString(),
@@ -652,48 +756,71 @@ export default function App() {
     }
   }
 
+  const refreshSyncStatus = useCallback(async () => {
+    syncReadyRef.current = false;
+    const healthPayload = await fetchSyncHealth();
+
+    setSyncStatus({
+      available: healthPayload.available || false,
+      updatedAt: healthPayload.updatedAt || null,
+      path: healthPayload.path || '',
+      error: healthPayload.error || '',
+      mode: healthPayload.mode || 'local',
+      localUrl: healthPayload.localUrl || '',
+      phoneUrls: healthPayload.phoneUrls || [],
+      hostMode: healthPayload.hostMode || 'local',
+      configured: healthPayload.configured || false,
+      authenticated: healthPayload.authenticated || false,
+      requiresSignIn: healthPayload.requiresSignIn || false,
+      userEmail: healthPayload.userEmail || '',
+      userId: healthPayload.userId || '',
+    });
+
+    if (healthPayload.available) {
+      await pullRemoteSnapshot();
+    }
+
+    syncReadyRef.current = true;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    syncReadyRef.current = false;
 
     async function bootstrapSync() {
       try {
-        const healthPayload = await fetchSyncHealth();
-        if (cancelled) return;
-        setSyncStatus({
-          available: true,
-          updatedAt: healthPayload.updatedAt || null,
-          path: healthPayload.path || '',
-          error: '',
-          mode: healthPayload.mode || 'local',
-          localUrl: healthPayload.localUrl || '',
-          phoneUrls: healthPayload.phoneUrls || [],
-          hostMode: healthPayload.hostMode || 'local',
-        });
-        if (!cancelled) await pullRemoteSnapshot();
+        await refreshSyncStatus();
       } catch (error) {
         if (!cancelled) {
-          setSyncStatus({
+          setSyncStatus((current) => ({
+            ...current,
             available: false,
-            updatedAt: null,
-            path: '',
             error: error.message,
-            mode: 'local',
-            localUrl: '',
-            phoneUrls: [],
-            hostMode: 'local',
-          });
+          }));
+          syncReadyRef.current = true;
         }
-      } finally {
-        syncReadyRef.current = true;
       }
     }
+
+    const unsubscribe = onSupabaseAuthStateChange(() => {
+      if (cancelled) return;
+      refreshSyncStatus().catch((error) => {
+        if (!cancelled) {
+          setSyncStatus((current) => ({
+            ...current,
+            available: false,
+            error: error.message,
+          }));
+          syncReadyRef.current = true;
+        }
+      });
+    });
 
     bootstrapSync();
     return () => {
       cancelled = true;
+      unsubscribe();
     };
-  }, []);
+  }, [refreshSyncStatus]);
 
   useEffect(() => {
     if (!syncStatus.available) return undefined;
@@ -751,6 +878,7 @@ export default function App() {
   const commonProps = {
     state,
     selectedLesson,
+    selectedArticle,
     selectedNewsItem,
     topicBank,
     libraryLessons,
@@ -760,12 +888,15 @@ export default function App() {
     setView,
     startSession,
     completeLesson,
+    setArticleCompletion,
     completeCurrentLesson,
     recordLessonQuestion,
     saveReflection,
     saveLessonNote,
     saveReadingProgress,
     saveLessonExpansion,
+    saveGeneratedArticle,
+    saveArticleTutorThread,
     openCanonicalItem,
     toggleSavedItem,
     toggleFollowTopic,
@@ -829,13 +960,14 @@ export default function App() {
                 <Play size={16} />
                 Session
               </button>
-              <div
+              <button
                 className="sync-chip"
-                title={syncStatus.available ? syncStatus.phoneUrls?.[0] || syncStatus.localUrl || syncStatus.path : syncStatus.error || 'No sync yet'}
+                onClick={() => setView('account')}
+                title={syncStatus.available ? syncStatus.phoneUrls?.[0] || syncStatus.localUrl || syncStatus.path : syncStatus.error || 'Open Account'}
               >
                 {syncStatus.available ? <Wifi size={14} /> : <WifiOff size={14} />}
-                <span>{isSyncing ? 'Syncing' : syncStatus.phoneUrls?.length ? 'Phone ready' : syncStatus.available ? 'Mac sync' : 'Local only'}</span>
-              </div>
+                <span>{syncStatusLabel(syncStatus, isSyncing)}</span>
+              </button>
             </div>
           </header>
         )}
@@ -843,14 +975,13 @@ export default function App() {
         {sessionSummary && <div className="session-summary">{sessionSummary}</div>}
         {view === 'feed' && <FeedView {...commonProps} />}
         {view === 'learn' && <LearnView {...commonProps} />}
+        {view === 'article' && <ArticleDetailView {...commonProps} />}
         {view === 'library' && <LibraryView {...commonProps} />}
         {view === 'novels' && <NovelsView {...commonProps} />}
         {view === 'news' && <NewsView {...commonProps} />}
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
+        {view === 'account' && <AccountView {...commonProps} />}
       </main>
-
-      <PhoneSetupLauncher syncStatus={syncStatus} isSyncing={isSyncing} />
-      <AiSetupLauncher />
       <FloatingAiPanel lesson={aiContextLesson} />
     </div>
   );
@@ -865,7 +996,7 @@ function Metric({ label, value }) {
   );
 }
 
-function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection, openCanonicalItem, toggleSavedItem, dismissItem, recordItemActivity, rememberFeedItem }) {
+function FeedView({ state, completeLesson, setArticleCompletion, recordLessonQuestion, saveReflection, openCanonicalItem, toggleSavedItem, dismissItem, recordItemActivity, rememberFeedItem }) {
   const [expandedId, setExpandedId] = useState(null);
   const [ratedCards, setRatedCards] = useState({});
   const feedIds = useMemo(() => buildFeedItems(state, { limit: 100 }).map((item) => item.key), [state]);
@@ -927,13 +1058,13 @@ function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection,
               const nextId = expandedId === item.key ? null : item.key;
               setExpandedId(nextId);
               if (nextId) {
-                recordItemActivity(item.key, {
+                recordItemActivity(item.key, buildFeedPreviewActivityPatch({
+                  itemKey: item.key,
                   subjectIds: item.subjectIds || [],
                   topicIds: item.topicIds || [],
                   domain: item.domain,
-                  lastOpenedAt: new Date().toISOString(),
-                  openCount: (state.itemActivity?.[item.key]?.openCount || 0) + 1,
-                });
+                  existingActivity: state.itemActivity?.[item.key],
+                }));
               }
             }}
             onComplete={() => {
@@ -950,6 +1081,8 @@ function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection,
                   newsId: item.newsId,
                   subjectIds: item.subjectIds || [],
                 });
+              } else if (item.domain === 'article') {
+                setArticleCompletion(item.key, true);
               } else {
                 completeLesson(item.lesson.id);
               }
@@ -983,11 +1116,22 @@ function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection,
 function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand, onComplete, onSkip, onRecordQuestion, onSaveReflection, onOpenFull }) {
   const lesson = item.lesson;
   const newsItem = item.newsItem;
+  const article = item.article;
   const badge = item.domain === 'news'
     ? { label: newsItem.status === 'saved' ? 'saved' : newsItem.priority || 'briefing', tone: newsItem.status === 'saved' ? 'complete' : 'new' }
+    : item.domain === 'article'
+      ? { label: item.completed ? 'complete' : item.saved ? 'saved' : 'unread', tone: item.completed ? 'complete' : 'new' }
     : progressBadge(review);
   const artwork = lesson
     ? feedArtwork(lesson, sources)
+    : article
+      ? {
+          mark: sourceInitials(article.subject),
+          sourceTitle: article.subject,
+          sourceAuthor: article.hierarchyPath.slice(1).join(' · '),
+          accent: '#256f6c',
+          secondary: '#3f5f88',
+        }
     : {
         mark: sourceInitials(newsItem.category || 'News'),
         sourceTitle: newsItem.sources?.[0]?.title || newsItem.category,
@@ -1114,11 +1258,14 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
       </div>
       <div className="feed-card-content">
         <div className="feed-card-head">
-          <span className="domain-tag">{item.domain === 'news' ? newsItem.category : lesson.domain}</span>
+          <span className={item.domain === 'article' ? 'domain-tag article-subject-label' : 'domain-tag'}>
+            {item.domain === 'news' ? newsItem.category : item.domain === 'article' ? article.subject.toUpperCase() : lesson.domain}
+          </span>
           <span className={`status-badge ${badge.tone}`}>{badge.label}</span>
         </div>
+        {item.domain === 'article' && <p className="feed-article-path">{article.hierarchyPath.slice(1).join(': ')}</p>}
         <h2>{item.title}</h2>
-        <p className="core-idea">{item.domain === 'news' ? newsItem.whatHappened : lesson.coreIdea}</p>
+        <p className="core-idea">{item.domain === 'news' ? newsItem.whatHappened : item.domain === 'article' ? article.summary : lesson.coreIdea}</p>
         <p className="source-line">{artwork.sourceTitle}</p>
         <p className="feed-reason">{item.reason}</p>
         {rated && <p className="rating-feedback">{rated.label}</p>}
@@ -1141,6 +1288,17 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
               </>
             )}
             <button className="text-link" onClick={onOpenFull}>Open full story →</button>
+          </div>
+        )}
+
+        {expanded && item.domain === 'article' && (
+          <div className="feed-expanded">
+            <InfoBlock title="Path" text={articlePathLabel(article)} />
+            <InfoBlock title="Summary" text={article.summary} />
+            <p className="reading-meta">
+              Progress: subject {item.progressContext?.subjectProgress || 0}% · topic {item.progressContext?.topicProgress || 0}%
+            </p>
+            <button className="text-link" onClick={onOpenFull}>Open article →</button>
           </div>
         )}
 
@@ -1362,7 +1520,7 @@ async function resolveExpansionAiTarget() {
   }
 
   if (serverStatus === 'missing-key') {
-    throw new Error('Open AI Coach settings and save an OpenAI key to Keychain first.');
+    throw new Error('Open Account and save an OpenAI key to Keychain first.');
   }
 
   const endpoint = serverStatus === 'ready'
@@ -1374,7 +1532,7 @@ async function resolveExpansionAiTarget() {
   const apiKey = needsKey ? settings.apiKey : '';
 
   if (needsKey && !apiKey) {
-    throw new Error('Open AI Coach settings and save a browser key, or start the local AI server and save a Keychain key.');
+    throw new Error('Open Account and save a browser key, or start the local AI server and save a Keychain key.');
   }
 
   return {
@@ -1939,44 +2097,481 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
   );
 }
 
-function LibraryView({ state, selectedLesson, libraryLessons, topicBank, openCanonicalItem, toggleFollowTopic }) {
-  const [query, setQuery] = useState('');
-  const [subjectId, setSubjectId] = useState('leadership');
-  const [subtopicId, setSubtopicId] = useState('all');
-  const selectedSubject = topicBank.find((subject) => subject.id === subjectId) || topicBank.find((subject) => subject.lessonCount > 0) || topicBank[0];
-  const visibleLessons = libraryLessons.filter((lesson) => {
-    if (!selectedSubject) return true;
-    const text = `${lesson.title} ${lesson.domain} ${lesson.coreIdea} ${(lesson.tags || []).join(' ')}`.toLowerCase();
-    const matchesSubject = lesson.topicSubjectIds.includes(selectedSubject.id);
-    const matchesSubtopic = subtopicId === 'all' || lesson.topicSubtopicIds.includes(subtopicId);
-    return matchesSubject && matchesSubtopic && text.includes(query.toLowerCase());
-  });
-  const sourcePreview = state.sources
-    .filter((source) => visibleLessons.some((lesson) => lesson.sourceIds.includes(source.id)))
-    .slice(0, 5);
+function MarkdownBlock({ markdown = '' }) {
+  const blocks = [];
+  let listItems = [];
 
-  useEffect(() => {
-    if (!selectedSubject?.subtopics.some((subtopic) => subtopic.id === subtopicId)) {
-      setSubtopicId('all');
+  function flushList() {
+    if (listItems.length) {
+      blocks.push({ type: 'list', items: listItems });
+      listItems = [];
     }
-  }, [selectedSubject, subtopicId]);
+  }
+
+  for (const rawLine of markdown.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushList();
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushList();
+      blocks.push({ type: 'heading', level: heading[1].length, text: heading[2] });
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      listItems.push(bullet[1]);
+      continue;
+    }
+    flushList();
+    blocks.push({ type: 'paragraph', text: line });
+  }
+  flushList();
 
   return (
-    <section className="library-grid">
-      <div className="library-main">
-        <div className="search-row">
-          <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search subjects, lessons, or tags" />
+    <div className="article-body markdown-body">
+      {blocks.map((block, index) => {
+        if (block.type === 'heading') {
+          const Tag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
+          return <Tag key={`${block.type}-${index}`}>{block.text}</Tag>;
+        }
+        if (block.type === 'list') {
+          return (
+            <ul key={`${block.type}-${index}`}>
+              {block.items.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          );
+        }
+        return <p key={`${block.type}-${index}`}>{block.text}</p>;
+      })}
+    </div>
+  );
+}
+
+function progressLabel(progress) {
+  return `${progress.completed}/${progress.total} · ${progress.percent}%`;
+}
+
+function ProgressRing({ progress, visible }) {
+  const safeTotal = Math.max(progress?.total || 0, 1);
+  const percent = Math.max(0, Math.min(100, Math.round(((progress?.completed || 0) / safeTotal) * 100)));
+  const label = `${progress.completed}/${progress.total}`;
+  const densityClass = label.length >= 9 ? 'expanded' : label.length >= 7 ? 'compact' : '';
+  const radius = 14;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - ((percent / 100) * circumference);
+
+  return (
+    <span className={visible ? `tree-progress visible ${densityClass}`.trim() : `tree-progress ${densityClass}`.trim()}>
+      {visible && (
+        <svg className="tree-progress-ring" viewBox="0 0 36 36" aria-hidden="true">
+          <circle className="tree-progress-track" cx="18" cy="18" r={radius} />
+          <circle
+            className="tree-progress-value"
+            cx="18"
+            cy="18"
+            r={radius}
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+          />
+        </svg>
+      )}
+      <small>{label}</small>
+    </span>
+  );
+}
+
+function ArticleDetailView({
+  state,
+  selectedArticle,
+  setArticleCompletion,
+  saveLessonNote,
+  saveReflection,
+  saveGeneratedArticle,
+  saveArticleTutorThread,
+  toggleSavedItem,
+}) {
+  const [reflection, setReflection] = useState('');
+  const [tutorMessage, setTutorMessage] = useState('');
+  const [isExpandingArticle, setIsExpandingArticle] = useState(false);
+  const [expansionError, setExpansionError] = useState('');
+  const [isTutoring, setIsTutoring] = useState(false);
+  const [tutorError, setTutorError] = useState('');
+  if (!selectedArticle) {
+    return (
+      <section className="article-reader-grid">
+        <div className="lesson-panel">
+          <p>No article is selected.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const completedState = state.completedArticlesByKey?.[selectedArticle.key];
+  const completed = Boolean(completedState?.completed);
+  const saved = Boolean(state.savedItems?.[selectedArticle.key]);
+  const generated = state.generatedArticlesByKey?.[selectedArticle.key];
+  const tutorThread = state.articleTutorThreadsByKey?.[selectedArticle.key]?.messages || [];
+  const articleReflections = (state.reflections || []).filter((item) => item.lessonId === selectedArticle.key);
+  const subjectProgress = getSubjectProgress(selectedArticle.subjectId, state.completedArticlesByKey || {});
+  const topicProgress = getTopicProgress(selectedArticle.subjectId, selectedArticle.topicId, state.completedArticlesByKey || {});
+  const subtopicProgress = getSubtopicProgress(selectedArticle.subjectId, selectedArticle.topicId, selectedArticle.subtopicId, state.completedArticlesByKey || {});
+  const isLiterature = selectedArticle.articleType === 'literature';
+
+  function savePrivateReflection() {
+    if (!reflection.trim()) return;
+    saveReflection(selectedArticle.key, reflection);
+    setReflection('');
+  }
+
+  async function askTutor() {
+    if (!tutorMessage.trim() || isTutoring) return;
+    const userTurn = {
+      role: 'user',
+      content: tutorMessage.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    const nextThread = [...tutorThread, userTurn];
+    setIsTutoring(true);
+    setTutorError('');
+    setTutorMessage('');
+    saveArticleTutorThread(selectedArticle.key, nextThread);
+    try {
+      const target = await resolveExpansionAiTarget();
+      const answer = await askArticleTutor({
+        ...target,
+        article: selectedArticle,
+        generatedArticle: generated || null,
+        userMessage: userTurn.content,
+        conversationHistory: tutorThread,
+      });
+      saveArticleTutorThread(selectedArticle.key, [
+        ...nextThread,
+        { role: 'assistant', content: answer, createdAt: new Date().toISOString() },
+      ]);
+    } catch (error) {
+      setTutorError(error.message);
+    } finally {
+      setIsTutoring(false);
+    }
+  }
+
+  async function runArticleExpansion() {
+    if (isExpandingArticle) return;
+    setIsExpandingArticle(true);
+    setExpansionError('');
+    try {
+      const target = await resolveExpansionAiTarget();
+      const generatedArticle = await expandArticleFromMarkdown({
+        ...target,
+        article: selectedArticle,
+      });
+      saveGeneratedArticle(selectedArticle.key, {
+        ...generatedArticle,
+        model: target.model,
+        source: 'article-ai-expansion',
+      });
+    } catch (error) {
+      setExpansionError(error.message);
+    } finally {
+      setIsExpandingArticle(false);
+    }
+  }
+
+  return (
+    <section className="article-reader-grid">
+      <article className="lesson-panel article-reader-panel">
+        <div className="article-reader-kicker">
+          <span>{isLiterature ? 'Reader guide mode' : 'Article mode'}</span>
+          <span>{completed ? 'Complete' : 'Unread'}</span>
+        </div>
+        <div className="article-breadcrumbs">
+          {selectedArticle.hierarchyPath.map((part) => (
+            <span key={part}>{part}</span>
+          ))}
+        </div>
+        <div className="lesson-header article-reader-title">
+          <div>
+            <p className="section-label">{selectedArticle.subject}</p>
+            <h2>{selectedArticle.title}</h2>
+          </div>
+          <span className="session-chip">{isLiterature ? 'Literature' : 'Standard'}</span>
         </div>
 
-        <div className="library-shelf-hero">
-          <span className="library-shelf-icon">
-            <Library size={20} />
-          </span>
-          <div className="library-shelf-copy">
-            <p className="section-label">Subject map</p>
-            <h2>{selectedSubject?.title}</h2>
-            <p>{selectedSubject?.description}</p>
+        <p className="article-summary">{selectedArticle.summary}</p>
+        <MarkdownBlock markdown={selectedArticle.bodyMarkdown} />
+
+        {generated?.articleMarkdown && (
+          <div className="generated-expansion article-generated">
+            <div className="generated-expansion-head">
+              <span>{generated.title || 'Generated article'}</span>
+              <small>{generated.model ? `Generated with ${generated.model}` : 'Generated privately'}</small>
+            </div>
+            <MarkdownBlock markdown={generated.articleMarkdown} />
+            {generated.practicalTakeaway && <InfoBlock title="Practical takeaway" text={generated.practicalTakeaway} />}
+            {Array.isArray(generated.imageQueries) && generated.imageQueries.length > 0 && (
+              <InfoList title="Image search ideas" items={generated.imageQueries} />
+            )}
+          </div>
+        )}
+
+        <div className="completion-bar article-actions">
+          <button className="success-button" onClick={() => setArticleCompletion(selectedArticle.key, !completed)}>
+            {completed ? 'Mark incomplete' : 'Done'}
+          </button>
+          <button
+            className={saved ? 'secondary-button active' : 'secondary-button'}
+            onClick={() => toggleSavedItem(selectedArticle.key, {
+              domain: 'article',
+              subjectIds: [selectedArticle.subjectId],
+            })}
+          >
+            {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+            {saved ? 'Saved' : 'Save'}
+          </button>
+          <button
+            className="secondary-button"
+            onClick={runArticleExpansion}
+            disabled={isExpandingArticle}
+          >
+            <Sparkles size={16} />
+            {isExpandingArticle ? 'Expanding...' : generated ? 'Regenerate article' : 'AI Expand'}
+          </button>
+        </div>
+        {expansionError && <p className="error-text">{expansionError}</p>}
+
+        <div className="lesson-section article-tutor">
+          <h3>Article tutor</h3>
+          {tutorThread.length > 0 && (
+            <div className="tutor-thread">
+              {tutorThread.map((message, index) => (
+                <div key={`${message.role}-${index}`} className={`tutor-message ${message.role}`}>
+                  <strong>{message.role === 'assistant' ? 'Tutor' : 'You'}</strong>
+                  <MarkdownBlock markdown={message.content} />
+                </div>
+              ))}
+            </div>
+          )}
+          {tutorError && <p className="error-text">{tutorError}</p>}
+          <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Capture a private reflection..." />
+          <div className="article-actions compact-actions">
+            <button className="secondary-button" onClick={savePrivateReflection}>Save reflection</button>
+          </div>
+          {articleReflections.length > 0 && (
+            <div className="tutor-thread article-reflection-log">
+              {articleReflections.slice(0, 3).map((entry) => (
+                <div key={entry.id} className="tutor-message user">
+                  <strong>Private reflection</strong>
+                  <MarkdownBlock markdown={entry.text} />
+                </div>
+              ))}
+            </div>
+          )}
+          <textarea value={tutorMessage} onChange={(event) => setTutorMessage(event.target.value)} placeholder="Ask a question about this article..." />
+          <button className="secondary-button" onClick={askTutor} disabled={isTutoring}>
+            <Send size={16} />
+            {isTutoring ? 'Asking...' : 'Ask tutor'}
+          </button>
+        </div>
+      </article>
+
+      <aside className="right-rail article-context-rail">
+        <NoteBox note={state.notes[selectedArticle.key] || ''} onSave={(note) => saveLessonNote(selectedArticle.key, note)} />
+        <div className="source-panel">
+          <p className="section-label">Progress</p>
+          <Metric label="Subject" value={progressLabel(subjectProgress)} />
+          <Metric label="Topic" value={progressLabel(topicProgress)} />
+          <Metric label="Subtopic" value={progressLabel(subtopicProgress)} />
+        </div>
+        <div className="source-panel">
+          <p className="section-label">Source</p>
+          <small>{selectedArticle.sourceFile}</small>
+          {selectedArticle.sourceContext?.length > 0 && (
+            <p>{selectedArticle.sourceContext.join(' ')}</p>
+          )}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTopic }) {
+  const [query, setQuery] = useState('');
+  const [subjectId, setSubjectId] = useState('leadership');
+  const [topicId, setTopicId] = useState('all');
+  const [subtopicId, setSubtopicId] = useState('all');
+  const [subsubtopicId, setSubsubtopicId] = useState('all');
+  const selectedSubject = articleHierarchy.find((subject) => subject.id === subjectId) || articleHierarchy[0];
+  const selectedTopic = selectedSubject?.topics.find((topic) => topic.id === topicId) || null;
+  const selectedSubtopic = selectedTopic?.subtopics.find((subtopic) => subtopic.id === subtopicId) || null;
+  const selectedSubsubtopic = selectedSubtopic?.subsubtopics.find((item) => item.id === subsubtopicId) || null;
+  const selectedPath = [selectedSubject?.title, selectedTopic?.title, selectedSubtopic?.title, selectedSubsubtopic?.title].filter(Boolean);
+  const baseArticles = query.trim()
+    ? searchArticles(query).filter((article) => article.subjectId === selectedSubject?.id)
+    : articles.filter((article) => article.subjectId === selectedSubject?.id);
+  const visibleArticles = baseArticles.filter((article) => {
+    const matchesTopic = topicId === 'all' || article.topicId === topicId;
+    const matchesSubtopic = subtopicId === 'all' || article.subtopicId === subtopicId;
+    const matchesSubsubtopic = subsubtopicId === 'all' || article.subsubtopicId === subsubtopicId;
+    return matchesTopic && matchesSubtopic && matchesSubsubtopic;
+  });
+  const subjectProgress = getSubjectProgress(selectedSubject?.id, state.completedArticlesByKey || {});
+  const scopeTitle = selectedSubsubtopic?.title || selectedSubtopic?.title || selectedTopic?.title || selectedSubject?.title;
+  const scopeProgress = selectedSubtopic
+    ? getSubtopicProgress(selectedSubject.id, selectedTopic.id, selectedSubtopic.id, state.completedArticlesByKey || {})
+    : selectedTopic
+      ? getTopicProgress(selectedSubject.id, selectedTopic.id, state.completedArticlesByKey || {})
+      : subjectProgress;
+  const completedArticlesByKey = state.completedArticlesByKey || {};
+
+  useEffect(() => {
+    setTopicId('all');
+    setSubtopicId('all');
+    setSubsubtopicId('all');
+  }, [subjectId]);
+
+  useEffect(() => {
+    setSubtopicId('all');
+    setSubsubtopicId('all');
+  }, [topicId]);
+
+  useEffect(() => {
+    setSubsubtopicId('all');
+  }, [subtopicId]);
+
+  function selectSubject(nextSubjectId) {
+    setSubjectId(nextSubjectId);
+  }
+
+  function selectTopic(nextTopicId) {
+    setTopicId(nextTopicId);
+  }
+
+  function selectSubtopic(nextSubtopicId) {
+    setSubtopicId(nextSubtopicId);
+  }
+
+  function selectSubsubtopic(nextSubsubtopicId) {
+    setSubsubtopicId(nextSubsubtopicId);
+  }
+
+  function progressForBranch(filters) {
+    return calculateArticleProgress(
+      articles.filter((article) => {
+        if (filters.subjectId && article.subjectId !== filters.subjectId) return false;
+        if (filters.topicId && article.topicId !== filters.topicId) return false;
+        if (filters.subtopicId && article.subtopicId !== filters.subtopicId) return false;
+        if (filters.subsubtopicId && article.subsubtopicId !== filters.subsubtopicId) return false;
+        return true;
+      }),
+      completedArticlesByKey,
+    );
+  }
+
+  return (
+    <section className="library-stoic-grid">
+      <aside className="library-tree-panel">
+        <div className="library-tree-head">
+          <span className="library-tree-mark"><Library size={17} /></span>
+          <div>
+            <p className="section-label">Library</p>
+            <h2>Source outline</h2>
+          </div>
+        </div>
+
+        <div className="library-tree" aria-label="Markdown curriculum hierarchy">
+          {articleHierarchy.map((subject) => {
+            const progress = getSubjectProgress(subject.id, state.completedArticlesByKey || {});
+            const isSubjectActive = subject.id === selectedSubject?.id;
+            return (
+              <div key={subject.id} className="library-tree-subject">
+                <button
+                  className={isSubjectActive && topicId === 'all' ? 'tree-node level-0 active' : 'tree-node level-0'}
+                  onClick={() => selectSubject(subject.id)}
+                >
+                  <span>{subject.title}</span>
+                  <ProgressRing progress={progress} visible={isSubjectActive} />
+                </button>
+                <div className={isSubjectActive ? 'tree-branch-shell open' : 'tree-branch-shell'}>
+                  <div className="tree-branch">
+                    <button className={topicId === 'all' ? 'tree-node level-1 active' : 'tree-node level-1'} onClick={() => selectTopic('all')}>
+                      <span>All {subject.title}</span>
+                      <ProgressRing progress={progress} visible={isSubjectActive} />
+                    </button>
+                    {subject.topics.map((topic) => {
+                      const topicProgress = getTopicProgress(subject.id, topic.id, state.completedArticlesByKey || {});
+                      const isTopicActive = topic.id === selectedTopic?.id;
+                      return (
+                        <div key={topic.id}>
+                          <button className={isTopicActive && subtopicId === 'all' ? 'tree-node level-1 active' : 'tree-node level-1'} onClick={() => selectTopic(topic.id)}>
+                            <span>{topic.title}</span>
+                            <ProgressRing progress={topicProgress} visible={isSubjectActive} />
+                          </button>
+                          <div className={isTopicActive ? 'tree-branch-shell open' : 'tree-branch-shell'}>
+                            <div className="tree-branch">
+                              <button className={subtopicId === 'all' ? 'tree-node level-2 active' : 'tree-node level-2'} onClick={() => selectSubtopic('all')}>
+                                <span>All {topic.title}</span>
+                                <ProgressRing progress={topicProgress} visible={isTopicActive} />
+                              </button>
+                              {topic.subtopics.map((subtopic) => {
+                                const subtopicProgress = getSubtopicProgress(subject.id, topic.id, subtopic.id, state.completedArticlesByKey || {});
+                                const isSubtopicActive = subtopic.id === selectedSubtopic?.id;
+                                return (
+                                  <div key={subtopic.id}>
+                                    <button className={isSubtopicActive && subsubtopicId === 'all' ? 'tree-node level-2 active' : 'tree-node level-2'} onClick={() => selectSubtopic(subtopic.id)}>
+                                      <span>{subtopic.title}</span>
+                                      <ProgressRing progress={subtopicProgress} visible={isTopicActive} />
+                                    </button>
+                                    <div className={isSubtopicActive && subtopic.subsubtopics.length > 0 ? 'tree-branch-shell open' : 'tree-branch-shell'}>
+                                      <div className="tree-branch">
+                                        <button className={subsubtopicId === 'all' ? 'tree-node level-3 active' : 'tree-node level-3'} onClick={() => selectSubsubtopic('all')}>
+                                          <span>All {subtopic.title}</span>
+                                          <ProgressRing progress={subtopicProgress} visible={isSubtopicActive && subtopic.subsubtopics.length > 0} />
+                                        </button>
+                                        {subtopic.subsubtopics.map((subsubtopic) => {
+                                          const subsubtopicProgress = progressForBranch({
+                                            subjectId: subject.id,
+                                            topicId: topic.id,
+                                            subtopicId: subtopic.id,
+                                            subsubtopicId: subsubtopic.id,
+                                          });
+                                          return (
+                                            <button key={subsubtopic.id} className={subsubtopic.id === selectedSubsubtopic?.id ? 'tree-node level-3 active' : 'tree-node level-3'} onClick={() => selectSubsubtopic(subsubtopic.id)}>
+                                              <span>{subsubtopic.title}</span>
+                                              <ProgressRing progress={subsubtopicProgress} visible={isSubtopicActive && subtopic.subsubtopics.length > 0} />
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+
+      <div className="library-stoic-main">
+        <div className="library-stoic-toolbar">
+          <div className="library-stoic-title">
+            <div className="article-breadcrumbs library-breadcrumbs">
+              {selectedPath.map((part) => (
+                <span key={part}>{part}</span>
+              ))}
+            </div>
+            <h2>{scopeTitle}</h2>
+            <p>{progressLabel(scopeProgress)} complete · {visibleArticles.length} visible articles</p>
           </div>
           <button className={state.followedTopics?.[selectedSubject?.id] ? 'secondary-button active' : 'secondary-button'} onClick={() => toggleFollowTopic(selectedSubject.id)}>
             {state.followedTopics?.[selectedSubject?.id] ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
@@ -1984,72 +2579,44 @@ function LibraryView({ state, selectedLesson, libraryLessons, topicBank, openCan
           </button>
         </div>
 
-        <div className="domain-filter compact">
-          <button key="all" className={subtopicId === 'all' ? 'active' : ''} onClick={() => setSubtopicId('all')}>
-            All {selectedSubject?.title}
-          </button>
-          {selectedSubject?.subtopics.filter((subtopic) => subtopic.lessonCount > 0).map((subtopic) => (
-            <button key={subtopic.id} className={subtopicId === subtopic.id ? 'active' : ''} onClick={() => setSubtopicId(subtopic.id)}>
-              {subtopic.title}
-            </button>
-          ))}
+        <div className="search-row library-stoic-search">
+          <Search size={17} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, summary, or path" />
         </div>
 
-        <div className="library-section-head">
-          <div>
-            <p className="section-label">Curated study items</p>
-            <h3>{selectedSubject?.title}</h3>
-          </div>
-          <span>{visibleLessons.length} cards</span>
-        </div>
-
-        <div className="library-list">
-          {visibleLessons.map((lesson) => (
+        <div className="library-stoic-list">
+          {visibleArticles.map((article) => {
+            const completed = Boolean(state.completedArticlesByKey?.[article.key]?.completed);
+            const saved = Boolean(state.savedItems?.[article.key]);
+            return (
             <button
-              key={lesson.id}
-              className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'}
-              onClick={() => openCanonicalItem(canonicalItemKey('library', lesson.id), {
-                subjectIds: lesson.topicSubjectIds,
-                topicIds: lesson.topicSubtopicIds,
-                domain: 'library',
+              key={article.key}
+              className={selectedArticle?.key === article.key ? 'library-row active' : 'library-row'}
+              onClick={() => openCanonicalItem(article.key, {
+                subjectIds: [article.subjectId],
+                topicIds: [article.subjectId, article.topicId, article.subtopicId, article.subsubtopicId].filter(Boolean),
+                domain: 'article',
               })}
             >
-              {lesson.coverImageUrl && <img className="library-row-cover" src={lesson.coverImageUrl} alt="" loading="lazy" />}
               <div className="library-row-copy">
-                <strong>{lesson.title}</strong>
-                <p>{lesson.coreIdea}</p>
-                <small>{lesson.topicSubtopicIds.length > 0 ? lesson.topicSubtopicIds.map(followLabel).join(' · ') : lesson.domain}</small>
+                <strong>{article.title}</strong>
+                <p>{article.summary}</p>
+                <small>{articlePathLabel(article)}</small>
               </div>
               <span className="library-row-meta">
-                {lesson.summaryKind === 'History' ? 'History' : lesson.domain}
+                {completed ? 'Done' : saved ? 'Saved' : article.articleType === 'literature' ? 'Reader' : 'Article'}
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
+        {visibleArticles.length === 0 && (
+          <div className="empty-state">
+            <h3>No articles found</h3>
+            <p>Try a broader branch or a shorter search phrase.</p>
+          </div>
+        )}
       </div>
-
-      <aside className="source-list-panel library-context-panel">
-        <p className="section-label">Subjects</p>
-        <div className="shelf-breakdown">
-          {topicBank.map((subject) => (
-            <button key={subject.id} className={subject.id === selectedSubject?.id ? 'shelf-breakdown-row active' : 'shelf-breakdown-row'} onClick={() => setSubjectId(subject.id)}>
-              <span>{subject.title}</span>
-              <small>{subject.lessonCount} cards</small>
-            </button>
-          ))}
-        </div>
-        <div className="source-preview-head">
-          <p className="section-label">Source preview</p>
-          <span>{sourcePreview.length}</span>
-        </div>
-        {sourcePreview.map((source) => (
-          <article key={source.id} className="source-card compact">
-            <span>{source.domain}</span>
-            <h3>{source.title}</h3>
-            <small>{source.author}</small>
-          </article>
-        ))}
-      </aside>
     </section>
   );
 }
@@ -2294,6 +2861,354 @@ function NewsView({ state, selectedNewsItem, setSelectedNewsId, newsStatus, refr
   );
 }
 
+function AccountView({ syncStatus, isSyncing }) {
+  const [email, setEmail] = useState(syncStatus.userEmail || '');
+  const [syncNotice, setSyncNotice] = useState('');
+  const [isSyncSubmitting, setIsSyncSubmitting] = useState(false);
+  const [settings, setSettings] = useState(() => loadAiSettings());
+  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
+  const [aiNotice, setAiNotice] = useState('');
+  const [serverStatus, setServerStatus] = useState('checking');
+  const [canSaveKeychain, setCanSaveKeychain] = useState(false);
+  const [keychainKey, setKeychainKey] = useState('');
+  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
+  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
+  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
+  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
+  const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
+    ? DEFAULT_AI_SETTINGS.endpoint
+    : settings.endpoint === DEFAULT_AI_SETTINGS.endpoint
+      ? 'https://api.openai.com/v1/responses'
+      : settings.endpoint;
+  const endpointNeedsKey = requiresClientApiKey(effectiveEndpoint);
+  const phoneUrl = syncStatus.phoneUrls?.[0] || '';
+
+  useEffect(() => {
+    setEmail(syncStatus.userEmail || '');
+  }, [syncStatus.userEmail]);
+
+  function refreshServerStatus() {
+    setServerStatus('checking');
+    fetch('/api/ai-health')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
+      .then((payload) => {
+        setCanSaveKeychain(Boolean(payload.canSaveKeychain));
+        setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
+      })
+      .catch(() => {
+        setCanSaveKeychain(false);
+        setServerStatus('offline');
+      });
+  }
+
+  useEffect(() => {
+    const latest = loadAiSettings();
+    setSettings(latest);
+    setDraftKey(latest.apiKey);
+    refreshServerStatus();
+  }, []);
+
+  function updateSettings(nextSettings) {
+    setSettings(nextSettings);
+    saveAiSettings(nextSettings);
+  }
+
+  function updateModelSelection(modelId) {
+    if (modelId === 'custom') {
+      setUseCustomModel(true);
+      return;
+    }
+    setUseCustomModel(false);
+    updateSettings({ ...settings, model: modelId });
+  }
+
+  function saveBrowserKey() {
+    if (!draftKey.trim()) return;
+    saveApiKey(draftKey.trim(), settings.persistKey);
+    const latest = { ...settings, apiKey: draftKey.trim(), hasStoredKey: true };
+    setSettings(latest);
+    setAiNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
+  }
+
+  function removeBrowserKey() {
+    clearApiKey();
+    setDraftKey('');
+    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
+    setAiNotice('API key cleared.');
+  }
+
+  async function saveKeychainKey() {
+    const cleanKey = keychainKey.trim();
+    if (!cleanKey || isSavingKeychain) return;
+    setIsSavingKeychain(true);
+    setAiNotice('');
+    try {
+      const response = await fetch('/api/save-openai-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: cleanKey }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the key.');
+      setKeychainKey('');
+      setAiNotice('API key saved to macOS Keychain.');
+      refreshServerStatus();
+    } catch (error) {
+      setAiNotice(error.message);
+    } finally {
+      setIsSavingKeychain(false);
+    }
+  }
+
+  async function sendMagicLink() {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || isSyncSubmitting || !syncStatus.configured) return;
+    setIsSyncSubmitting(true);
+    setSyncNotice('');
+    try {
+      await sendSupabaseMagicLink(cleanEmail);
+      setSyncNotice(`Magic link sent to ${cleanEmail}. Use the same email on each device you want to sync.`);
+    } catch (error) {
+      setSyncNotice(error.message);
+    } finally {
+      setIsSyncSubmitting(false);
+    }
+  }
+
+  async function signOutCloudSync() {
+    if (isSyncSubmitting) return;
+    setIsSyncSubmitting(true);
+    setSyncNotice('');
+    try {
+      await signOutSupabase();
+      setSyncNotice('Signed out on this device.');
+    } catch (error) {
+      setSyncNotice(error.message);
+    } finally {
+      setIsSyncSubmitting(false);
+    }
+  }
+
+  async function copyPhoneUrl() {
+    if (!phoneUrl || !navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(phoneUrl);
+      setSyncNotice('Phone address copied.');
+    } catch {
+      setSyncNotice('Could not copy the phone address from this browser.');
+    }
+  }
+
+  const cloudConfigured = Boolean(syncStatus.configured || syncStatus.mode === 'supabase');
+  const cloudReady = syncStatus.mode === 'supabase' && syncStatus.available;
+
+  return (
+    <section className="account-grid">
+      <div className="account-stack">
+        <article className="account-card">
+          <div className="panel-head">
+            <div>
+              <p className="section-label">Sync</p>
+              <h2>Sign in and sync across devices</h2>
+            </div>
+            <span className="session-chip">{syncStatusLabel(syncStatus, isSyncing)}</span>
+          </div>
+
+          <div className={`server-status ${cloudReady ? 'ready' : cloudConfigured ? (syncStatus.authenticated ? 'missing-key' : 'offline') : 'offline'}`}>
+            <span>
+              {cloudReady
+                ? 'Cloud sync is ready'
+                : cloudConfigured
+                  ? syncStatus.authenticated
+                    ? 'Cloud sync needs backend setup'
+                    : 'Sign in to enable cloud sync'
+                  : 'Cloud sign-in is not configured yet'}
+            </span>
+            <p>
+              {cloudReady
+                ? 'This device is connected to your signed-in sync snapshot. Use the same email on another device to pull the same state there.'
+                : cloudConfigured
+                  ? syncStatus.authenticated
+                    ? syncStatus.error || 'You are signed in, but the sync table or policies still need backend setup.'
+                    : 'Use a magic link to attach this device to your cross-device sync account.'
+                  : 'The account screen is ready, but cloud sign-in stays disabled until the Supabase browser config is present.'}
+            </p>
+          </div>
+
+          {!syncStatus.authenticated && (
+            <div className="ai-field">
+              <label htmlFor="account-sync-email">Email for sync</label>
+              <input
+                id="account-sync-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                disabled={!cloudConfigured}
+              />
+              <div className="ai-settings-actions">
+                <button className="secondary-button" onClick={sendMagicLink} disabled={!cloudConfigured || !email.trim() || isSyncSubmitting}>
+                  {isSyncSubmitting ? 'Sending...' : 'Send magic link'}
+                </button>
+              </div>
+              <p className="field-help">When the backend is configured, this uses a Supabase magic link and does not store your API key in sync.</p>
+            </div>
+          )}
+
+          {syncStatus.authenticated && (
+            <div className="ai-field">
+              <label htmlFor="account-sync-profile">Signed-in sync profile</label>
+              <input id="account-sync-profile" value={syncStatus.userEmail || 'Signed in'} readOnly />
+              <div className="ai-settings-actions">
+                <button className="secondary-button" onClick={signOutCloudSync} disabled={isSyncSubmitting}>
+                  {isSyncSubmitting ? 'Working...' : 'Sign out'}
+                </button>
+              </div>
+              <p className="field-help">This profile syncs your Leaderman snapshot only: notes, progress, saved items, generated drafts, and related app state.</p>
+            </div>
+          )}
+
+          {(syncNotice || syncStatus.updatedAt || syncStatus.error) && (
+            <p className="settings-notice">
+              {syncNotice || (syncStatus.updatedAt ? `Last synced at ${new Date(syncStatus.updatedAt).toLocaleString()}.` : syncStatus.error)}
+            </p>
+          )}
+        </article>
+
+        <article className="account-card">
+          <div className="panel-head">
+            <div>
+              <p className="section-label">Local device</p>
+              <h2>Mac and phone setup</h2>
+            </div>
+            <span className="session-chip">{phoneUrl ? 'Phone ready' : syncStatus.mode === 'local' && syncStatus.available ? 'Mac sync' : 'Local only'}</span>
+          </div>
+
+          <div className={`server-status ${phoneUrl || (syncStatus.mode === 'local' && syncStatus.available) ? 'ready' : 'offline'}`}>
+            <span>{phoneUrl ? 'Phone address is ready' : syncStatus.mode === 'local' && syncStatus.available ? 'Mac sync is ready' : 'No local sync bridge detected'}</span>
+            <p>
+              {phoneUrl
+                ? 'Open this address on the same Wi-Fi to use your Mac as the home base for private AI, News, and local-network sync.'
+                : syncStatus.mode === 'local' && syncStatus.available
+                  ? 'The local sync bridge is active on this Mac, but there is no phone-ready network address yet.'
+                  : 'If you run the private Mac server, this section will show the phone-ready local address here.'}
+            </p>
+          </div>
+
+          {phoneUrl && (
+            <div className="ai-field">
+              <label htmlFor="account-phone-url">Phone address</label>
+              <input id="account-phone-url" value={phoneUrl} readOnly />
+              <div className="ai-settings-actions">
+                <button className="secondary-button" onClick={copyPhoneUrl}>Copy address</button>
+              </div>
+            </div>
+          )}
+        </article>
+      </div>
+
+      <article className="account-card account-ai-card">
+        <div className="panel-head">
+          <div>
+            <p className="section-label">AI</p>
+            <h2>API key and model settings</h2>
+          </div>
+          <span className="session-chip">{serverStatus === 'ready' ? 'Private server' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
+        </div>
+
+        <div className={`server-status ${serverStatus}`}>
+          <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
+          <p>
+            {serverStatus === 'ready'
+              ? 'Your Mac server will make AI requests.'
+              : serverStatus === 'missing-key'
+                ? canSaveKeychain
+                  ? 'Save a key to Keychain on this Mac.'
+                  : 'The Mac server is running, but the key must be saved from the Mac itself.'
+                : 'No private server was found, so the browser will call OpenAI directly when a key is present.'}
+          </p>
+        </div>
+
+        {serverStatus !== 'offline' && canSaveKeychain && (
+          <div className="ai-field">
+            <label htmlFor="account-keychain-key">Save key to Mac Keychain</label>
+            <input
+              id="account-keychain-key"
+              type="password"
+              value={keychainKey}
+              onChange={(event) => setKeychainKey(event.target.value)}
+              placeholder="Paste once, save to Keychain"
+              autoComplete="off"
+            />
+            <div className="ai-settings-actions">
+              <button className="secondary-button" onClick={saveKeychainKey} disabled={!keychainKey.trim() || isSavingKeychain}>
+                {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {endpointNeedsKey && (
+          <>
+            <div className="ai-field">
+              <label htmlFor="account-ai-key">OpenAI API key</label>
+              <input
+                id="account-ai-key"
+                type="password"
+                value={draftKey}
+                onChange={(event) => setDraftKey(event.target.value)}
+                placeholder="sk-..."
+                autoComplete="off"
+              />
+            </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={settings.persistKey}
+                onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
+              />
+              Remember key in this browser
+            </label>
+            <div className="ai-settings-actions">
+              <button className="secondary-button" onClick={saveBrowserKey}>Save key</button>
+              <button className="secondary-button" onClick={removeBrowserKey}>Clear key</button>
+            </div>
+          </>
+        )}
+
+        <div className="ai-field">
+          <label htmlFor="account-ai-model">Model</label>
+          <select id="account-ai-model" value={modelSelectValue} onChange={(event) => updateModelSelection(event.target.value)}>
+            {AI_MODEL_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+            <option value="custom">Custom model</option>
+          </select>
+          <p className="field-help">{selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}</p>
+        </div>
+
+        {modelSelectValue === 'custom' && (
+          <div className="ai-field">
+            <label htmlFor="account-ai-custom-model">Custom model ID</label>
+            <input id="account-ai-custom-model" value={settings.model} onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })} placeholder="gpt-..." />
+          </div>
+        )}
+
+        <details>
+          <summary>Advanced endpoint</summary>
+          <div className="ai-field">
+            <label htmlFor="account-ai-endpoint">Endpoint</label>
+            <input id="account-ai-endpoint" value={settings.endpoint} onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })} />
+          </div>
+        </details>
+
+        {aiNotice && <p className="settings-notice">{aiNotice}</p>}
+      </article>
+    </section>
+  );
+}
+
 function ProgressView({ state, stats, startSession }) {
   return (
     <section className="progress-grid">
@@ -2337,292 +3252,14 @@ function ProgressView({ state, stats, startSession }) {
   );
 }
 
-function PhoneSetupLauncher({ syncStatus, isSyncing }) {
-  const [open, setOpen] = useState(false);
-  const phoneUrl = syncStatus.phoneUrls?.[0] || '';
-
-  async function copyPhoneUrl() {
-    if (!phoneUrl || !navigator.clipboard?.writeText) return;
-    try {
-      await navigator.clipboard.writeText(phoneUrl);
-    } catch {
-      // Ignore clipboard failures. The user can still read the URL.
-    }
-  }
-
-  return (
-    <>
-      <button className="sync-setup-button" onClick={() => setOpen(true)}>
-        <Smartphone size={16} />
-        <span>Phone</span>
-      </button>
-      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close phone setup" />}
-      {open && (
-        <aside className="sync-setup-modal" aria-label="Phone setup">
-          <div className="floating-ai-head">
-            <div>
-              <span>Phone setup</span>
-              <strong>Use your Mac as the home base</strong>
-            </div>
-            <button className="icon-button light" onClick={() => setOpen(false)} title="Close">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="ai-settings-drawer">
-            <div className={`server-status ${syncStatus.available ? 'ready' : 'offline'}`}>
-              <span>{phoneUrl ? 'Phone sync is ready' : syncStatus.available ? 'Mac sync is ready' : 'Sync offline'}</span>
-              <p>
-                {phoneUrl
-                  ? 'Your Mac is serving Leaderman to the local network. Open the phone address below on the same Wi-Fi and the phone will share the same saved state, News, and AI bridge.'
-                  : syncStatus.available
-                    ? 'Leaderman is syncing on this Mac, but there is no phone-ready network address yet. Open Leaderman.app or run the LAN server so your phone can reach it.'
-                    : 'No Mac sync server is available right now. The app is still working locally on this device.'}
-              </p>
-            </div>
-
-            {phoneUrl && (
-              <div className="ai-field">
-                <label htmlFor="phone-url">Phone address</label>
-                <input id="phone-url" value={phoneUrl} readOnly />
-                <div className="ai-settings-actions">
-                  <button className="secondary-button" onClick={copyPhoneUrl}>
-                    Copy address
-                  </button>
-                </div>
-                <p className="field-help">On your phone: open this address in Safari on the same Wi-Fi, then add it to the Home Screen if you want a shortcut.</p>
-              </div>
-            )}
-
-            <p className="settings-notice">
-              {isSyncing
-                ? 'Sync is running now.'
-                : syncStatus.available
-                  ? syncStatus.updatedAt
-                    ? `Last synced at ${new Date(syncStatus.updatedAt).toLocaleString()}. Keep the Mac awake while using the phone.`
-                    : 'Sync is connected.'
-                  : syncStatus.error || 'Open Leaderman.app on your Mac to turn on phone sync.'}
-            </p>
-          </div>
-        </aside>
-      )}
-    </>
-  );
-}
-
-function AiSetupLauncher() {
-  const [open, setOpen] = useState(false);
-  const [settings, setSettings] = useState(() => loadAiSettings());
-  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
-  const [notice, setNotice] = useState('');
-  const [serverStatus, setServerStatus] = useState('checking');
-  const [canSaveKeychain, setCanSaveKeychain] = useState(false);
-  const [keychainKey, setKeychainKey] = useState('');
-  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
-  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
-  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
-  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
-  const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
-    ? DEFAULT_AI_SETTINGS.endpoint
-    : settings.endpoint === DEFAULT_AI_SETTINGS.endpoint
-      ? 'https://api.openai.com/v1/responses'
-      : settings.endpoint;
-  const endpointNeedsKey = requiresClientApiKey(effectiveEndpoint);
-
-  function refreshServerStatus() {
-    setServerStatus('checking');
-    fetch('/api/ai-health')
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
-      .then((payload) => {
-        setCanSaveKeychain(Boolean(payload.canSaveKeychain));
-        setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
-      })
-      .catch(() => {
-        setCanSaveKeychain(false);
-        setServerStatus('offline');
-      });
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    const latest = loadAiSettings();
-    setSettings(latest);
-    setDraftKey(latest.apiKey);
-    setNotice('');
-    refreshServerStatus();
-  }, [open]);
-
-  function updateSettings(nextSettings) {
-    setSettings(nextSettings);
-    saveAiSettings(nextSettings);
-  }
-
-  function updateModelSelection(modelId) {
-    if (modelId === 'custom') {
-      setUseCustomModel(true);
-      return;
-    }
-    setUseCustomModel(false);
-    updateSettings({ ...settings, model: modelId });
-  }
-
-  function saveBrowserKey() {
-    if (!draftKey.trim()) return;
-    saveApiKey(draftKey.trim(), settings.persistKey);
-    setSettings({ ...settings, apiKey: draftKey.trim(), hasStoredKey: true });
-    setNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
-  }
-
-  function removeBrowserKey() {
-    clearApiKey();
-    setDraftKey('');
-    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
-    setNotice('API key cleared.');
-  }
-
-  async function saveKeychainKey() {
-    const cleanKey = keychainKey.trim();
-    if (!cleanKey || isSavingKeychain) return;
-    setIsSavingKeychain(true);
-    setNotice('');
-    try {
-      const response = await fetch('/api/save-openai-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: cleanKey }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the key.');
-      setKeychainKey('');
-      setNotice('API key saved to macOS Keychain.');
-      refreshServerStatus();
-    } catch (error) {
-      setNotice(error.message);
-    } finally {
-      setIsSavingKeychain(false);
-    }
-  }
-
-  return (
-    <>
-      <button className="ai-setup-button" onClick={() => setOpen(true)}>
-        <Settings size={16} />
-        <span>API key</span>
-      </button>
-      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close API key setup" />}
-      {open && (
-        <aside className="ai-setup-modal" aria-label="AI setup">
-          <div className="floating-ai-head">
-            <div>
-              <span>AI setup</span>
-              <strong>Keys and model settings</strong>
-            </div>
-            <button className="icon-button light" onClick={() => setOpen(false)} title="Close">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="ai-settings-drawer">
-            <div className={`server-status ${serverStatus}`}>
-              <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
-              <p>
-                {serverStatus === 'ready'
-                  ? 'Your Mac server will make the API call.'
-                  : serverStatus === 'missing-key'
-                    ? canSaveKeychain
-                      ? 'Save a key to Keychain on this Mac.'
-                      : 'The Mac server is running, but the key must be saved from the Mac itself.'
-                    : 'No private server was found, so the browser will call OpenAI directly.'}
-              </p>
-            </div>
-            {serverStatus !== 'offline' && canSaveKeychain && (
-              <div className="ai-field">
-                <label htmlFor="launcher-keychain-key">Save key to Mac Keychain</label>
-                <input
-                  id="launcher-keychain-key"
-                  type="password"
-                  value={keychainKey}
-                  onChange={(event) => setKeychainKey(event.target.value)}
-                  placeholder="Paste once, save to Keychain"
-                  autoComplete="off"
-                />
-                <button className="secondary-button" onClick={saveKeychainKey} disabled={!keychainKey.trim() || isSavingKeychain}>
-                  {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
-                </button>
-              </div>
-            )}
-            {endpointNeedsKey && (
-              <>
-                <div className="ai-field">
-                  <label htmlFor="launcher-ai-key">OpenAI API key</label>
-                  <input
-                    id="launcher-ai-key"
-                    type="password"
-                    value={draftKey}
-                    onChange={(event) => setDraftKey(event.target.value)}
-                    placeholder="sk-..."
-                    autoComplete="off"
-                  />
-                </div>
-                <label className="toggle-row">
-                  <input
-                    type="checkbox"
-                    checked={settings.persistKey}
-                    onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
-                  />
-                  Remember key in this browser
-                </label>
-                <div className="ai-settings-actions">
-                  <button className="secondary-button" onClick={saveBrowserKey}>Save key</button>
-                  <button className="secondary-button" onClick={removeBrowserKey}>Clear key</button>
-                </div>
-              </>
-            )}
-            <div className="ai-field">
-              <label htmlFor="launcher-ai-model">Model</label>
-              <select id="launcher-ai-model" value={modelSelectValue} onChange={(event) => updateModelSelection(event.target.value)}>
-                {AI_MODEL_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-                <option value="custom">Custom model</option>
-              </select>
-              <p className="field-help">{selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}</p>
-            </div>
-            {modelSelectValue === 'custom' && (
-              <div className="ai-field">
-                <label htmlFor="launcher-ai-custom-model">Custom model ID</label>
-                <input id="launcher-ai-custom-model" value={settings.model} onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })} placeholder="gpt-..." />
-              </div>
-            )}
-            <details>
-              <summary>Advanced endpoint</summary>
-              <div className="ai-field">
-                <label htmlFor="launcher-ai-endpoint">Endpoint</label>
-                <input id="launcher-ai-endpoint" value={settings.endpoint} onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })} />
-              </div>
-            </details>
-            {notice && <p className="settings-notice">{notice}</p>}
-          </div>
-        </aside>
-      )}
-    </>
-  );
-}
-
 function FloatingAiPanel({ lesson }) {
   const [open, setOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(() => loadAiSettings());
-  const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState(() => loadAiChat());
   const [isAsking, setIsAsking] = useState(false);
   const [notice, setNotice] = useState('');
   const [serverStatus, setServerStatus] = useState('checking');
-  const [canSaveKeychain, setCanSaveKeychain] = useState(false);
-  const [keychainKey, setKeychainKey] = useState('');
-  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
-  const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
-  const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
-  const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
   const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
     ? DEFAULT_AI_SETTINGS.endpoint
     : settings.endpoint === DEFAULT_AI_SETTINGS.endpoint
@@ -2637,11 +3274,9 @@ function FloatingAiPanel({ lesson }) {
     fetch('/api/ai-health')
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
       .then((payload) => {
-        setCanSaveKeychain(Boolean(payload.canSaveKeychain));
         setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
       })
       .catch(() => {
-        setCanSaveKeychain(false);
         setServerStatus('offline');
       });
   }
@@ -2652,72 +3287,19 @@ function FloatingAiPanel({ lesson }) {
     if (!open) return;
     const latest = loadAiSettings();
     setSettings(latest);
-    setDraftKey(latest.apiKey);
+    setNotice('');
     refreshServerStatus();
   }, [open]);
-
-  function updateSettings(nextSettings) {
-    setSettings(nextSettings);
-    saveAiSettings(nextSettings);
-  }
-
-  function updateModelSelection(modelId) {
-    if (modelId === 'custom') {
-      setUseCustomModel(true);
-      return;
-    }
-    setUseCustomModel(false);
-    updateSettings({ ...settings, model: modelId });
-  }
-
-  function saveBrowserKey() {
-    if (!draftKey.trim()) return;
-    saveApiKey(draftKey.trim(), settings.persistKey);
-    setSettings({ ...settings, apiKey: draftKey.trim(), hasStoredKey: true });
-    setNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
-  }
-
-  function removeBrowserKey() {
-    clearApiKey();
-    setDraftKey('');
-    setSettings({ ...settings, apiKey: '', hasStoredKey: false });
-    setNotice('API key cleared.');
-  }
-
-  async function saveKeychainKey() {
-    const cleanKey = keychainKey.trim();
-    if (!cleanKey || isSavingKeychain) return;
-    setIsSavingKeychain(true);
-    setNotice('');
-    try {
-      const response = await fetch('/api/save-openai-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: cleanKey }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the key.');
-      setKeychainKey('');
-      setNotice('API key saved to macOS Keychain.');
-      refreshServerStatus();
-    } catch (error) {
-      setNotice(error.message);
-    } finally {
-      setIsSavingKeychain(false);
-    }
-  }
 
   async function askQuestion() {
     const cleanQuestion = question.trim();
     if (!cleanQuestion || isAsking) return;
     if (serverStatus === 'missing-key') {
-      setNotice('Private server is running, but no key is saved yet.');
-      setSettingsOpen(true);
+      setNotice('Private server is running, but no key is saved yet. Open Account to add one.');
       return;
     }
-    if (endpointNeedsKey && !settings.apiKey && !draftKey.trim()) {
-      setNotice('Add your API key first.');
-      setSettingsOpen(true);
+    if (endpointNeedsKey && !settings.apiKey) {
+      setNotice('Open Account to configure your API key before using AI Coach.');
       return;
     }
 
@@ -2735,7 +3317,7 @@ function FloatingAiPanel({ lesson }) {
 
     try {
       const answer = await askOpenAI({
-        apiKey: endpointNeedsKey ? settings.apiKey || draftKey.trim() : '',
+        apiKey: endpointNeedsKey ? settings.apiKey : '',
         endpoint: effectiveEndpoint,
         model: settings.model,
         messages,
@@ -2780,9 +3362,6 @@ function FloatingAiPanel({ lesson }) {
             <strong>{lesson?.title || 'Current lesson'}</strong>
           </div>
           <div className="ai-head-actions">
-            <button className="icon-button light" onClick={() => setSettingsOpen((current) => !current)} title="AI settings">
-              <Settings size={16} />
-            </button>
             <button
               className="icon-button light"
               onClick={() => {
@@ -2798,90 +3377,6 @@ function FloatingAiPanel({ lesson }) {
             </button>
           </div>
         </div>
-
-        {settingsOpen && (
-          <div className="ai-settings-drawer">
-            <div className={`server-status ${serverStatus}`}>
-              <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
-              <p>
-                {serverStatus === 'ready'
-                  ? 'Your Mac server will make the API call.'
-                  : serverStatus === 'missing-key'
-                    ? canSaveKeychain
-                      ? 'Save a key to Keychain on this Mac.'
-                      : 'The Mac server is running, but the key must be saved from the Mac itself.'
-                    : 'The local server was not found, so the browser will call OpenAI directly.'}
-              </p>
-            </div>
-            {serverStatus !== 'offline' && canSaveKeychain && (
-              <div className="ai-field">
-                <label htmlFor="keychain-key">Save key to Mac Keychain</label>
-                <input
-                  id="keychain-key"
-                  type="password"
-                  value={keychainKey}
-                  onChange={(event) => setKeychainKey(event.target.value)}
-                  placeholder="Paste once, save to Keychain"
-                  autoComplete="off"
-                />
-                <button className="secondary-button" onClick={saveKeychainKey} disabled={!keychainKey.trim() || isSavingKeychain}>
-                  {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
-                </button>
-              </div>
-            )}
-            {endpointNeedsKey && (
-              <>
-                <div className="ai-field">
-                  <label htmlFor="ai-key">OpenAI API key</label>
-                  <input
-                    id="ai-key"
-                    type="password"
-                    value={draftKey}
-                    onChange={(event) => setDraftKey(event.target.value)}
-                    placeholder="sk-..."
-                    autoComplete="off"
-                  />
-                </div>
-                <label className="toggle-row">
-                  <input
-                    type="checkbox"
-                    checked={settings.persistKey}
-                    onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
-                  />
-                  Remember key in this browser
-                </label>
-                <div className="ai-settings-actions">
-                  <button className="secondary-button" onClick={saveBrowserKey}>Save key</button>
-                  <button className="secondary-button" onClick={removeBrowserKey}>Clear key</button>
-                </div>
-              </>
-            )}
-            <div className="ai-field">
-              <label htmlFor="ai-model">Model</label>
-              <select id="ai-model" value={modelSelectValue} onChange={(event) => updateModelSelection(event.target.value)}>
-                {AI_MODEL_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-                <option value="custom">Custom model</option>
-              </select>
-              <p className="field-help">{selectedModelOption?.description || 'Use this for a newer or account-specific model ID.'}</p>
-            </div>
-            {modelSelectValue === 'custom' && (
-              <div className="ai-field">
-                <label htmlFor="ai-custom-model">Custom model ID</label>
-                <input id="ai-custom-model" value={settings.model} onChange={(event) => updateSettings({ ...settings, model: event.target.value.trim() })} placeholder="gpt-..." />
-              </div>
-            )}
-            <details>
-              <summary>Advanced endpoint</summary>
-              <div className="ai-field">
-                <label htmlFor="ai-endpoint">Endpoint</label>
-                <input id="ai-endpoint" value={settings.endpoint} onChange={(event) => updateSettings({ ...settings, endpoint: event.target.value })} />
-              </div>
-            </details>
-            {notice && <p className="settings-notice">{notice}</p>}
-          </div>
-        )}
 
         <div className="ai-message-list" aria-live="polite">
           {messages.length === 0 && (

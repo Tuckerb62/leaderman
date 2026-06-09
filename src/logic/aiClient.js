@@ -358,6 +358,230 @@ export async function expandLearningContent({ apiKey, endpoint, model, lesson, c
   return extractResponseText(payload);
 }
 
+function articleModeInstruction(article = {}) {
+  if (article.articleType === 'literature') {
+    return [
+      'This is a Literature article. Produce a reader-friendly chapter guide.',
+      'Do not create a worksheet, quiz, scenario, or decision UI.',
+      'Stay within the supplied chapter/book boundary and do not reveal later events.',
+    ].join('\n');
+  }
+
+  if (article.subject === 'Emergency Medicine & Critical Care') {
+    return [
+      'This is educational medical microlearning only, not patient-specific medical advice and not a substitute for local protocols, supervision, or formal training.',
+      'Emphasize ED/ICU recognition, threats, traps, first actions, escalation, and bedside reasoning.',
+      'Do not invent ECG, radiology, ultrasound, pathology, lab, dosing, procedural, or medical image findings.',
+    ].join('\n');
+  }
+
+  if (article.subject === 'Science') {
+    return 'Science summaries may be rough or generic. Use the path, summary, and bodyMarkdown to produce a polished but careful lesson without blocking generation.';
+  }
+
+  return 'Produce a practical article lesson for the supplied subject and hierarchy path.';
+}
+
+export function buildArticleAiInstructions(article = {}) {
+  return [
+    '# Identity',
+    'You are the Leaderman AI article expansion engine.',
+    '',
+    '# Role',
+    'Expand one opened markdown-derived article into a private generated learning aid for a single local-first user.',
+    '',
+    '# Output Contract',
+    'Return JSON with exactly these top-level fields: title, articleMarkdown, imageCards, imageQueries, practicalTakeaway.',
+    'Do not map output into old Leaderman lesson fields such as quickVersion, breakdown, scenario, decision, or reflection.',
+    '',
+    '# Article Mode',
+    articleModeInstruction(article),
+    '',
+    '# Factuality And Source Rules',
+    'Do not invent URLs, attribution, licenses, quotes, dates, citations, or source claims.',
+    'Do not claim you checked external sources during this request.',
+    'If a source claim is not present in the supplied article context, phrase it cautiously or leave it out.',
+    'Paraphrase the supplied markdown instead of copying long passages.',
+    '',
+    '# Image Rules',
+    'Only return imageCards when sourceName, pageUrl, imageUrl, attribution, and license are reliable.',
+    'If reliable image metadata is unavailable, return imageCards as an empty array.',
+    'Return imageQueries only when they would help the user find legitimate supporting visuals.',
+    '',
+    '# Teaching Style',
+    'Write concise but substantive markdown. Use concrete explanation, examples, traps, tradeoffs, and practical takeaways.',
+  ].join('\n');
+}
+
+export function buildArticleTutorInstructions(article = {}) {
+  return [
+    'You are Leaderman article-specific tutor.',
+    'Answer only within the current article, generated article draft, hierarchy path, and local thread history.',
+    'Tutor responses may use markdown.',
+    'Do not return JSON, code fences that wrap a JSON object, or old lesson field names.',
+    articleModeInstruction(article),
+    'Keep the answer grounded in the supplied article context and generated draft.',
+    'If the article leaves something uncertain, say so plainly instead of inventing details.',
+  ].join('\n');
+}
+
+export function buildArticleExpansionInput(article = {}) {
+  return {
+    task: article.subject === 'Science'
+      ? 'Expand this markdown article. Science summaries may be rough or generic; do not block generation because of that.'
+      : 'Expand this markdown article into the structured JSON output.',
+    article: {
+      subject: article.subject,
+      topic: article.topic,
+      subtopic: article.subtopic,
+      subsubtopic: article.subsubtopic,
+      title: article.title,
+      summary: article.summary,
+      bodyMarkdown: article.bodyMarkdown,
+      articleType: article.articleType,
+      hierarchyPath: article.hierarchyPath,
+      sourceFile: article.sourceFile,
+      sourceContext: article.sourceContext || [],
+    },
+  };
+}
+
+function responseInputFromStructuredJson(value) {
+  return [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: JSON.stringify(value, null, 2),
+        },
+      ],
+    },
+  ];
+}
+
+function stripJsonFence(text = '') {
+  return text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+}
+
+function reliableImageCard(card = {}) {
+  return Boolean(card.sourceName && card.pageUrl && card.imageUrl && card.attribution && card.license);
+}
+
+function normalizeGeneratedArticle(text, fallbackTitle = 'Generated article') {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(stripJsonFence(text));
+  } catch {
+    parsed = null;
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return {
+      title: fallbackTitle,
+      articleMarkdown: text,
+      imageCards: [],
+      imageQueries: [],
+      practicalTakeaway: '',
+    };
+  }
+
+  return {
+    title: parsed.title || fallbackTitle,
+    articleMarkdown: parsed.articleMarkdown || '',
+    imageCards: Array.isArray(parsed.imageCards) ? parsed.imageCards.filter(reliableImageCard) : [],
+    imageQueries: Array.isArray(parsed.imageQueries)
+      ? parsed.imageQueries.filter((query) => typeof query === 'string' && query.trim()).map((query) => query.trim())
+      : [],
+    practicalTakeaway: parsed.practicalTakeaway || '',
+  };
+}
+
+export async function expandArticleFromMarkdown({ apiKey, endpoint, model, article }) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(endpoint || DEFAULT_AI_SETTINGS.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: model || DEFAULT_AI_SETTINGS.model,
+        instructions: buildArticleAiInstructions(article),
+        input: responseInputFromStructuredJson(buildArticleExpansionInput(article)),
+        max_output_tokens: 3600,
+      }),
+    });
+  } catch {
+    throw new Error('The browser could not reach the API endpoint. Check the endpoint, network, or browser CORS restrictions.');
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload?.error?.message || `OpenAI request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return normalizeGeneratedArticle(extractResponseText(payload), article?.title || 'Generated article');
+}
+
+export const generateArticleLesson = expandArticleFromMarkdown;
+
+export async function askArticleTutor({
+  apiKey,
+  endpoint,
+  model,
+  article,
+  generatedArticle = null,
+  userMessage,
+  conversationHistory = [],
+}) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(endpoint || DEFAULT_AI_SETTINGS.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: model || DEFAULT_AI_SETTINGS.model,
+        instructions: buildArticleTutorInstructions(article),
+        input: responseInputFromStructuredJson({
+          article: buildArticleExpansionInput(article).article,
+          generatedArticle,
+          conversationHistory: conversationHistory.slice(-8),
+          message: userMessage,
+        }),
+        max_output_tokens: 1200,
+      }),
+    });
+  } catch {
+    throw new Error('The browser could not reach the API endpoint. Check the endpoint, network, or browser CORS restrictions.');
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload?.error?.message || `OpenAI request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return extractResponseText(payload);
+}
+
 export function extractResponseText(payload) {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
     return payload.output_text.trim();

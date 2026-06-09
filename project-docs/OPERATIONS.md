@@ -64,6 +64,71 @@ The free working setup is:
 
 This is the setup to use when the goal is "make it work on my phone tonight" without adding a paid service or a separate internet sync backend.
 
+## Supabase Sync Setup
+
+Leaderman can also read and write its sync snapshot through Supabase when these environment variables are present:
+
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+```
+
+The app expects the migration in `supabase/migrations/20260609155402_create_user_profiles_sync.sql`. The hosted project shape is:
+
+```sql
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  email text,
+  app_state jsonb not null default '{}'::jsonb,
+  last_synced_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.user_profiles enable row level security;
+
+grant select, insert, update on table public.user_profiles to authenticated;
+revoke all on table public.user_profiles from anon;
+
+create policy "user_profiles_select_own"
+on public.user_profiles
+for select
+to authenticated
+using ((select auth.uid()) = user_id);
+
+create policy "user_profiles_insert_own"
+on public.user_profiles
+for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+create policy "user_profiles_update_own"
+on public.user_profiles
+for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+```
+
+If your project uses manual Data API exposure, expose `public.user_profiles` to the `authenticated` role. Without that, `supabase-js` can fail even when RLS policies exist.
+
+In Supabase Auth, add the exact redirect URLs you plan to use with magic-link sign-in. At minimum this usually means:
+
+- `http://127.0.0.1:5173`
+- `http://127.0.0.1:4174`
+- `https://tuckerb62.github.io/leaderman/`
+
+Any other LAN or preview origin must also be added explicitly.
+
+To apply the backend to the hosted project from this repo:
+
+```bash
+supabase link --project-ref unfzptahxgcnyauxbnpr
+supabase db push
+```
+
+If you are not authenticated with the CLI, use the SQL file directly in the Supabase SQL editor instead.
+
 ## Save the OpenAI Key
 
 Option A, save inside the app:

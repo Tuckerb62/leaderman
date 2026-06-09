@@ -1,6 +1,6 @@
 # Leaderman Context for Future Agents
 
-Leaderman is a standalone personal learning cockpit in `/Users/jonathan/Documents/leaderman`. It is still local-first, single-user, and static-first where practical. The public version can run as a static GitHub Pages site. The private version can run from the user's Mac with a small local server that keeps the OpenAI API key out of the browser and also provides optional single-user sync and private News refresh.
+Leaderman is a standalone personal learning cockpit in `/Users/jonathan/Documents/leaderman`. It is still local-first, single-user, and static-first where practical. The public version can run as a static GitHub Pages site. The private version can run from the user's Mac with a small local server that keeps the OpenAI API key out of the browser and also provides private News refresh plus optional local sync. The app can also sync user-owned state through Supabase when the user signs in with a magic link.
 
 ## What the App Allows
 
@@ -17,7 +17,7 @@ The current app supports these user-facing areas:
 - Floating `AI Coach`: optional conversational help grounded in the current lesson or item context. It can use a private local proxy or a direct browser API key fallback.
 - `Expand` actions in detail views: optional AI-generated private drafts for lessons, book guides, authored chapter or section readers, and News expansions.
 
-The app still does not have accounts, payments, a multi-user backend database, PDF import, or EPUB import. The sync bridge is intentionally minimal and single-user: it syncs user-owned state through the user's Mac when available, but the app remains usable locally without it.
+The app still does not have payments, a multi-user collaboration model, PDF import, or EPUB import. It now has an optional single-user sync profile through Supabase Auth plus a minimal `public.user_profiles` table that stores the app snapshot JSON. The app remains usable locally without that profile.
 
 ## Learning Model
 
@@ -60,7 +60,7 @@ User progress is stored in browser `localStorage` through `src/data/storage.js`.
 
 The sidebar includes manual JSON export and import so the user can back up progress or move it to another browser manually. Import merges seeded source and lesson records from the current build, then restores user-owned completion state, question-answer counts, sessions, notes, reflections, generated expansion drafts, saved items, followed topics, dismissed items, activity history, News state, and settings.
 
-The private local server also exposes a minimal sync bridge. When both the desktop and phone open the same Mac-hosted private server URL, user-owned state can sync automatically through a file stored on the Mac. GitHub Pages remains static and device-local unless the user manually exports or imports state or uses that private server.
+The private local server also exposes a minimal sync bridge. When both the desktop and phone open the same Mac-hosted private server URL, user-owned state can sync automatically through a file stored on the Mac. Separately, Supabase sync can store the same sync snapshot in `public.user_profiles` keyed by the signed-in user. GitHub Pages remains static and device-local unless the user manually exports or imports state, uses the Mac-hosted sync bridge, or signs in to Supabase sync.
 
 ## AI Coach Modes
 
@@ -82,6 +82,8 @@ The private server also exposes:
 - `GET /api/sync-state` and `POST /api/sync-state`: minimal single-user sync snapshot endpoints.
 - `POST /api/news-refresh`: fetches source material and returns compact daily briefing items.
 - `POST /api/news-expand`: expands a selected News story into a longer private briefing when a key is available.
+
+Supabase sync is handled in the browser through `@supabase/supabase-js`, `src/logic/supabaseAuth.js`, and `src/logic/syncClient.js`. The app uses magic-link email auth and stores the same sync snapshot shape in `public.user_profiles.app_state`.
 
 AI prompts are assembled in `src/logic/aiClient.js`. Every request should include the Leaderman app overview, the tutor role, factuality rules, teaching style, and optional current-item context. Keep these guardrails strong if the AI feature changes.
 

@@ -1,6 +1,6 @@
 # Leaderman
 
-Leaderman is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional Mac-hosted sync.
+Leaderman is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional sync through either the user's Mac or Supabase.
 
 ## For AI Agents and Maintainers
 
@@ -24,7 +24,7 @@ After GitHub Pages finishes deploying, open:
 
 https://Tuckerb62.github.io/leaderman/
 
-The public GitHub Pages build stays static-first. It has no account system. Your notes, progress, saved items, generated lesson drafts, and preferences are stored in your browser on the device you use.
+The public GitHub Pages build stays static-first. Your notes, progress, saved items, generated lesson drafts, and preferences stay in your browser by default. If you choose Supabase sync, those user-owned state slices can also sync through your signed-in profile.
 
 ## Run Locally
 

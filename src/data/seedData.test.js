@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createInitialState, domains, microLessons, philosophySchools } from './seedData.js';
 
 describe('seed lesson articles', () => {
+  it('starts with empty article-keyed local-first state slices', () => {
+    const state = createInitialState();
+
+    expect(state.completedArticlesByKey).toEqual({});
+    expect(state.generatedArticlesByKey).toEqual({});
+    expect(state.articleTutorThreadsByKey).toEqual({});
+    expect(state.notes).toEqual({});
+    expect(state.savedItems).toEqual({});
+  });
+
   it('expands every lesson into a source-grounded article', () => {
     expect(microLessons.length).toBeGreaterThanOrEqual(40);
 

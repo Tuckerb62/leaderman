@@ -47,4 +47,44 @@ describe('sync state helpers', () => {
     expect(merged.savedItems['library:lesson-stoic-control']).toBeTruthy();
     expect(merged.news.items[0].id).toBe('story-1');
   });
+
+  it('syncs article-keyed completion, generated articles, and tutor threads', () => {
+    const local = createInitialState();
+    const remote = buildSyncSnapshot(createInitialState(), '2026-06-09T13:00:00.000Z');
+    remote.completedArticlesByKey = {
+      'article:leadership-foundations-authority': {
+        completed: true,
+        completedAt: '2026-06-09T12:00:00.000Z',
+        updatedAt: '2026-06-09T12:00:00.000Z',
+      },
+    };
+    remote.generatedArticlesByKey = {
+      'article:leadership-foundations-authority': {
+        title: 'Authority',
+        articleMarkdown: '## Expanded\nPrivate generated article.',
+        imageCards: [],
+        imageQueries: [],
+        practicalTakeaway: 'Check recognized authority.',
+        updatedAt: '2026-06-09T12:05:00.000Z',
+      },
+    };
+    remote.articleTutorThreadsByKey = {
+      'article:leadership-foundations-authority': {
+        messages: [
+          { role: 'user', content: 'Help me study this.', createdAt: '2026-06-09T12:06:00.000Z' },
+        ],
+        updatedAt: '2026-06-09T12:06:00.000Z',
+      },
+    };
+
+    const snapshot = buildSyncSnapshot(remote, '2026-06-09T13:00:00.000Z');
+    const merged = mergeSyncSnapshot(local, snapshot);
+
+    expect(snapshot.completedArticlesByKey['article:leadership-foundations-authority'].completed).toBe(true);
+    expect(snapshot.generatedArticlesByKey['article:leadership-foundations-authority'].articleMarkdown).toContain('Private generated article');
+    expect(snapshot.articleTutorThreadsByKey['article:leadership-foundations-authority'].messages[0].content).toContain('study');
+    expect(merged.completedArticlesByKey['article:leadership-foundations-authority'].completed).toBe(true);
+    expect(merged.generatedArticlesByKey['article:leadership-foundations-authority'].practicalTakeaway).toBe('Check recognized authority.');
+    expect(merged.articleTutorThreadsByKey['article:leadership-foundations-authority'].messages).toHaveLength(1);
+  });
 });

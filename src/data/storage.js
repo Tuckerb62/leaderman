@@ -21,6 +21,18 @@ function normalizeUserState(parsed) {
       ...(parsed.reviews || {}),
     },
     lessonExpansions: parsed.lessonExpansions || {},
+    completedArticlesByKey: {
+      ...seeded.completedArticlesByKey,
+      ...(parsed.completedArticlesByKey || {}),
+    },
+    generatedArticlesByKey: {
+      ...seeded.generatedArticlesByKey,
+      ...(parsed.generatedArticlesByKey || {}),
+    },
+    articleTutorThreadsByKey: {
+      ...seeded.articleTutorThreadsByKey,
+      ...(parsed.articleTutorThreadsByKey || {}),
+    },
     followedTopics: {
       ...seeded.followedTopics,
       ...(parsed.followedTopics || {}),

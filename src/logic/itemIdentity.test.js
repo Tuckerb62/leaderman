@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalArticleItem,
   canonicalItemKey,
   canonicalLessonDomain,
   canonicalNewsItem,
@@ -46,6 +47,25 @@ describe('item identity helpers', () => {
       domain: 'news',
       itemId: 'news-romania-election',
     });
+  });
+
+  it('builds article items with stable canonical keys', () => {
+    const article = {
+      key: 'article:leadership-foundations-authority',
+      slug: 'leadership-foundations-authority',
+      title: 'Authority',
+      subject: 'Leadership',
+    };
+
+    expect(canonicalArticleItem(article)).toMatchObject({
+      key: 'article:leadership-foundations-authority',
+      domain: 'article',
+      itemId: 'leadership-foundations-authority',
+      articleKey: 'article:leadership-foundations-authority',
+      articleSlug: 'leadership-foundations-authority',
+      title: 'Authority',
+    });
+    expect(canonicalItemKey('article', article.slug)).toBe('article:leadership-foundations-authority');
   });
 
   it('parses canonical item keys', () => {

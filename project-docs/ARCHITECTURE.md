@@ -1,6 +1,6 @@
 # Architecture
 
-Leaderman is a Vite React single-page app with optional local Node tooling for private AI, private News, single-user sync, and desktop launching. The main product is intentionally static-first: it can run from GitHub Pages without a server, while the private server version runs from the user's Mac.
+Leaderman is a Vite React single-page app with optional local Node tooling for private AI, private News, single-user sync, and desktop launching. The main product is intentionally static-first: it can run from GitHub Pages without a server, while the private server version runs from the user's Mac. Optional Supabase Auth plus `public.user_profiles` adds cloud sync for the user's own state snapshot.
 
 ## Key Files
 
@@ -10,7 +10,8 @@ Leaderman is a Vite React single-page app with optional local Node tooling for p
 - `src/data/storage.js`: local state load/save, backup export, and backup import normalization.
 - `src/data/topicBank.js`: subject and subtopic definitions plus deterministic lesson-to-topic indexing for Library.
 - `src/data/newsStorage.js`: News storage, dedupe ledger, retention, saved story state, and expansion persistence.
-- `src/data/syncState.js`: sync snapshot building and merge logic for the single-user private sync bridge.
+- `src/data/syncState.js`: sync snapshot building and merge logic for both the Mac-hosted sync bridge and the Supabase-backed user profile snapshot.
+- `src/logic/supabaseAuth.js`: magic-link sign-in, session lookup, and auth-state subscription for Supabase sync.
 - `src/data/aiSettings.js`: browser AI settings and optional browser-side key storage.
 - `src/logic/reviewScheduler.js`: completion tracking and question-answer transitions.
 - `src/logic/selectors.js`: source lookup and progress stats from the seeded lesson model.
@@ -233,22 +234,32 @@ News refresh follows a similar pattern, but it starts from fetched source materi
 ```mermaid
 flowchart LR
   BrowserState["Browser local state"] --> Snapshot["buildSyncSnapshot()"]
-  Snapshot --> Server["scripts/local-ai-server.mjs /api/sync-state"]
+  Snapshot --> Provider{"Sync provider"}
+  Provider --> Server["scripts/local-ai-server.mjs /api/sync-state"]
   Server --> File["private-sync-store.mjs sync-state.json on Mac"]
   File --> Server
-  Server --> Merge["mergeSyncSnapshot()"]
+  BrowserState --> Auth["Supabase Auth session (optional)"]
+  Provider --> Supabase["Supabase public.user_profiles.app_state"]
+  Supabase --> Merge["mergeSyncSnapshot()"]
+  Server --> Merge
   Merge --> BrowserState
 ```
 
-The sync bridge is intentionally small:
+The sync bridge is intentionally small. Leaderman now has two providers at this seam:
+
+- default local bridge through the Mac-hosted private server
+- optional Supabase sync through `public.user_profiles` when `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are present and the user is signed in
+
+Both providers sync the same snapshot shape built by `buildSyncSnapshot(...)`.
+
+The sync model remains intentionally small:
 
 - single user
-- no accounts
-- no remote cloud backend
+- optional one-user auth profile for cross-device sync
 - no synced API keys
 - best-effort last-write merge by per-slice timestamps plus periodic client pull and push
 
-This is enough for one person using desktop and phone against the same Mac-hosted server, but it is not a multi-user conflict-resolution system.
+This is enough for one person using desktop and phone either through the Mac-hosted server or through their own Supabase project, but it is not a multi-user conflict-resolution system.
 
 ## Build Outputs
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../data/seedData.js';
 import { createInitialNewsState } from '../data/newsStorage.js';
+import { articles } from '../data/articleCatalog.js';
 import { resolveCanonicalItemRoute } from './itemRouting.js';
 
 describe('item routing', () => {
@@ -37,6 +38,19 @@ describe('item routing', () => {
       view: 'news',
       domain: 'news',
       newsId: 'news-1',
+    });
+  });
+
+  it('routes article keys into the clean article detail view', () => {
+    const state = createInitialState();
+    const article = articles.find((item) => item.subject === 'Leadership');
+
+    expect(resolveCanonicalItemRoute(state, article.key)).toMatchObject({
+      view: 'article',
+      domain: 'article',
+      articleKey: article.key,
+      articleSlug: article.slug,
+      article,
     });
   });
 });

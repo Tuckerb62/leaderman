@@ -1,5 +1,6 @@
+import { articles } from '../data/articleCatalog.js';
 import { buildLibraryLessonIndex, describeLessonTopics } from '../data/topicBank.js';
-import { canonicalLessonItem, canonicalNewsItem } from './itemIdentity.js';
+import { canonicalArticleItem, canonicalLessonItem, canonicalNewsItem } from './itemIdentity.js';
 
 function stableHash(text) {
   return [...text].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 100000, 7);
@@ -86,14 +87,86 @@ function newsFeedEntry(newsItem) {
   };
 }
 
+function emptyProgress() {
+  return { completed: 0, total: 0, percent: 0 };
+}
+
+function progressPercent(progress) {
+  return progress.total ? Math.round((progress.completed / progress.total) * 100) : 0;
+}
+
+function buildArticleProgressMaps(state) {
+  const maps = {
+    subject: new Map(),
+    topic: new Map(),
+    subtopic: new Map(),
+  };
+
+  function bump(map, key, completed) {
+    if (!key) return;
+    const progress = map.get(key) || { completed: 0, total: 0 };
+    progress.total += 1;
+    if (completed) progress.completed += 1;
+    map.set(key, progress);
+  }
+
+  for (const article of articles) {
+    const completed = Boolean(state.completedArticlesByKey?.[article.key]?.completed);
+    bump(maps.subject, article.subjectId, completed);
+    bump(maps.topic, `${article.subjectId}|${article.topicId}`, completed);
+    bump(maps.subtopic, `${article.subjectId}|${article.topicId}|${article.subtopicId}`, completed);
+  }
+
+  return maps;
+}
+
+function progressContextForFeedArticle(article, maps) {
+  const subject = maps.subject.get(article.subjectId) || emptyProgress();
+  const topic = maps.topic.get(`${article.subjectId}|${article.topicId}`) || emptyProgress();
+  const subtopic = maps.subtopic.get(`${article.subjectId}|${article.topicId}|${article.subtopicId}`) || emptyProgress();
+  return {
+    subjectProgress: progressPercent(subject),
+    topicProgress: progressPercent(topic),
+    subtopicProgress: progressPercent(subtopic),
+  };
+}
+
+function articleFeedEntry(article, state, progressMaps) {
+  const completed = Boolean(state.completedArticlesByKey?.[article.key]?.completed);
+  const saved = Boolean(state.savedItems?.[article.key]);
+  const topicIds = [article.subjectId, article.topicId, article.subtopicId, article.subsubtopicId].filter(Boolean);
+  return {
+    ...canonicalArticleItem(article),
+    id: article.key,
+    type: 'article',
+    articleKey: article.key,
+    article,
+    subjectId: article.subjectId,
+    subjectIds: [article.subjectId],
+    subject: article.subject,
+    subjectTitle: article.subject,
+    title: article.title,
+    summary: article.summary,
+    hierarchyPath: article.hierarchyPath,
+    articleType: article.articleType,
+    completed,
+    saved,
+    topicIds,
+    progressContext: progressContextForFeedArticle(article, progressMaps),
+    sortDate: article.slug,
+  };
+}
+
 export function buildFeedItems(state, { limit = 40, now = new Date().toISOString() } = {}) {
+  const articleProgressMaps = buildArticleProgressMaps(state);
+  const articleItems = articles.map((article) => articleFeedEntry(article, state, articleProgressMaps));
   const libraryItems = buildLibraryLessonIndex(state.lessons).map((lesson) => lessonFeedEntry(lesson, 'library'));
   const novelItems = state.lessons.filter((lesson) => lesson.summaryKind === 'Novel').map((lesson) => lessonFeedEntry(lesson, 'novels'));
   const newsItems = (state.news?.items || []).map(newsFeedEntry);
   const dismissed = new Set(Object.keys(state.dismissedItems || {}));
   const interestMap = topicInterestMap(state);
 
-  const scored = [...libraryItems, ...novelItems, ...newsItems]
+  const scored = [...articleItems, ...libraryItems, ...novelItems, ...newsItems]
     .filter((item) => !dismissed.has(item.key))
     .map((item) => {
       const activity = state.itemActivity?.[item.key];
@@ -136,7 +209,7 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
 
   if (feed.length > 0) return feed;
 
-  return interleaveDomains([...libraryItems, ...novelItems, ...newsItems])
+  return interleaveDomains([...articleItems, ...libraryItems, ...novelItems, ...newsItems])
     .slice(0, limit)
     .map((item) => ({
       ...item,

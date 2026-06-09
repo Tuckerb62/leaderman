@@ -34,3 +34,16 @@ export function canonicalNewsItem(newsItem) {
     title: newsItem.title,
   };
 }
+
+export function canonicalArticleItem(article) {
+  const slug = article.slug || parseCanonicalItemKey(article.key).itemId;
+  const key = article.key || canonicalItemKey('article', slug);
+  return {
+    key,
+    domain: 'article',
+    itemId: slug,
+    articleKey: key,
+    articleSlug: slug,
+    title: article.title,
+  };
+}

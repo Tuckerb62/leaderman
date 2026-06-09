@@ -3499,6 +3499,9 @@ export const createInitialState = () => ({
   reflections: [],
   notes: {},
   lessonExpansions: {},
+  completedArticlesByKey: {},
+  generatedArticlesByKey: {},
+  articleTutorThreadsByKey: {},
   readingProgress: {},
   followedTopics: {},
   savedItems: {},
@@ -3513,6 +3516,7 @@ export const createInitialState = () => ({
     resume: {
       view: 'feed',
       lessonId: null,
+      articleKey: null,
       feedLessonId: null,
       updatedAt: null,
     },

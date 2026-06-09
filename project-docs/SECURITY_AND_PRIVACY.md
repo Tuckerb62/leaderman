@@ -21,7 +21,9 @@ The app stores these records in browser storage:
 - browser AI settings
 - optional direct-browser API key
 
-There is no app account, cloud database with user profiles, analytics pipeline, or multi-user sync service in the current product.
+There is no analytics pipeline or multi-user sync service in the current product. There is now an optional Supabase Auth profile for one-user cross-device sync.
+
+If Supabase sync is enabled, the sync snapshot is no longer only local to the browser or the user's Mac. It is written to the user's own Supabase project through the browser using the project's publishable key, keyed by the signed-in user's `user_profiles` row.
 
 ## Manual Backup
 
@@ -67,6 +69,8 @@ When the app runs from GitHub Pages:
 - expansion drafts and News state remain in that browser's local state unless the user exports a backup or uses the Mac-hosted sync bridge
 - the public GitHub Pages site is not the free live-sync path for Mac-hosted AI and News, because a secure public page cannot reliably call an insecure local-network API
 
+If Supabase sync is configured, the public site can still sync the user-owned snapshot through Supabase. That changes the privacy boundary: reflections, notes, progress, generated drafts, and other synced slices leave the browser and live in the user's Supabase project.
+
 ## Local Private Server Boundary
 
 `scripts/local-ai-server.mjs` serves `dist/` and provides a local proxy to OpenAI, a News endpoint, and a minimal sync bridge. It reads the key from:
@@ -99,6 +103,8 @@ The Mac-hosted sync layer is allowed to sync user-owned state such as:
 - generated News expansions
 - lightweight profile basics when present
 
+If Supabase sync is enabled, it should only store the same user-owned sync snapshot categories inside `public.user_profiles.app_state`. Do not widen the synced payload casually just because the backend is now cloud-hosted.
+
 The sync layer must not sync:
 
 - API keys
@@ -118,6 +124,7 @@ If changing the service worker, verify that the app still loads after a refresh 
 ## Rules for Future Changes
 
 - Never commit real API keys.
+- Never expose a Supabase secret key or service role key in browser code. Use only the publishable key in `VITE_` variables.
 - Never add hidden third-party or cloud sync for notes, reflections, sessions, generated expansions, completion state, or question-answer state without explicit user approval.
 - Never add analytics or telemetry without explicit user approval.
 - Keep AI prompts grounded and cautious about facts.

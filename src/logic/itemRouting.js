@@ -1,3 +1,4 @@
+import { articleBySlug } from '../data/articleCatalog.js';
 import { parseCanonicalItemKey } from './itemIdentity.js';
 
 export function resolveCanonicalItemRoute(state, key) {
@@ -10,6 +11,17 @@ export function resolveCanonicalItemRoute(state, key) {
       domain,
       newsId: newsItem?.id || itemId,
       newsItem: newsItem || null,
+    };
+  }
+
+  if (domain === 'article') {
+    const article = articleBySlug[itemId] || null;
+    return {
+      view: 'article',
+      domain,
+      articleKey: article?.key || key,
+      articleSlug: article?.slug || itemId,
+      article,
     };
   }
 

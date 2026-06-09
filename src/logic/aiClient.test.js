@@ -6,9 +6,14 @@ import {
   askOpenAI,
   buildExpansionOverviewPrompt,
   buildExpansionPrompt,
+  buildArticleExpansionInput,
+  buildArticleAiInstructions,
+  buildArticleTutorInstructions,
   buildAiInstructions,
   buildResponseInput,
   expandLearningContent,
+  expandArticleFromMarkdown,
+  askArticleTutor,
   extractResponseText,
   requiresClientApiKey,
 } from './aiClient.js';
@@ -257,5 +262,148 @@ describe('ai client helpers', () => {
     expect(body.input[0].content).toContain('Target: full Leaderman lesson');
     expect(body.input[0].content).not.toContain('Do not pad with repeated copyright');
     expect(body.max_output_tokens).toBeGreaterThan(2500);
+  });
+
+  it('builds article AI instructions with domain, image, and medical factuality rules', () => {
+    const instructions = buildArticleAiInstructions({
+      subject: 'Emergency Medicine & Critical Care',
+      articleType: 'standard',
+    });
+
+    expect(instructions).toContain('Leaderman AI article expansion engine');
+    expect(instructions).toContain('Do not invent URLs, attribution, licenses, quotes, dates, citations, or source claims');
+    expect(instructions).toContain('not patient-specific medical advice');
+    expect(instructions).toContain('Do not invent ECG, radiology, ultrasound, pathology, lab, dosing, procedural, or medical image findings');
+    expect(instructions).toContain('Return JSON');
+  });
+
+  it('keeps article tutor instructions separate from the article JSON output contract', () => {
+    const instructions = buildArticleTutorInstructions({
+      subject: 'Leadership',
+      articleType: 'standard',
+    });
+
+    expect(instructions).toContain('Leaderman article-specific tutor');
+    expect(instructions).toContain('Tutor responses may use markdown');
+    expect(instructions).toContain('Do not return JSON');
+    expect(instructions).not.toContain('Return JSON with exactly these top-level fields');
+  });
+
+  it('builds structured article input with body, path, type, and source file', () => {
+    const article = {
+      subject: 'Science',
+      topic: 'Scientific Thinking',
+      subtopic: 'Research Methods',
+      subsubtopic: '',
+      title: 'A Rough Science Summary',
+      summary: 'Generic but usable science summary.',
+      bodyMarkdown: 'The markdown body should be preserved.',
+      articleType: 'standard',
+      hierarchyPath: ['Science', 'Scientific Thinking', 'Research Methods'],
+      sourceFile: 'science_microlearning_finished.md',
+    };
+
+    const input = buildArticleExpansionInput(article);
+
+    expect(input.article).toMatchObject(article);
+    expect(input.task).toContain('Science summaries may be rough');
+    expect(JSON.stringify(input)).toContain('The markdown body should be preserved.');
+    expect(JSON.stringify(input)).not.toContain('quickVersion');
+    expect(JSON.stringify(input)).not.toContain('scenario');
+  });
+
+  it('sends article expansion as instructions plus structured input and parses generated JSON', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        output_text: JSON.stringify({
+          title: 'Expanded authority',
+          articleMarkdown: '## Expanded\nAuthority depends on recognition.',
+          imageCards: [{ sourceName: 'Bad', imageUrl: 'https://example.com/image.jpg' }],
+          imageQueries: ['legitimate authority historical example'],
+          practicalTakeaway: 'Check whether authority is recognized.',
+          quickVersion: ['Do not use old fields.'],
+        }),
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const result = await expandArticleFromMarkdown({
+      apiKey: '',
+      endpoint: '/api/openai-responses',
+      model: 'gpt-5-mini',
+      article: {
+        subject: 'Leadership',
+        topic: 'Leadership Foundations',
+        subtopic: 'Core Leadership Concepts',
+        subsubtopic: '',
+        title: 'Authority',
+        summary: 'Authority is recognized decision-right.',
+        bodyMarkdown: 'Authority is the recognized right to direct decisions.',
+        articleType: 'standard',
+        hierarchyPath: ['Leadership', 'Leadership Foundations', 'Core Leadership Concepts'],
+        sourceFile: 'leadership-framework-complete.md',
+      },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.instructions).toContain('Leaderman AI article expansion engine');
+    expect(body.instructions).toContain('Do not map output into old Leaderman lesson fields');
+    expect(JSON.stringify(body.input)).toContain('Authority is the recognized right to direct decisions.');
+    expect(JSON.stringify(body.input)).toContain('leadership-framework-complete.md');
+    expect(JSON.stringify(body.input)).toContain('Core Leadership Concepts');
+    expect(result).toEqual({
+      title: 'Expanded authority',
+      articleMarkdown: '## Expanded\nAuthority depends on recognition.',
+      imageCards: [],
+      imageQueries: ['legitimate authority historical example'],
+      practicalTakeaway: 'Check whether authority is recognized.',
+    });
+  });
+
+  it('uses literature reader-guide instructions for literature articles', () => {
+    const instructions = buildArticleAiInstructions({
+      subject: 'Literature',
+      articleType: 'literature',
+    });
+
+    expect(instructions).toContain('reader-friendly chapter guide');
+    expect(instructions).toContain('Do not create a worksheet, quiz, scenario, or decision UI');
+  });
+
+  it('sends article tutor requests scoped to the current article and history', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: 'Tutor answer.' }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const response = await askArticleTutor({
+      apiKey: '',
+      endpoint: '/api/openai-responses',
+      model: 'gpt-5-mini',
+      article: {
+        key: 'article:science-food-webs',
+        subject: 'Science',
+        title: 'Food Webs',
+        summary: 'A rough ecology summary.',
+        bodyMarkdown: 'Food webs describe relationships.',
+        articleType: 'standard',
+        hierarchyPath: ['Science', 'Biology', 'Ecology'],
+        sourceFile: 'science_microlearning_finished.md',
+      },
+      generatedArticle: { articleMarkdown: '## Expanded\nA generated draft.' },
+      userMessage: 'Help me remember this.',
+      conversationHistory: [{ role: 'user', content: 'Earlier question.' }],
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(response).toBe('Tutor answer.');
+    expect(body.instructions).toContain('article-specific tutor');
+    expect(body.instructions).toContain('Do not return JSON');
+    expect(body.instructions).not.toContain('Return JSON with exactly these top-level fields');
+    expect(JSON.stringify(body.input)).toContain('Food Webs');
+    expect(JSON.stringify(body.input)).toContain('Earlier question.');
+    expect(JSON.stringify(body.input)).toContain('Help me remember this.');
   });
 });

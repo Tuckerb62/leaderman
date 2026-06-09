@@ -104,6 +104,9 @@ describe('storage import', () => {
   it('adds the new sync and news slices to fresh state', () => {
     const state = createInitialState();
 
+    expect(state.completedArticlesByKey).toEqual({});
+    expect(state.generatedArticlesByKey).toEqual({});
+    expect(state.articleTutorThreadsByKey).toEqual({});
     expect(state.followedTopics).toEqual({});
     expect(state.savedItems).toEqual({});
     expect(state.dismissedItems).toEqual({});
@@ -123,10 +126,16 @@ describe('storage import', () => {
     delete backup.dismissedItems;
     delete backup.itemActivity;
     delete backup.news;
+    delete backup.completedArticlesByKey;
+    delete backup.generatedArticlesByKey;
+    delete backup.articleTutorThreadsByKey;
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
     expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.completedArticlesByKey).toEqual({});
+    expect(parsed.generatedArticlesByKey).toEqual({});
+    expect(parsed.articleTutorThreadsByKey).toEqual({});
     expect(parsed.followedTopics).toEqual({});
     expect(parsed.news.items).toEqual([]);
   });
@@ -154,5 +163,46 @@ describe('storage import', () => {
 
     expect(loaded.savedItems['library:lesson-stoic-control']).toBeTruthy();
     expect(loaded.news.items[0].id).toBe('story-1');
+  });
+
+  it('round-trips article-keyed state through import and local storage', () => {
+    const state = createInitialState();
+    state.completedArticlesByKey = {
+      'article:leadership-foundations-authority': {
+        completed: true,
+        completedAt: '2026-06-09T12:00:00.000Z',
+        updatedAt: '2026-06-09T12:00:00.000Z',
+      },
+    };
+    state.generatedArticlesByKey = {
+      'article:leadership-foundations-authority': {
+        title: 'Authority',
+        articleMarkdown: '## Expanded\nA private generated article.',
+        imageCards: [],
+        imageQueries: [],
+        practicalTakeaway: 'Check whether authority is recognized.',
+        updatedAt: '2026-06-09T12:05:00.000Z',
+      },
+    };
+    state.articleTutorThreadsByKey = {
+      'article:leadership-foundations-authority': [
+        { role: 'user', content: 'Explain this.', createdAt: '2026-06-09T12:06:00.000Z' },
+      ],
+    };
+    state.notes = {
+      'article:leadership-foundations-authority': 'My article note.',
+    };
+
+    const imported = parseImportedState(JSON.stringify(state));
+    expect(imported.completedArticlesByKey).toEqual(state.completedArticlesByKey);
+    expect(imported.generatedArticlesByKey).toEqual(state.generatedArticlesByKey);
+    expect(imported.articleTutorThreadsByKey).toEqual(state.articleTutorThreadsByKey);
+    expect(imported.notes['article:leadership-foundations-authority']).toBe('My article note.');
+
+    saveState(state);
+    const loaded = loadState();
+    expect(loaded.completedArticlesByKey).toEqual(state.completedArticlesByKey);
+    expect(loaded.generatedArticlesByKey).toEqual(state.generatedArticlesByKey);
+    expect(loaded.articleTutorThreadsByKey).toEqual(state.articleTutorThreadsByKey);
   });
 });
