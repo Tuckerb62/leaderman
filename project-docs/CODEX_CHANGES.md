@@ -51,3 +51,29 @@ Guardrails:
 
 - Expansion prompts request structured Markdown learning tiers and block repeated disclaimer/fidelity filler.
 - Tests now scan lesson bodies and fiction chapter data for banned boilerplate and generated skeletons.
+
+## 2026-06-08 Learning Cockpit Refactor
+
+Changed:
+
+- Removed `Learn` and `Philosophy` from primary navigation while keeping the shared lesson and detail experience alive behind canonical item routing.
+- Kept the existing Feed feel, but changed Feed to aggregate canonical items from `library`, `novels`, and `news`.
+- Added plain-language Feed reason lines based on saved items, followed topics, interaction history, reading progress, and adjacent exploration.
+- Rebuilt `Library` around a deterministic subject and subtopic map from `src/data/topicBank.js`.
+- Promoted existing book and novel lessons into a separate `Novels` tab instead of keeping them buried inside Library.
+- Added a private `News` tab backed by the local server, with compact source-based story cards, optional expansion, topic-ledger dedupe, and 14-day expiry for unsaved stories.
+- Added new local state for topic follows, saved items, dismissed items, feed interaction history, and News persistence.
+- Added a minimal private sync bridge through `scripts/local-ai-server.mjs`, `scripts/private-sync-store.mjs`, and `src/data/syncState.js` so desktop and phone can sync through the user's Mac.
+- Extended import and export normalization so the new user-owned state survives backup and restore.
+
+Decisions:
+
+- Feed is no longer its own content type. It is an aggregator over canonical underlying items.
+- GitHub Pages remains static-first and fully usable without private News refresh or sync.
+- API keys and Keychain material stay local-only and never enter synced state.
+- News refresh must start from fetched source material. AI is allowed to summarize and expand that material, not invent headlines from memory.
+
+Future-facing limits kept explicit:
+
+- Subject coverage is broader than the original leadership app, but some subjects currently have lighter deterministic seed depth than leadership, philosophy, history, or business.
+- The sync bridge is intentionally single-user and minimal. It is not an account system or a generalized conflict-resolution backend.

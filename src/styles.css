@@ -863,6 +863,31 @@ select:focus {
   white-space: pre-wrap;
 }
 
+.compact-seed {
+  border: 1px solid var(--paper-line);
+  border-radius: var(--radius);
+  background: rgba(255, 252, 246, 0.48);
+  padding: 0;
+}
+
+.compact-seed summary {
+  cursor: pointer;
+  color: var(--accent-dark);
+  font-size: 0.78rem;
+  font-weight: 820;
+  letter-spacing: 0;
+  list-style-position: inside;
+  padding: 12px 14px;
+  text-transform: uppercase;
+}
+
+.compact-seed-body {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--paper-line);
+  padding: 14px;
+}
+
 .summary-hero-image {
   width: 100%;
   max-width: 220px;

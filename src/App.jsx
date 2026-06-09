@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
+  Bookmark,
+  BookmarkCheck,
   Brain,
   ChevronRight,
   Download,
@@ -9,31 +11,45 @@ import {
   Library,
   LineChart,
   MessageCircle,
+  Newspaper,
   Play,
+  RefreshCw,
   ScrollText,
   Search,
   Send,
   Settings,
   Sparkles,
   Trash2,
+  Wifi,
+  WifiOff,
   X,
 } from 'lucide-react';
 import { clearAiChat, loadAiChat, saveAiChat } from './data/aiChatStorage.js';
 import { clearApiKey, loadAiSettings, saveAiSettings, saveApiKey } from './data/aiSettings.js';
 import { createInitialState, domains, philosophySchools } from './data/seedData.js';
+import { createInitialNewsState, expireNewsItems, isNewsRefreshDue, mergeNewsRefresh, saveNewsExpansion as saveNewsExpansionState, saveNewsItem as saveNewsItemState } from './data/newsStorage.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
+import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
+import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
 import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askOpenAI, expandLearningContent, requiresClientApiKey } from './logic/aiClient.js';
+import { parseExpansionMarkdown } from './logic/expansionMapper.js';
+import { buildFeedItems } from './logic/feedAggregation.js';
+import { canonicalItemKey } from './logic/itemIdentity.js';
+import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
 import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './logic/reviewScheduler.js';
 import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
 import { markStudied, sessionMinutes } from './logic/studyProgress.js';
 
 const navItems = [
   { id: 'feed', label: 'Feed', icon: Layers },
-  { id: 'learn', label: 'Learn', icon: Brain },
-  { id: 'philosophy', label: 'Philosophy', icon: ScrollText },
   { id: 'library', label: 'Library', icon: Library },
+  { id: 'novels', label: 'Novels', icon: BookOpen },
+  { id: 'news', label: 'News', icon: Newspaper },
   { id: 'progress', label: 'Progress', icon: LineChart },
 ];
+
+const visibleViews = new Set(navItems.map((item) => item.id));
+const addressableViews = new Set([...visibleViews, 'learn']);
 
 const libraryFolders = [
   {
@@ -82,9 +98,9 @@ function initialView(state) {
   const requestedView = queryParam('view');
   const requestedLesson = queryParam('lesson');
   if (requestedLesson) return 'learn';
-  if (navItems.some((item) => item.id === requestedView)) return requestedView;
+  if (addressableViews.has(requestedView)) return requestedView;
   const resumeView = state.settings?.resume?.view;
-  return navItems.some((item) => item.id === resumeView) ? resumeView : 'feed';
+  return addressableViews.has(resumeView) ? resumeView : 'feed';
 }
 
 function initialLessonId(state) {
@@ -97,9 +113,10 @@ function initialLessonId(state) {
 function viewTitle(view) {
   return {
     feed: 'Feed',
-    learn: 'Learn',
-    philosophy: 'Philosophy',
+    learn: 'Detail',
     library: 'Library',
+    novels: 'Novels',
+    news: 'News',
     progress: 'Progress',
   }[view];
 }
@@ -117,6 +134,41 @@ function progressBadge(review) {
 function expansionKeyFor(lesson, chapter = null) {
   if (!chapter) return `lesson:${lesson.id}`;
   return `chapter:${lesson.id}:${chapter.chapterId || chapter.id || chapter.number || chapter.title}`;
+}
+
+function isNovelReadingLesson(lesson) {
+  return lesson?.summaryKind === 'Novel';
+}
+
+function stripMarkdownSections(markdown = '', headingNames = []) {
+  return headingNames.reduce((nextMarkdown, headingName) => {
+    const escapedHeading = headingName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sectionPattern = new RegExp(
+      `(^|\\n)#{1,3}\\s+${escapedHeading}s?\\s*\\n[\\s\\S]*?(?=\\n#{1,3}\\s+|$)`,
+      'gi',
+    );
+    return nextMarkdown.replace(sectionPattern, '\n').trim();
+  }, markdown || '');
+}
+
+function readingModeExpansionMarkdown(markdown, lesson) {
+  if (!isNovelReadingLesson(lesson)) return markdown;
+  return stripMarkdownSections(markdown, ['Question'])
+    .replace(/(^|\n)(#{1,3}\s+)Break Down\s*$/gim, '$1$2Reader Guide')
+    .replace(/(^|\n)(#{1,3}\s+)Remember\s*$/gim, '$1$2Keep In Mind');
+}
+
+function guideTitleFor(lesson) {
+  return isNovelReadingLesson(lesson) ? 'Reader Guide' : 'Break Down';
+}
+
+function memoryTitleFor(lesson) {
+  return isNovelReadingLesson(lesson) ? 'Keep In Mind' : 'Remember';
+}
+
+function stepLabelFor(step, lesson) {
+  if (isNovelReadingLesson(lesson) && step === 'breakdown') return 'guide';
+  return step;
 }
 
 const domainArtwork = {
@@ -168,6 +220,10 @@ function displayLessonTitle(state, lessonId) {
   return state.lessons.find((lesson) => lesson.id === lessonId)?.title || 'General';
 }
 
+function followLabel(topicId = '') {
+  return topicId.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function isSummaryLesson(lesson) {
   return lesson?.contentType === 'summary';
 }
@@ -204,9 +260,15 @@ export default function App() {
   const [state, setState] = useState(() => loadState());
   const [view, setView] = useState(() => initialView(state));
   const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(state));
+  const [selectedNewsId, setSelectedNewsId] = useState(() => state.news?.items?.[0]?.id || null);
   const [session, setSession] = useState(null);
   const [sessionSummary, setSessionSummary] = useState('');
   const [contextLessonId, setContextLessonId] = useState(null);
+  const [syncStatus, setSyncStatus] = useState({ available: false, updatedAt: null, path: '', error: '' });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [newsStatus, setNewsStatus] = useState({ refreshing: false, error: '' });
+  const syncReadyRef = useRef(false);
+  const newsAutoRefreshRef = useRef('');
 
   useEffect(() => saveState(state), [state]);
   useEffect(() => {
@@ -218,8 +280,19 @@ export default function App() {
     );
   }, [view, selectedLessonId]);
 
+  useEffect(() => {
+    setState((current) => ({
+      ...current,
+      news: expireNewsItems(current.news || createInitialNewsState()),
+    }));
+  }, []);
+
+  const libraryLessons = useMemo(() => buildLibraryLessonIndex(state.lessons), [state.lessons]);
+  const topicBank = useMemo(() => buildTopicBank(state.lessons), [state.lessons]);
+
   const stats = useMemo(() => progressStats(state), [state]);
   const selectedLesson = state.lessons.find((lesson) => lesson.id === selectedLessonId) || state.lessons[0];
+  const selectedNewsItem = state.news?.items?.find((item) => item.id === selectedNewsId) || state.news?.items?.[0] || null;
   const aiContextLesson = state.lessons.find((lesson) => lesson.id === contextLessonId) || selectedLesson;
 
   function markCurrentStudied(current) {
@@ -373,6 +446,148 @@ export default function App() {
     }));
   }
 
+  function recordItemActivity(itemKey, patch = {}) {
+    setState((current) => {
+      const existing = current.itemActivity?.[itemKey] || {
+        itemKey,
+        openCount: 0,
+      };
+      return {
+        ...current,
+        itemActivity: {
+          ...(current.itemActivity || {}),
+          [itemKey]: {
+            ...existing,
+            ...patch,
+            openCount: patch.openCount ?? existing.openCount,
+            updatedAt: patch.updatedAt || new Date().toISOString(),
+          },
+        },
+      };
+    });
+  }
+
+  function openCanonicalItem(itemKey, details = {}) {
+    const route = resolveCanonicalItemRoute(state, itemKey);
+    if (route.view === 'news') {
+      setSelectedNewsId(route.newsId);
+      setView('news');
+      recordItemActivity(itemKey, {
+        ...details,
+        lastOpenedAt: new Date().toISOString(),
+        openCount: (state.itemActivity?.[itemKey]?.openCount || 0) + 1,
+      });
+      return;
+    }
+
+    setSelectedLessonId(route.lessonId);
+    setContextLessonId(route.lessonId);
+    setView('learn');
+    recordItemActivity(itemKey, {
+      ...details,
+      lastOpenedAt: new Date().toISOString(),
+      openCount: (state.itemActivity?.[itemKey]?.openCount || 0) + 1,
+    });
+  }
+
+  function toggleSavedItem(itemKey, options = {}) {
+    setState((current) => {
+      const exists = Boolean(current.savedItems?.[itemKey]);
+      const nextSavedItems = { ...(current.savedItems || {}) };
+      if (exists) delete nextSavedItems[itemKey];
+      else {
+        nextSavedItems[itemKey] = {
+          itemKey,
+          subjectIds: options.subjectIds || [],
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      const { domain, newsId } = options;
+      return {
+        ...current,
+        savedItems: nextSavedItems,
+        news: domain === 'news'
+          ? saveNewsItemState(current.news || createInitialNewsState(), newsId, !exists)
+          : current.news,
+      };
+    });
+  }
+
+  function dismissItem(itemKey) {
+    setState((current) => ({
+      ...current,
+      dismissedItems: {
+        ...(current.dismissedItems || {}),
+        [itemKey]: {
+          itemKey,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  }
+
+  function toggleFollowTopic(topicId) {
+    setState((current) => {
+      const next = { ...(current.followedTopics || {}) };
+      if (next[topicId]) delete next[topicId];
+      else {
+        next[topicId] = {
+          topicId,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return {
+        ...current,
+        followedTopics: next,
+      };
+    });
+  }
+
+  async function refreshNews({ automatic = false } = {}) {
+    if (newsStatus.refreshing) return;
+    setNewsStatus({ refreshing: true, error: '' });
+    try {
+      const response = await fetch('/api/news-refresh', {
+        method: 'POST',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Could not refresh private news.');
+      setState((current) => ({
+        ...current,
+        news: mergeNewsRefresh(
+          expireNewsItems(current.news || createInitialNewsState(), payload.refreshedAt),
+          payload.stories || [],
+          payload.refreshedAt,
+        ),
+      }));
+      setNewsStatus({ refreshing: false, error: '' });
+    } catch (error) {
+      setNewsStatus({
+        refreshing: false,
+        error: automatic ? '' : error.message,
+      });
+    }
+  }
+
+  async function expandNewsItem(newsItem) {
+    const response = await fetch('/api/news-expand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ story: newsItem }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload?.error?.message || 'Could not expand this story.');
+    setState((current) => ({
+      ...current,
+      news: saveNewsExpansionState(current.news || createInitialNewsState(), newsItem.id, {
+        markdown: payload.markdown,
+        structured: parseExpansionMarkdown(payload.markdown),
+        updatedAt: new Date().toISOString(),
+      }),
+    }));
+  }
+
   async function importBackup(file) {
     if (!file) return;
     const text = await file.text();
@@ -388,20 +603,131 @@ export default function App() {
     }
   }
 
-  const rememberFeedLesson = useCallback((lessonId) => {
-    setContextLessonId(lessonId);
+  const rememberFeedItem = useCallback((itemKey, lessonId = null) => {
+    if (lessonId) setContextLessonId(lessonId);
     setState((current) =>
       withResume(current, {
         view: 'feed',
-        feedLessonId: lessonId,
+        feedLessonId: itemKey,
       }),
     );
   }, []);
 
+  async function pullRemoteSnapshot() {
+    const response = await fetch('/api/sync-state');
+    const payload = await response.json().catch(() => ({}));
+    if (payload.snapshot) {
+      setState((current) => mergeSyncSnapshot(current, payload.snapshot));
+      setSyncStatus((current) => ({
+        ...current,
+        updatedAt: payload.snapshot.syncedAt || current.updatedAt,
+        error: '',
+      }));
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrapSync() {
+      try {
+        const health = await fetch('/api/sync-health');
+        if (!health.ok) throw new Error('No local sync bridge.');
+        const healthPayload = await health.json();
+        if (cancelled) return;
+        setSyncStatus({
+          available: true,
+          updatedAt: healthPayload.updatedAt || null,
+          path: healthPayload.path || '',
+          error: '',
+        });
+        if (!cancelled) await pullRemoteSnapshot();
+      } catch (error) {
+        if (!cancelled) {
+          setSyncStatus({
+            available: false,
+            updatedAt: null,
+            path: '',
+            error: error.message,
+          });
+        }
+      } finally {
+        syncReadyRef.current = true;
+      }
+    }
+
+    bootstrapSync();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!syncStatus.available) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      pullRemoteSnapshot().catch(() => {});
+    }, 45000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        pullRemoteSnapshot().catch(() => {});
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [syncStatus.available]);
+
+  useEffect(() => {
+    if (!syncStatus.available || !syncReadyRef.current) return undefined;
+    const timeoutId = window.setTimeout(async () => {
+      setIsSyncing(true);
+      try {
+        const snapshot = buildSyncSnapshot(state);
+        const response = await fetch('/api/sync-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        setSyncStatus((current) => ({
+          ...current,
+          updatedAt: payload.snapshot?.syncedAt || snapshot.syncedAt,
+          error: '',
+        }));
+      } catch (error) {
+        setSyncStatus((current) => ({
+          ...current,
+          error: error.message,
+        }));
+      } finally {
+        setIsSyncing(false);
+      }
+    }, 1200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [state, syncStatus.available]);
+
+  useEffect(() => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    if (!isNewsRefreshDue(state.news || createInitialNewsState(), new Date().toISOString())) return;
+    if (newsAutoRefreshRef.current === todayKey) return;
+    newsAutoRefreshRef.current = todayKey;
+    refreshNews({ automatic: true });
+  }, [state.news?.lastRefreshedAt]);
+
   const commonProps = {
     state,
     selectedLesson,
+    selectedNewsItem,
+    topicBank,
+    libraryLessons,
     setSelectedLessonId,
+    setSelectedNewsId,
     setContextLessonId,
     setView,
     startSession,
@@ -412,7 +738,17 @@ export default function App() {
     saveLessonNote,
     saveReadingProgress,
     saveLessonExpansion,
-    rememberFeedLesson,
+    openCanonicalItem,
+    toggleSavedItem,
+    toggleFollowTopic,
+    dismissItem,
+    recordItemActivity,
+    refreshNews,
+    expandNewsItem,
+    syncStatus,
+    isSyncing,
+    newsStatus,
+    rememberFeedItem,
     session,
   };
 
@@ -460,18 +796,25 @@ export default function App() {
               <p className="date-line">{formatDateLine()}</p>
               <h1>{viewTitle(view)}</h1>
             </div>
-            <button className="secondary-button" onClick={() => startSession()}>
-              <Play size={16} />
-              Session
-            </button>
+            <div className="topbar-actions">
+              <button className="secondary-button" onClick={() => startSession()}>
+                <Play size={16} />
+                Session
+              </button>
+              <div className="sync-chip" title={syncStatus.available ? syncStatus.path : syncStatus.error || 'No local sync bridge'}>
+                {syncStatus.available ? <Wifi size={14} /> : <WifiOff size={14} />}
+                <span>{isSyncing ? 'Syncing' : syncStatus.available ? 'Sync ready' : 'Local only'}</span>
+              </div>
+            </div>
           </header>
         )}
 
         {sessionSummary && <div className="session-summary">{sessionSummary}</div>}
         {view === 'feed' && <FeedView {...commonProps} />}
         {view === 'learn' && <LearnView {...commonProps} />}
-        {view === 'philosophy' && <PhilosophyView {...commonProps} />}
         {view === 'library' && <LibraryView {...commonProps} />}
+        {view === 'novels' && <NovelsView {...commonProps} />}
+        {view === 'news' && <NewsView {...commonProps} />}
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
       </main>
 
@@ -489,27 +832,29 @@ function Metric({ label, value }) {
   );
 }
 
-function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection, setSelectedLessonId, setContextLessonId, setView, rememberFeedLesson }) {
+function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection, openCanonicalItem, toggleSavedItem, dismissItem, recordItemActivity, rememberFeedItem }) {
   const [expandedId, setExpandedId] = useState(null);
   const [ratedCards, setRatedCards] = useState({});
-  const [feedIds] = useState(() => feedQueue(state, 100).map((lesson) => lesson.id));
+  const feedIds = useMemo(() => buildFeedItems(state, { limit: 100 }).map((item) => item.key), [state]);
   const feedStackRef = useRef(null);
   const restoredFeedPosition = useRef(false);
   const rememberFrame = useRef(0);
-  const lessons = useMemo(() => feedIds.map((lessonId) => state.lessons.find((lesson) => lesson.id === lessonId)).filter(Boolean), [feedIds, state.lessons]);
+  const feedItems = useMemo(() => {
+    const itemsByKey = new Map(buildFeedItems(state, { limit: 120 }).map((item) => [item.key, item]));
+    return feedIds.map((itemKey) => itemsByKey.get(itemKey)).filter(Boolean);
+  }, [feedIds, state]);
 
   useEffect(() => {
     if (restoredFeedPosition.current) return;
-    const resumeLessonId = state.settings?.resume?.feedLessonId;
-    if (!resumeLessonId || !feedIds.includes(resumeLessonId)) return;
+    const resumeItemKey = state.settings?.resume?.feedLessonId;
+    if (!resumeItemKey || !feedIds.includes(resumeItemKey)) return;
 
-    const target = feedStackRef.current?.querySelector(`[data-lesson-id="${resumeLessonId}"]`);
+    const target = feedStackRef.current?.querySelector(`[data-feed-id="${resumeItemKey}"]`);
     if (!target) return;
 
     restoredFeedPosition.current = true;
-    setContextLessonId(resumeLessonId);
     window.requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }));
-  }, [feedIds, setContextLessonId, state.settings?.resume?.feedLessonId]);
+  }, [feedIds, state.settings?.resume?.feedLessonId]);
 
   useEffect(() => {
     const stack = feedStackRef.current;
@@ -519,9 +864,9 @@ function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection,
       window.cancelAnimationFrame(rememberFrame.current);
       rememberFrame.current = window.requestAnimationFrame(() => {
         const cardHeight = Math.max(stack.clientHeight, 1);
-        const index = Math.max(0, Math.min(lessons.length - 1, Math.round(stack.scrollTop / cardHeight)));
-        const lessonId = lessons[index]?.id;
-        if (lessonId) rememberFeedLesson(lessonId);
+        const index = Math.max(0, Math.min(feedItems.length - 1, Math.round(stack.scrollTop / cardHeight)));
+        const item = feedItems[index];
+        if (item) rememberFeedItem(item.key, item.lesson?.id || null);
       });
     }
 
@@ -531,58 +876,70 @@ function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection,
       window.cancelAnimationFrame(rememberFrame.current);
       stack.removeEventListener('scroll', rememberVisibleCard);
     };
-  }, [lessons, rememberFeedLesson]);
-
-  function openFullLesson(lessonId) {
-    setSelectedLessonId(lessonId);
-    setContextLessonId(lessonId);
-    setView('learn');
-  }
+  }, [feedItems, rememberFeedItem]);
 
   return (
     <section className="feed-view">
       <div className="feed-stack" ref={feedStackRef}>
-        {lessons.map((lesson) => (
+        {feedItems.map((item) => (
           <FeedCard
-            key={lesson.id}
-            lesson={lesson}
-            review={state.reviews[lesson.id]}
-            sources={lesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean)}
-            expanded={expandedId === lesson.id}
-            rated={ratedCards[lesson.id]}
+            key={item.key}
+            item={item}
+            review={item.lesson ? state.reviews[item.lesson.id] : null}
+            sources={item.lesson ? item.lesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean) : []}
+            expansion={item.domain === 'news' ? state.news?.expansions?.[item.newsId] : null}
+            expanded={expandedId === item.key}
+            rated={ratedCards[item.key]}
             onExpand={() => {
-              const nextId = expandedId === lesson.id ? null : lesson.id;
+              const nextId = expandedId === item.key ? null : item.key;
               setExpandedId(nextId);
-              if (nextId) setContextLessonId(nextId);
+              if (nextId) {
+                recordItemActivity(item.key, {
+                  subjectIds: item.subjectIds || [],
+                  topicIds: item.topicIds || [],
+                  domain: item.domain,
+                  lastOpenedAt: new Date().toISOString(),
+                  openCount: (state.itemActivity?.[item.key]?.openCount || 0) + 1,
+                });
+              }
             }}
             onComplete={() => {
               setRatedCards((current) => ({
                 ...current,
-                [lesson.id]: {
-                  status: 'complete',
-                  label: 'Marked complete',
+                [item.key]: {
+                  status: item.domain === 'news' ? 'saved' : 'complete',
+                  label: item.domain === 'news' ? 'Saved' : 'Marked complete',
                 },
               }));
-              completeLesson(lesson.id);
+              if (item.domain === 'news') {
+                toggleSavedItem(item.key, {
+                  domain: 'news',
+                  newsId: item.newsId,
+                  subjectIds: item.subjectIds || [],
+                });
+              } else {
+                completeLesson(item.lesson.id);
+              }
               window.setTimeout(() => {
                 setRatedCards((current) => ({
                   ...current,
-                  [lesson.id]: {
-                    ...(current[lesson.id] || {}),
+                  [item.key]: {
+                    ...(current[item.key] || {}),
                     compact: true,
                   },
                 }));
               }, 1500);
             }}
-            onSkip={() =>
+            onSkip={() => {
+              dismissItem(item.key);
               setRatedCards((current) => ({
                 ...current,
-                [lesson.id]: { status: 'skip', label: 'Skipped', compact: true },
-              }))
-            }
-            onRecordQuestion={(isCorrect) => recordLessonQuestion(lesson.id, isCorrect)}
-            onSaveReflection={(text) => saveReflection(lesson.id, text)}
-            onOpenFull={() => openFullLesson(lesson.id)}
+                [item.key]: { status: 'skip', label: 'Dismissed', compact: true },
+              }));
+            }}
+            onRecordQuestion={(isCorrect) => item.lesson && recordLessonQuestion(item.lesson.id, isCorrect)}
+            onSaveReflection={(text) => item.lesson && saveReflection(item.lesson.id, text)}
+            onOpenFull={() => openCanonicalItem(item.key, { subjectIds: item.subjectIds || [], topicIds: item.topicIds || [], domain: item.domain })}
           />
         ))}
       </div>
@@ -590,10 +947,22 @@ function FeedView({ state, completeLesson, recordLessonQuestion, saveReflection,
   );
 }
 
-function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onComplete, onSkip, onRecordQuestion, onSaveReflection, onOpenFull }) {
-  const badge = progressBadge(review);
-  const artwork = feedArtwork(lesson, sources);
-  const summaryLesson = isSummaryLesson(lesson);
+function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand, onComplete, onSkip, onRecordQuestion, onSaveReflection, onOpenFull }) {
+  const lesson = item.lesson;
+  const newsItem = item.newsItem;
+  const badge = item.domain === 'news'
+    ? { label: newsItem.status === 'saved' ? 'saved' : newsItem.priority || 'briefing', tone: newsItem.status === 'saved' ? 'complete' : 'new' }
+    : progressBadge(review);
+  const artwork = lesson
+    ? feedArtwork(lesson, sources)
+    : {
+        mark: sourceInitials(newsItem.category || 'News'),
+        sourceTitle: newsItem.sources?.[0]?.title || newsItem.category,
+        sourceAuthor: newsItem.category,
+        accent: '#7b8a96',
+        secondary: '#46515a',
+      };
+  const summaryLesson = lesson ? isSummaryLesson(lesson) : false;
   const [decision, setDecision] = useState('');
   const [reflection, setReflection] = useState('');
   const gesture = useRef({ lastTapAt: 0, startX: 0, startY: 0, startedAt: 0 });
@@ -676,7 +1045,7 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onComple
 
   if (rated?.compact) {
     return (
-      <article className="feed-card rated-line" style={cardStyle} data-lesson-id={lesson.id}>
+      <article className="feed-card rated-line" style={cardStyle} data-feed-id={item.key}>
         <div className="feed-backdrop" aria-hidden="true">
           <span className="feed-backdrop-mark">{artwork.mark}</span>
           <span className="feed-backdrop-source">
@@ -685,8 +1054,8 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onComple
           </span>
         </div>
         <div className="rated-line-content">
-          <span>{lesson.title}</span>
-          <small>{rated.status === 'complete' ? 'complete' : 'skipped'}</small>
+          <span>{item.title}</span>
+          <small>{rated.status === 'complete' || rated.status === 'saved' ? 'saved' : 'dismissed'}</small>
         </div>
       </article>
     );
@@ -696,12 +1065,12 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onComple
     <article
       className={expanded ? 'feed-card expanded' : 'feed-card'}
       style={cardStyle}
-      data-lesson-id={lesson.id}
+      data-feed-id={item.key}
       tabIndex={0}
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}
       onKeyDown={handleGestureKeyDown}
-      aria-label={`${lesson.title} lesson card`}
+      aria-label={`${item.title} feed card`}
     >
       <div className="feed-backdrop" aria-hidden="true">
         <span className="feed-backdrop-mark">{artwork.mark}</span>
@@ -712,24 +1081,41 @@ function FeedCard({ lesson, review, sources, expanded, rated, onExpand, onComple
       </div>
       <div className="feed-card-content">
         <div className="feed-card-head">
-          <span className="domain-tag">{lesson.domain}</span>
+          <span className="domain-tag">{item.domain === 'news' ? newsItem.category : lesson.domain}</span>
           <span className={`status-badge ${badge.tone}`}>{badge.label}</span>
         </div>
-        <h2>{lesson.title}</h2>
-        <p className="core-idea">{lesson.coreIdea}</p>
+        <h2>{item.title}</h2>
+        <p className="core-idea">{item.domain === 'news' ? newsItem.whatHappened : lesson.coreIdea}</p>
         <p className="source-line">{artwork.sourceTitle}</p>
+        <p className="feed-reason">{item.reason}</p>
         {rated && <p className="rating-feedback">{rated.label}</p>}
         {!rated && (
           <button className="feed-complete-button" onClick={onComplete}>
-            Mark complete
+            {item.domain === 'news' ? 'Save story' : 'Mark complete'}
           </button>
+        )}
+
+        {expanded && item.domain === 'news' && (
+          <div className="feed-expanded">
+            <InfoBlock title="Sources" text={(newsItem.sources || []).map((source) => source.title).join(' · ')} />
+            {expansion ? (
+              <GeneratedExpansion expansion={expansion} lesson={{ summaryKind: null }} title="Story briefing" />
+            ) : (
+              <>
+                <InfoBlock title="Why it matters" text={newsItem.whyItMatters} />
+                <InfoBlock title="What is known" text={newsItem.whatIsKnown} />
+                <InfoBlock title="What is uncertain" text={newsItem.whatIsUncertain} />
+              </>
+            )}
+            <button className="text-link" onClick={onOpenFull}>Open full story →</button>
+          </div>
         )}
 
         {expanded && summaryLesson && (
           <SummaryLessonBody lesson={lesson} sources={sources} onOpenFull={onOpenFull} />
         )}
 
-        {expanded && !summaryLesson && (
+        {expanded && lesson && !summaryLesson && (
           <div className="feed-expanded">
             <InfoList title="Quick version" items={lesson.quickVersion || []} />
             <div className="article-body">
@@ -827,7 +1213,7 @@ function SummaryLessonBody({ lesson, sources, onOpenFull }) {
         <InfoList title="Key points" items={lesson.summaryBullets || []} />
         <InfoList title={lesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={lesson.timeline || []} />
       </div>
-      <InfoList title="Remember" items={lesson.remember || lesson.themeNotes || []} />
+      <InfoList title={memoryTitleFor(lesson)} items={lesson.remember || lesson.themeNotes || []} />
       {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
       <div className="source-grid">
         {sources.map((source) => (
@@ -870,24 +1256,62 @@ function QuestionList({ questions }) {
   );
 }
 
-function GeneratedExpansion({ expansion }) {
+function ExpansionSection({ section }) {
+  if (!section?.raw) return null;
+
+  if (section.kind === 'questions') {
+    return <QuestionList questions={section.questions || []} />;
+  }
+
+  if (section.kind === 'list' && section.items?.length) {
+    return <InfoList title={section.heading} items={section.items} />;
+  }
+
+  if (section.kind === 'prose' && section.paragraphs?.length) {
+    return (
+      <div className="lesson-section">
+        <h3>{section.heading}</h3>
+        <div className="article-body">
+          {section.paragraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return <InfoBlock title={section.heading} text={section.text || section.raw} />;
+}
+
+function GeneratedExpansion({ expansion, lesson, title }) {
   if (!expansion?.markdown) return null;
-  const blocks = expansion.markdown.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  const markdown = readingModeExpansionMarkdown(expansion.markdown, lesson);
+  if (!markdown) return null;
+  const structured = parseExpansionMarkdown(markdown);
 
   return (
     <div className="generated-expansion">
       <div className="generated-expansion-head">
-        <span>Expanded draft</span>
+        <span>{title || (isNovelReadingLesson(lesson) ? 'Full reader guide' : 'Full lesson')}</span>
         <small>{expansion.model ? `Generated with ${expansion.model}` : 'Generated privately'}</small>
       </div>
       <div className="generated-expansion-body">
-        {blocks.map((block, index) => {
-          const heading = block.match(/^#{1,3}\s+(.+)$/);
-          if (heading) return <h4 key={`${heading[1]}-${index}`}>{heading[1]}</h4>;
-          return <p key={`${block.slice(0, 32)}-${index}`}>{block}</p>;
-        })}
+        {structured.sections.map((section) => (
+          <ExpansionSection key={`${section.key}-${section.raw.slice(0, 32)}`} section={section} />
+        ))}
       </div>
     </div>
+  );
+}
+
+function CompactSeedDetails({ title = 'Compact version', children }) {
+  return (
+    <details className="compact-seed">
+      <summary>{title}</summary>
+      <div className="compact-seed-body">
+        {children}
+      </div>
+    </details>
   );
 }
 
@@ -943,10 +1367,12 @@ function ExpansionButton({ lesson, chapter = null, expansionKey, onSaveExpansion
         lesson,
         chapter,
       });
+      const safeMarkdown = readingModeExpansionMarkdown(markdown, lesson);
       onSaveExpansion(expansionKey, {
         lessonId: lesson.id,
         chapterId: chapter?.chapterId || chapter?.id || null,
-        markdown,
+        markdown: safeMarkdown,
+        structured: parseExpansionMarkdown(safeMarkdown),
         model: target.model,
         source: 'ai-expansion',
       });
@@ -971,6 +1397,7 @@ function ExpansionButton({ lesson, chapter = null, expansionKey, onSaveExpansion
 
 function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapter, onCompleteChapter, lessonExpansions, onSaveExpansion }) {
   const currentChapter = chapters[currentIndex] || chapters[0];
+  const novelReadingMode = isNovelReadingLesson(lesson);
   const completed = new Set(progress?.completedChapters || []);
   const completedCount = completed.size;
   const percent = Math.round((completedCount / chapters.length) * 100);
@@ -1017,29 +1444,53 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
         </div>
 
         <article className="chapter-card">
-          <div className="article-body">
-            {chapterParagraphs.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </div>
-          <div className="two-column">
-            <InfoBlock title="What changed" text={currentChapter.whatChanged} />
-            <InfoBlock title="Why it matters" text={currentChapter.whyItMatters} />
-          </div>
-          <div className="two-column">
-            <InfoList title="Break Down" items={currentChapter.breakDown || []} />
-            <InfoList title="Remember" items={currentChapter.remember || currentChapter.keyPoints || []} />
-          </div>
-          {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
-          <QuestionList questions={currentChapter.questions || []} />
+          {chapterExpansion ? (
+            <>
+              <GeneratedExpansion expansion={chapterExpansion} lesson={lesson} title={novelReadingMode ? 'Full chapter retelling' : 'Full study section'} />
+              <CompactSeedDetails title={novelReadingMode ? 'Compact chapter version' : 'Original section seed'}>
+                <div className="article-body">
+                  {chapterParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+                <div className="two-column">
+                  <InfoBlock title="What changed" text={currentChapter.whatChanged} />
+                  <InfoBlock title="Why it matters" text={currentChapter.whyItMatters} />
+                </div>
+                <div className="two-column">
+                  <InfoList title={guideTitleFor(lesson)} items={currentChapter.breakDown || []} />
+                  <InfoList title={memoryTitleFor(lesson)} items={currentChapter.remember || currentChapter.keyPoints || []} />
+                </div>
+                {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
+                {!novelReadingMode && <QuestionList questions={currentChapter.questions || []} />}
+              </CompactSeedDetails>
+            </>
+          ) : (
+            <>
+              <div className="article-body">
+                {chapterParagraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+              <div className="two-column">
+                <InfoBlock title="What changed" text={currentChapter.whatChanged} />
+                <InfoBlock title="Why it matters" text={currentChapter.whyItMatters} />
+              </div>
+              <div className="two-column">
+                <InfoList title={guideTitleFor(lesson)} items={currentChapter.breakDown || []} />
+                <InfoList title={memoryTitleFor(lesson)} items={currentChapter.remember || currentChapter.keyPoints || []} />
+              </div>
+              {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
+              {!novelReadingMode && <QuestionList questions={currentChapter.questions || []} />}
+            </>
+          )}
           <ExpansionButton
             lesson={lesson}
             chapter={currentChapter}
             expansionKey={chapterExpansionKey}
             onSaveExpansion={onSaveExpansion}
-            label={lesson.summaryKind === 'Novel' ? 'Expand chapter' : 'Expand section'}
+            label={chapterExpansion ? (lesson.summaryKind === 'Novel' ? 'Regenerate full chapter' : 'Regenerate full section') : (lesson.summaryKind === 'Novel' ? 'Expand chapter' : 'Expand section')}
           />
-          <GeneratedExpansion expansion={chapterExpansion} />
           <div className="chapter-actions">
             <button className="secondary-button" onClick={() => onSelectChapter(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
               Previous
@@ -1130,6 +1581,7 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
 
 function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, completeCurrentLesson, completeLesson, recordLessonQuestion, saveReflection, saveLessonNote, saveReadingProgress, saveLessonExpansion }) {
   const summaryLesson = isSummaryLesson(selectedLesson);
+  const novelReadingMode = isNovelReadingLesson(selectedLesson);
   const savedReadingProgress = state.readingProgress?.[selectedLesson.id];
   const chapterSummaries = selectedLesson.chapterSummaries || [];
   const savedChapterIndex = Math.max(0, Math.min(chapterSummaries.length - 1, savedReadingProgress?.chapterIndex || 0));
@@ -1143,7 +1595,9 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
   const sources = selectedLesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean);
   const sessionProgress = session ? `${session.currentIndex + 1} / ${session.lessonIds.length}` : 'Solo lesson';
   const stepItems = summaryLesson
-    ? ['summary', 'overview', 'breakdown', 'questions', 'notes']
+    ? novelReadingMode
+      ? ['summary', 'overview', 'breakdown', 'notes']
+      : ['summary', 'overview', 'breakdown', 'questions', 'notes']
     : ['article', 'breakdown', 'questions', 'scenario', 'decision', 'reflection'];
 
   useEffect(() => {
@@ -1177,7 +1631,7 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
         <div className="step-tabs">
           {stepItems.map((item) => (
             <button key={item} className={step === item ? 'active' : ''} onClick={() => setStep(item)}>
-              {item}
+              {stepLabelFor(item, selectedLesson)}
             </button>
           ))}
         </div>
@@ -1205,24 +1659,44 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
             </p>
-            <div className="article-body">
-              {selectedLesson.articleParagraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-            {selectedLesson.summaryKind === 'Novel' && (
-              <InfoBlock
-                title="Chapter retellings"
-                text="True chapter retellings have not been authored for this book yet. Expand creates a private draft from the current study guide instead of showing fake chapter cards."
-              />
+            {lessonExpansion ? (
+              <>
+                <GeneratedExpansion expansion={lessonExpansion} lesson={selectedLesson} title={novelReadingMode ? 'Full reader guide' : 'Full summary'} />
+                <CompactSeedDetails title={novelReadingMode ? 'Compact book version' : 'Original summary seed'}>
+                  <div className="article-body">
+                    {selectedLesson.articleParagraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                  </div>
+                  {selectedLesson.summaryKind === 'Novel' && (
+                    <InfoBlock
+                      title="Chapter retellings"
+                      text="True chapter retellings have not been authored for this book yet. Expand creates a private draft from the current study guide instead of showing fake chapter cards."
+                    />
+                  )}
+                </CompactSeedDetails>
+              </>
+            ) : (
+              <>
+                <div className="article-body">
+                  {selectedLesson.articleParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+                {selectedLesson.summaryKind === 'Novel' && (
+                  <InfoBlock
+                    title="Chapter retellings"
+                    text="True chapter retellings have not been authored for this book yet. Expand creates a private draft from the current study guide instead of showing fake chapter cards."
+                  />
+                )}
+              </>
             )}
             <ExpansionButton
               lesson={selectedLesson}
               expansionKey={lessonExpansionKey}
               onSaveExpansion={saveLessonExpansion}
-              label={selectedLesson.summaryKind === 'Novel' ? 'Expand book guide' : 'Expand summary'}
+              label={lessonExpansion ? (selectedLesson.summaryKind === 'Novel' ? 'Regenerate full guide' : 'Regenerate full summary') : (selectedLesson.summaryKind === 'Novel' ? 'Expand book guide' : 'Expand summary')}
             />
-            <GeneratedExpansion expansion={lessonExpansion} />
           </div>
         )}
 
@@ -1236,36 +1710,57 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
             </p>
-            <InfoList title="Quick version" items={selectedLesson.quickVersion || selectedLesson.summaryBullets || []} />
-            <div className="article-body">
-              {selectedLesson.articleParagraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-            <div className="two-column">
-              <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
-              <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
-            </div>
-            <InfoList title="Remember" items={selectedLesson.remember || selectedLesson.themeNotes || []} />
-            {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
+            {lessonExpansion ? (
+              <>
+                <GeneratedExpansion expansion={lessonExpansion} lesson={selectedLesson} title={novelReadingMode ? 'Full reader guide' : 'Full summary'} />
+                <CompactSeedDetails title={novelReadingMode ? 'Compact book version' : 'Original summary seed'}>
+                  <InfoList title="Quick version" items={selectedLesson.quickVersion || selectedLesson.summaryBullets || []} />
+                  <div className="article-body">
+                    {selectedLesson.articleParagraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                  </div>
+                  <div className="two-column">
+                    <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
+                    <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
+                  </div>
+                  <InfoList title={memoryTitleFor(selectedLesson)} items={selectedLesson.remember || selectedLesson.themeNotes || []} />
+                  {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
+                </CompactSeedDetails>
+              </>
+            ) : (
+              <>
+                <InfoList title="Quick version" items={selectedLesson.quickVersion || selectedLesson.summaryBullets || []} />
+                <div className="article-body">
+                  {selectedLesson.articleParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+                <div className="two-column">
+                  <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
+                  <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
+                </div>
+                <InfoList title={memoryTitleFor(selectedLesson)} items={selectedLesson.remember || selectedLesson.themeNotes || []} />
+                {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
+              </>
+            )}
             <ExpansionButton
               lesson={selectedLesson}
               expansionKey={lessonExpansionKey}
               onSaveExpansion={saveLessonExpansion}
-              label="Expand overview"
+              label={lessonExpansion ? 'Regenerate full version' : 'Expand overview'}
             />
-            <GeneratedExpansion expansion={lessonExpansion} />
           </div>
         )}
 
         {summaryLesson && step === 'breakdown' && (
           <>
-            <InfoList title="Break Down" items={selectedLesson.breakDown || []} />
+            <InfoList title={guideTitleFor(selectedLesson)} items={selectedLesson.breakDown || []} />
             {selectedLesson.reflectionLens && <InfoBlock title="Why it stays relevant" text={selectedLesson.reflectionLens} />}
           </>
         )}
 
-        {summaryLesson && step === 'questions' && <QuestionList questions={selectedLesson.questions || []} />}
+        {summaryLesson && !novelReadingMode && step === 'questions' && <QuestionList questions={selectedLesson.questions || []} />}
 
         {summaryLesson && step === 'notes' && (
           <div className="lesson-section">
@@ -1289,23 +1784,42 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
             <p className="reading-meta">
               Source basis: {selectedLesson.sourceBasis.join(', ')} · Historical lens: {selectedLesson.historicalExample?.title || 'Leadership history'}
             </p>
-            <InfoList title="Quick version" items={selectedLesson.quickVersion || []} />
-            <div className="article-body">
-              {selectedLesson.articleParagraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-            <div className="two-column">
-              <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
-              <InfoList title="Remember" items={selectedLesson.remember || []} />
-            </div>
+            {lessonExpansion ? (
+              <>
+                <GeneratedExpansion expansion={lessonExpansion} lesson={selectedLesson} title="Full lesson" />
+                <CompactSeedDetails title="Original lesson seed">
+                  <InfoList title="Quick version" items={selectedLesson.quickVersion || []} />
+                  <div className="article-body">
+                    {selectedLesson.articleParagraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                  </div>
+                  <div className="two-column">
+                    <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
+                    <InfoList title="Remember" items={selectedLesson.remember || []} />
+                  </div>
+                </CompactSeedDetails>
+              </>
+            ) : (
+              <>
+                <InfoList title="Quick version" items={selectedLesson.quickVersion || []} />
+                <div className="article-body">
+                  {selectedLesson.articleParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+                <div className="two-column">
+                  <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
+                  <InfoList title="Remember" items={selectedLesson.remember || []} />
+                </div>
+              </>
+            )}
             <ExpansionButton
               lesson={selectedLesson}
               expansionKey={lessonExpansionKey}
               onSaveExpansion={saveLessonExpansion}
-              label="Expand lesson"
+              label={lessonExpansion ? 'Regenerate full lesson' : 'Expand lesson'}
             />
-            <GeneratedExpansion expansion={lessonExpansion} />
           </div>
         )}
 
@@ -1392,194 +1906,108 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
   );
 }
 
-function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLessonId, setView }) {
+function LibraryView({ state, selectedLesson, libraryLessons, topicBank, openCanonicalItem, toggleFollowTopic }) {
   const [query, setQuery] = useState('');
-  const [folderId, setFolderId] = useState('books');
-  const [domain, setDomain] = useState('All');
-  const [collectionId, setCollectionId] = useState(null);
-  const selectedFolder = libraryFolders.find((folder) => folder.id === folderId) || libraryFolders[0];
-  const SelectedIcon = selectedFolder.icon;
-  const folderLessons = selectedFolder.id === 'all' ? state.lessons : state.lessons.filter((lesson) => selectedFolder.domains.includes(lesson.domain));
-  const isCollectionShelf = selectedFolder.id === 'books' || selectedFolder.id === 'history';
-  const domainOptions = isCollectionShelf || selectedFolder.id === 'all' ? [] : selectedFolder.domains.filter((item) => state.lessons.some((lesson) => lesson.domain === item));
-  const folderLessonCount = folderLessons.length;
-  const collectionOptions = useMemo(() => {
-    if (!isCollectionShelf) return [];
-    const map = new Map();
-    folderLessons.forEach((lesson) => {
-      const key = lesson.collectionId || lesson.domain;
-      const current = map.get(key) || {
-        id: key,
-        title: lesson.collectionTitle || lesson.domain,
-        description: lesson.collectionDescription || lesson.coreIdea,
-        imageUrl: lesson.collectionImageUrl || lesson.coverImageUrl || null,
-        order: lesson.collectionOrder || 999,
-        count: 0,
-      };
-      current.count += 1;
-      map.set(key, current);
-    });
-    return [...map.values()].sort((left, right) => (left.order - right.order) || left.title.localeCompare(right.title));
-  }, [folderLessons, isCollectionShelf]);
-  const selectedCollection = collectionOptions.find((item) => item.id === collectionId) || collectionOptions[0] || null;
-  const activeCollectionId = isCollectionShelf ? selectedCollection?.id || null : null;
-  const folderStats = selectedFolder.domains
-    .map((item) => ({
-      domain: item,
-      lessons: state.lessons.filter((lesson) => lesson.domain === item).length,
-      sources: state.sources.filter((source) => source.domain === item).length,
-    }))
-    .filter((item) => item.lessons > 0 || item.sources > 0);
-  const filteredLessons = folderLessons.filter((lesson) => {
+  const [subjectId, setSubjectId] = useState('leadership');
+  const [subtopicId, setSubtopicId] = useState('all');
+  const selectedSubject = topicBank.find((subject) => subject.id === subjectId) || topicBank.find((subject) => subject.lessonCount > 0) || topicBank[0];
+  const visibleLessons = libraryLessons.filter((lesson) => {
+    if (!selectedSubject) return true;
     const text = `${lesson.title} ${lesson.domain} ${lesson.coreIdea} ${(lesson.tags || []).join(' ')}`.toLowerCase();
-    const inCollection = !activeCollectionId || lesson.collectionId === activeCollectionId;
-    return inCollection && (domain === 'All' || lesson.domain === domain) && text.includes(query.toLowerCase());
+    const matchesSubject = lesson.topicSubjectIds.includes(selectedSubject.id);
+    const matchesSubtopic = subtopicId === 'all' || lesson.topicSubtopicIds.includes(subtopicId);
+    return matchesSubject && matchesSubtopic && text.includes(query.toLowerCase());
   });
-  const filteredSourceIds = new Set(filteredLessons.flatMap((lesson) => lesson.sourceIds || []));
-  const filteredSources = state.sources.filter((source) => {
-    const text = `${source.title} ${source.author} ${source.domain} ${source.usefulIdea} ${(source.tags || []).join(' ')}`.toLowerCase();
-    if (isCollectionShelf) return filteredSourceIds.has(source.id) && text.includes(query.toLowerCase());
-    const inFolder = selectedFolder.id === 'all' || selectedFolder.domains.includes(source.domain);
-    return inFolder && (domain === 'All' || source.domain === domain) && text.includes(query.toLowerCase());
-  });
-  const sourcePreview = filteredSources.slice(0, 5);
+  const sourcePreview = state.sources
+    .filter((source) => visibleLessons.some((lesson) => lesson.sourceIds.includes(source.id)))
+    .slice(0, 5);
 
   useEffect(() => {
-    if (!isCollectionShelf) {
-      setCollectionId(null);
-      return;
+    if (!selectedSubject?.subtopics.some((subtopic) => subtopic.id === subtopicId)) {
+      setSubtopicId('all');
     }
-    if (!collectionOptions.some((item) => item.id === collectionId)) {
-      setCollectionId(collectionOptions[0]?.id || null);
-    }
-  }, [collectionId, collectionOptions, isCollectionShelf]);
-
-  function openLesson(lessonId) {
-    setSelectedLessonId(lessonId);
-    setContextLessonId(lessonId);
-    setView('learn');
-  }
-
-  function chooseFolder(nextFolderId) {
-    setFolderId(nextFolderId);
-    setDomain('All');
-    setCollectionId(null);
-  }
+  }, [selectedSubject, subtopicId]);
 
   return (
     <section className="library-grid">
       <div className="library-main">
         <div className="search-row">
           <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search lessons, concepts, or tags" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search subjects, lessons, or tags" />
         </div>
 
         <div className="library-shelf-hero">
           <span className="library-shelf-icon">
-            <SelectedIcon size={20} />
+            <Library size={20} />
           </span>
           <div className="library-shelf-copy">
-            <p className="section-label">{isCollectionShelf && selectedCollection ? selectedFolder.title : 'Current shelf'}</p>
-            <h2>{isCollectionShelf && selectedCollection ? selectedCollection.title : selectedFolder.title}</h2>
-            <p>{isCollectionShelf && selectedCollection ? selectedCollection.description : selectedFolder.description}</p>
+            <p className="section-label">Subject map</p>
+            <h2>{selectedSubject?.title}</h2>
+            <p>{selectedSubject?.description}</p>
           </div>
-          {isCollectionShelf && selectedCollection?.imageUrl && (
-            <div className="library-shelf-art">
-              <img src={selectedCollection.imageUrl} alt="" loading="lazy" />
-            </div>
-          )}
-          <label className="shelf-switcher">
-            <span>Switch shelf</span>
-            <select value={folderId} onChange={(event) => chooseFolder(event.target.value)}>
-              {libraryFolders.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <button className={state.followedTopics?.[selectedSubject?.id] ? 'secondary-button active' : 'secondary-button'} onClick={() => toggleFollowTopic(selectedSubject.id)}>
+            {state.followedTopics?.[selectedSubject?.id] ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+            {state.followedTopics?.[selectedSubject?.id] ? 'Following' : 'Follow subject'}
+          </button>
         </div>
 
-        {isCollectionShelf && collectionOptions.length > 0 && (
-          <div className="collection-strip" aria-label={`${selectedFolder.title} collections`}>
-            {collectionOptions.map((collection) => (
-              <button
-                key={collection.id}
-                className={selectedCollection?.id === collection.id ? 'collection-chip active' : 'collection-chip'}
-                onClick={() => setCollectionId(collection.id)}
-              >
-                {collection.imageUrl && <img src={collection.imageUrl} alt="" loading="lazy" />}
-                <div>
-                  <strong>{collection.title}</strong>
-                  <small>{collection.count} items</small>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {domainOptions.length > 0 && (
-          <div className="domain-filter compact">
-            {['All', ...domainOptions].map((item) => (
-              <button key={item} className={domain === item ? 'active' : ''} onClick={() => setDomain(item)}>
-                {item === 'All' ? `All ${selectedFolder.title}` : item}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="domain-filter compact">
+          <button key="all" className={subtopicId === 'all' ? 'active' : ''} onClick={() => setSubtopicId('all')}>
+            All {selectedSubject?.title}
+          </button>
+          {selectedSubject?.subtopics.filter((subtopic) => subtopic.lessonCount > 0).map((subtopic) => (
+            <button key={subtopic.id} className={subtopicId === subtopic.id ? 'active' : ''} onClick={() => setSubtopicId(subtopic.id)}>
+              {subtopic.title}
+            </button>
+          ))}
+        </div>
 
         <div className="library-section-head">
           <div>
-            <p className="section-label">{selectedFolder.title}</p>
-            <h3>{isCollectionShelf ? `${selectedCollection?.title || selectedFolder.title} reading list` : domain === 'All' ? 'Choose what to read' : domain}</h3>
+            <p className="section-label">Curated study items</p>
+            <h3>{selectedSubject?.title}</h3>
           </div>
-          <span>{filteredLessons.length} of {folderLessonCount} cards</span>
+          <span>{visibleLessons.length} cards</span>
         </div>
 
         <div className="library-list">
-          {filteredLessons.map((lesson) => {
-            const progress = state.readingProgress?.[lesson.id];
-            const chapterCount = lesson.chapterSummaries?.length || 0;
-            return (
-              <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openLesson(lesson.id)}>
-                {lesson.coverImageUrl && <img className="library-row-cover" src={lesson.coverImageUrl} alt="" loading="lazy" />}
-                <div className="library-row-copy">
-                  <strong>{lesson.title}</strong>
-                  <p>{lesson.coreIdea}</p>
-                  {lesson.collectionTitle && isCollectionShelf && <small>{lesson.summaryKind === 'History' ? 'History guide' : lesson.collectionTitle}</small>}
-                </div>
-                <span className="library-row-meta">
-                  {lesson.summaryKind === 'History' ? 'History' : lesson.domain}
-                  {chapterCount > 0 && <small>{progress ? `Chapter ${progress.chapterIndex + 1}/${chapterCount}` : `${chapterCount} chapters`}</small>}
-                </span>
-              </button>
-            );
-          })}
+          {visibleLessons.map((lesson) => (
+            <button
+              key={lesson.id}
+              className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'}
+              onClick={() => openCanonicalItem(canonicalItemKey('library', lesson.id), {
+                subjectIds: lesson.topicSubjectIds,
+                topicIds: lesson.topicSubtopicIds,
+                domain: 'library',
+              })}
+            >
+              {lesson.coverImageUrl && <img className="library-row-cover" src={lesson.coverImageUrl} alt="" loading="lazy" />}
+              <div className="library-row-copy">
+                <strong>{lesson.title}</strong>
+                <p>{lesson.coreIdea}</p>
+                <small>{lesson.topicSubtopicIds.length > 0 ? lesson.topicSubtopicIds.map(followLabel).join(' · ') : lesson.domain}</small>
+              </div>
+              <span className="library-row-meta">
+                {lesson.summaryKind === 'History' ? 'History' : lesson.domain}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
       <aside className="source-list-panel library-context-panel">
-        <p className="section-label">{isCollectionShelf ? 'Shelf note' : 'Inside this shelf'}</p>
-        {isCollectionShelf && selectedCollection ? (
-          <article className="source-card compact collection-context-card">
-            <span>{selectedFolder.title}</span>
-            <h3>{selectedCollection.title}</h3>
-            <p>{selectedCollection.description}</p>
-            <small>{filteredLessons.length} readable items</small>
-          </article>
-        ) : (
-          <div className="shelf-breakdown">
-            {folderStats.map((item) => (
-              <button key={item.domain} className={domain === item.domain ? 'shelf-breakdown-row active' : 'shelf-breakdown-row'} onClick={() => setDomain(item.domain)}>
-                <span>{item.domain}</span>
-                <small>{item.lessons} cards</small>
-              </button>
-            ))}
-          </div>
-        )}
+        <p className="section-label">Subjects</p>
+        <div className="shelf-breakdown">
+          {topicBank.map((subject) => (
+            <button key={subject.id} className={subject.id === selectedSubject?.id ? 'shelf-breakdown-row active' : 'shelf-breakdown-row'} onClick={() => setSubjectId(subject.id)}>
+              <span>{subject.title}</span>
+              <small>{subject.lessonCount} cards</small>
+            </button>
+          ))}
+        </div>
         <div className="source-preview-head">
           <p className="section-label">Source preview</p>
-          <span>{filteredSources.length}</span>
+          <span>{sourcePreview.length}</span>
         </div>
         {sourcePreview.map((source) => (
           <article key={source.id} className="source-card compact">
@@ -1588,8 +2016,242 @@ function LibraryView({ state, selectedLesson, setSelectedLessonId, setContextLes
             <small>{source.author}</small>
           </article>
         ))}
-        {filteredSources.length > sourcePreview.length && <p className="empty-copy">{filteredSources.length - sourcePreview.length} more sources in this shelf.</p>}
-        {filteredSources.length === 0 && <p className="empty-copy">No source cards match this shelf.</p>}
+      </aside>
+    </section>
+  );
+}
+
+function NovelsView({ state, selectedLesson, openCanonicalItem, toggleSavedItem }) {
+  const [query, setQuery] = useState('');
+  const [collectionId, setCollectionId] = useState(null);
+  const novelLessons = useMemo(() => state.lessons.filter((lesson) => lesson.summaryKind === 'Novel'), [state.lessons]);
+  const collectionOptions = useMemo(() => {
+    const map = new Map();
+    novelLessons.forEach((lesson) => {
+      const key = lesson.collectionId || lesson.slug;
+      const current = map.get(key) || {
+        id: key,
+        title: lesson.collectionTitle || lesson.title,
+        description: lesson.collectionDescription || lesson.coreIdea,
+        imageUrl: lesson.collectionImageUrl || lesson.coverImageUrl || null,
+        count: 0,
+        order: lesson.collectionOrder || 999,
+      };
+      current.count += 1;
+      map.set(key, current);
+    });
+    return [...map.values()].sort((left, right) => (left.order - right.order) || left.title.localeCompare(right.title));
+  }, [novelLessons]);
+  const selectedCollection = collectionOptions.find((item) => item.id === collectionId) || collectionOptions[0] || null;
+  const filteredLessons = novelLessons.filter((lesson) => {
+    const text = `${lesson.title} ${lesson.coreIdea} ${(lesson.tags || []).join(' ')}`.toLowerCase();
+    const inCollection = !selectedCollection || lesson.collectionId === selectedCollection.id;
+    return inCollection && text.includes(query.toLowerCase());
+  });
+
+  useEffect(() => {
+    if (!collectionOptions.some((item) => item.id === collectionId)) {
+      setCollectionId(collectionOptions[0]?.id || null);
+    }
+  }, [collectionId, collectionOptions]);
+
+  return (
+    <section className="library-grid">
+      <div className="library-main">
+        <div className="search-row">
+          <Search size={18} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, characters, or themes" />
+        </div>
+
+        <div className="library-shelf-hero">
+          <span className="library-shelf-icon">
+            <BookOpen size={20} />
+          </span>
+          <div className="library-shelf-copy">
+            <p className="section-label">Reading shelf</p>
+            <h2>{selectedCollection?.title || 'Novels'}</h2>
+            <p>{selectedCollection?.description || 'Reading-oriented study guides, chapter companions, and private expansions.'}</p>
+          </div>
+          {selectedCollection?.imageUrl && (
+            <div className="library-shelf-art">
+              <img src={selectedCollection.imageUrl} alt="" loading="lazy" />
+            </div>
+          )}
+        </div>
+
+        <div className="collection-strip" aria-label="Novel collections">
+          {collectionOptions.map((collection) => (
+            <button key={collection.id} className={selectedCollection?.id === collection.id ? 'collection-chip active' : 'collection-chip'} onClick={() => setCollectionId(collection.id)}>
+              {collection.imageUrl && <img src={collection.imageUrl} alt="" loading="lazy" />}
+              <div>
+                <strong>{collection.title}</strong>
+                <small>{collection.count} items</small>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="library-list">
+          {filteredLessons.map((lesson) => {
+            const reading = state.readingProgress?.[lesson.id];
+            const itemKey = canonicalItemKey('novels', lesson.id);
+            const saved = Boolean(state.savedItems?.[itemKey]);
+            return (
+              <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openCanonicalItem(itemKey, {
+                subjectIds: ['novels'],
+                topicIds: ['novels'],
+                domain: 'novels',
+              })}>
+                {lesson.coverImageUrl && <img className="library-row-cover" src={lesson.coverImageUrl} alt="" loading="lazy" />}
+                <div className="library-row-copy">
+                  <strong>{lesson.title}</strong>
+                  <p>{lesson.coreIdea}</p>
+                  <small>{lesson.chapterSummaries?.length ? `${reading ? `Chapter ${reading.chapterIndex + 1}` : `${lesson.chapterSummaries.length} chapters`} · ${saved ? 'Saved' : 'Reader guide ready'}` : saved ? 'Saved' : 'Overview ready'}</small>
+                </div>
+                <span className="library-row-meta">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleSavedItem(itemKey, {
+                        subjectIds: ['novels'],
+                        domain: 'novels',
+                      });
+                    }}
+                    title={saved ? 'Unsave' : 'Save'}
+                  >
+                    {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+                  </button>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <aside className="source-list-panel library-context-panel">
+        <p className="section-label">Shelf note</p>
+        {selectedCollection && (
+          <article className="source-card compact collection-context-card">
+            <span>Novels</span>
+            <h3>{selectedCollection.title}</h3>
+            <p>{selectedCollection.description}</p>
+            <small>{filteredLessons.length} reading items</small>
+          </article>
+        )}
+      </aside>
+    </section>
+  );
+}
+
+function NewsView({ state, selectedNewsItem, setSelectedNewsId, newsStatus, refreshNews, expandNewsItem, toggleSavedItem }) {
+  const [query, setQuery] = useState('');
+  const [expandingId, setExpandingId] = useState('');
+  const stories = (state.news?.items || []).filter((item) => {
+    const text = `${item.title} ${item.category} ${item.whatHappened}`.toLowerCase();
+    return text.includes(query.toLowerCase());
+  });
+  const selectedStory = selectedNewsItem || stories[0] || null;
+  const expansion = selectedStory ? state.news?.expansions?.[selectedStory.id] : null;
+
+  async function handleExpand(story) {
+    if (!story || expandingId) return;
+    setExpandingId(story.id);
+    try {
+      await expandNewsItem(story);
+    } finally {
+      setExpandingId('');
+    }
+  }
+
+  return (
+    <section className="library-grid">
+      <div className="library-main">
+        <div className="search-row">
+          <Search size={18} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search briefings, categories, or entities" />
+        </div>
+
+        <div className="library-shelf-hero">
+          <span className="library-shelf-icon">
+            <Newspaper size={20} />
+          </span>
+          <div className="library-shelf-copy">
+            <p className="section-label">Private briefing room</p>
+            <h2>Daily news</h2>
+            <p>Compact real-source briefings first, deeper analysis only when you explicitly expand a story.</p>
+          </div>
+          <button className="secondary-button" onClick={() => refreshNews()} disabled={newsStatus.refreshing}>
+            <RefreshCw size={16} />
+            {newsStatus.refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+
+        <div className="library-list">
+          {stories.length === 0 && (
+            <article className="source-card compact collection-context-card">
+              <span>Unavailable</span>
+              <h3>No private briefing yet</h3>
+              <p>{newsStatus.error || 'Open the private local server to refresh the daily briefing. The public site stays usable without it.'}</p>
+            </article>
+          )}
+          {stories.map((story) => {
+            const saved = Boolean(state.savedItems?.[canonicalItemKey('news', story.id)]);
+            return (
+              <button key={story.id} className={selectedStory?.id === story.id ? 'library-row active' : 'library-row'} onClick={() => setSelectedNewsId(story.id)}>
+                <div className="library-row-copy">
+                  <strong>{story.title}</strong>
+                  <p>{story.whatHappened}</p>
+                  <small>{story.sources?.map((source) => source.title).join(' · ')}</small>
+                </div>
+                <span className="library-row-meta">
+                  {story.category}
+                  <small>{saved ? 'Saved' : story.priority}</small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <aside className="source-list-panel library-context-panel">
+        {selectedStory ? (
+          <>
+            <article className="source-card compact collection-context-card">
+              <span>{selectedStory.category}</span>
+              <h3>{selectedStory.title}</h3>
+              <p>{selectedStory.whatHappened}</p>
+              <small>{selectedStory.sources?.map((source) => source.title).join(' · ')}</small>
+            </article>
+            <div className="ai-settings-actions">
+              <button className="secondary-button" onClick={() => toggleSavedItem(canonicalItemKey('news', selectedStory.id), {
+                domain: 'news',
+                newsId: selectedStory.id,
+                subjectIds: [selectedStory.category.toLowerCase().replace(/\s+/g, '-')],
+              })}>
+                {state.savedItems?.[canonicalItemKey('news', selectedStory.id)] ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+                {state.savedItems?.[canonicalItemKey('news', selectedStory.id)] ? 'Saved' : 'Save'}
+              </button>
+              <button className="secondary-button" onClick={() => handleExpand(selectedStory)} disabled={expandingId === selectedStory.id}>
+                <Sparkles size={16} />
+                {expandingId === selectedStory.id ? 'Expanding...' : expansion ? 'Regenerate detail' : 'Expand detail'}
+              </button>
+            </div>
+            {expansion ? (
+              <GeneratedExpansion expansion={expansion} lesson={{ summaryKind: null }} title="Story detail" />
+            ) : (
+              <>
+                <InfoBlock title="Why it matters" text={selectedStory.whyItMatters} />
+                <InfoBlock title="What is known" text={selectedStory.whatIsKnown} />
+                <InfoBlock title="What is uncertain" text={selectedStory.whatIsUncertain} />
+                <InfoBlock title="What to watch" text={selectedStory.whatToWatch} />
+              </>
+            )}
+          </>
+        ) : (
+          <p className="empty-copy">Select a story to read the full briefing.</p>
+        )}
       </aside>
     </section>
   );

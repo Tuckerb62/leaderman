@@ -1,39 +1,40 @@
 # Leaderman Context for Future Agents
 
-Leaderman is a standalone leadership microlearning web app in `/Users/jonathan/Documents/leaderman`. It is built for personal use, local-first privacy, and fast iteration. The public version can run as a static GitHub Pages site. The private version can run from the user's Mac with a small local server that keeps the OpenAI API key out of the browser.
+Leaderman is a standalone personal learning cockpit in `/Users/jonathan/Documents/leaderman`. It is still local-first, single-user, and static-first where practical. The public version can run as a static GitHub Pages site. The private version can run from the user's Mac with a small local server that keeps the OpenAI API key out of the browser and also provides optional single-user sync and private News refresh.
 
 ## What the App Allows
 
-Leaderman lets the user study leadership as a practiced discipline instead of passively reading summaries. It combines source cards, article-style lessons, historical examples, decision scenarios, reflection prompts, simple completion tracking, question accuracy, philosophy tracks, and an optional AI coach.
+Leaderman now teaches across a curated serious subject map rather than leadership alone. It still uses source cards, article-style lessons, historical examples, decision scenarios, reflection prompts, completion tracking, question accuracy, and optional AI expansion, but the product surface is organized around canonical items and tabs instead of a leadership-only flow.
 
 The current app supports these user-facing areas:
 
-- `Feed`: default calm reading surface with unread cards, inline expansion, decision practice, reflection capture, and simple completion.
-- `Learn`: one lesson at a time with the core idea, article content, source basis, historical example, scenario, decision options, reflection, notes, and a single completion action.
-- `Philosophy`: schools of philosophy and philosophy lessons, with emphasis on Stoicism while also covering other traditions.
-- `Library`: searchable source cards and lesson cards, including domains, tags, and user notes.
+- `Feed`: default calm reading surface. It aggregates canonical items from Library, Novels, and News while keeping the existing Feed feel as much as possible.
+- `Library`: a structured topic map with parent subjects, subtopics, deterministic seeded items, and follow controls.
+- `Novels`: a separate reading shelf built from the existing book and novel lesson model, including reading progress where available.
+- `News`: a private briefing room backed by the private local server. Compact story cards stay factual and source-based; deeper analysis is on demand.
 - `Progress`: percent complete, question percent right, completed card count, question record, and recent reflections.
-- Floating `AI Coach`: optional conversational help grounded in the current lesson. It can use a private local proxy or a direct browser API key fallback.
-- `Expand` actions in Learn: optional AI-generated private drafts that flesh out a lesson, book guide, or authored chapter/section using the same AI Coach key settings.
+- Shared detail view: opened Feed items route to the same underlying detail experience their native tab uses.
+- Floating `AI Coach`: optional conversational help grounded in the current lesson or item context. It can use a private local proxy or a direct browser API key fallback.
+- `Expand` actions in detail views: optional AI-generated private drafts for lessons, book guides, authored chapter or section readers, and News expansions.
 
-The app does not currently have accounts, cloud sync, payments, a backend database, PDF import, EPUB import, or multi-device merge. Seeded curriculum remains deterministic; AI expansion creates local private drafts rather than replacing source seed data automatically.
+The app still does not have accounts, payments, a multi-user backend database, PDF import, or EPUB import. The sync bridge is intentionally minimal and single-user: it syncs user-owned state through the user's Mac when available, but the app remains usable locally without it.
 
 ## Learning Model
 
-The product is built around short but meaningful training loops:
+The product is built around short but meaningful learning loops:
 
-1. Read a high-signal lesson.
+1. Read a high-signal lesson or story.
 2. Connect it to known sources, historical examples, and opposing views.
-3. Make a scenario decision.
+3. Make a scenario decision when the item supports one.
 4. Reflect in the user's own words.
-5. Mark the card complete.
+5. Mark the item complete or save it.
 6. Use percent complete and question accuracy as lightweight progress signals.
 
-Lessons are intentionally more than summaries. They should teach a future leader to compare tradeoffs, detect misuse, recognize historical patterns, and practice judgment under uncertainty.
+Lessons are intentionally more than summaries. They should teach the user to compare tradeoffs, detect misuse, recognize historical patterns, and practice judgment under uncertainty.
 
 ## Curriculum Shape
 
-Seeded content lives in `src/data/seedData.js`. The current curriculum includes leadership domains such as self-command, communication, influence, judgment, teams, ethics, power, conflict, systems, technology and future, philosophy, self-help, literature, and history.
+Seeded content lives in `src/data/seedData.js`. The Library topic map is built in `src/data/topicBank.js` on top of deterministic seeded lessons. The current subject set includes leadership, philosophy, psychology, history, world history, literature, novels, writing, communication, business, economics, technology, politics, health, emergency medicine, biopharm, and science or research.
 
 Source cards represent books, public-domain classics, popular self-help books, novels, doctrine, research summaries, and historical cases. Lesson records connect to source IDs and can include:
 
@@ -55,11 +56,11 @@ Future curriculum expansion should keep claims grounded. If adding material from
 
 ## Local-First Behavior
 
-User progress is stored in browser `localStorage` through `src/data/storage.js`. The same local state also stores `settings.resume`, which remembers the last view, selected lesson, and last visible Feed card so the app can reopen where the user left off. AI key preferences for direct browser mode are stored by `src/data/aiSettings.js`. Session-only keys use `sessionStorage`; persisted browser keys use `localStorage`.
+User progress is stored in browser `localStorage` through `src/data/storage.js`. The same local state also stores `settings.resume`, which remembers the last view, selected lesson, selected news item, and last visible Feed item so the app can reopen where the user left off. AI key preferences for direct browser mode are stored by `src/data/aiSettings.js`. Session-only keys use `sessionStorage`; persisted browser keys use `localStorage`.
 
-The sidebar includes manual JSON export and import so the user can back up progress or move it to another browser manually. Import merges seeded source and lesson records from the current build, then restores user-owned completion state, question-answer counts, sessions, notes, reflections, generated expansion drafts, and settings.
+The sidebar includes manual JSON export and import so the user can back up progress or move it to another browser manually. Import merges seeded source and lesson records from the current build, then restores user-owned completion state, question-answer counts, sessions, notes, reflections, generated expansion drafts, saved items, followed topics, dismissed items, activity history, News state, and settings.
 
-Because there is no central backend, the same GitHub Pages URL on two devices will have separate local state unless the user exports and imports a backup.
+The private local server also exposes a minimal sync bridge. When both the desktop and phone open the same Mac-hosted private server URL, user-owned state can sync automatically through a file stored on the Mac. GitHub Pages remains static and device-local unless the user manually exports or imports state or uses that private server.
 
 ## AI Coach Modes
 
@@ -70,15 +71,19 @@ The floating AI Coach has two operating modes:
 
 The floating AI Coach also includes a model selector. Curated options live in `AI_MODEL_OPTIONS` in `src/logic/aiClient.js`, and the default model lives in `DEFAULT_AI_SETTINGS`. Keep the custom model option available so the user can try newer or account-specific model IDs without a code change.
 
-AI expansion uses the same key path as AI Coach. It sends the selected lesson or chapter context to the configured endpoint and stores the returned Markdown in local app state under `lessonExpansions`.
+AI expansion uses the same key path as AI Coach. It sends the selected lesson, chapter, or News-story context to the configured endpoint and stores the returned Markdown in local app state under `lessonExpansions` or the News expansion state.
 
 The private server also exposes:
 
 - `GET /api/ai-health`: tells the app whether a key is configured and whether it came from environment or Keychain.
 - `POST /api/openai-responses`: local proxy to OpenAI Responses API.
 - `POST /api/save-openai-key`: saves a pasted key to macOS Keychain, allowed only when the server is bound to `127.0.0.1` or `localhost`.
+- `GET /api/sync-health`: reports whether the local sync bridge is available and where its local file lives.
+- `GET /api/sync-state` and `POST /api/sync-state`: minimal single-user sync snapshot endpoints.
+- `POST /api/news-refresh`: fetches source material and returns compact daily briefing items.
+- `POST /api/news-expand`: expands a selected News story into a longer private briefing when a key is available.
 
-AI prompts are assembled in `src/logic/aiClient.js`. Every request should include the Leaderman app overview, the tutor role, factuality rules, teaching style, leadership stance, and optional current-lesson context. Keep these guardrails strong if the AI feature changes.
+AI prompts are assembled in `src/logic/aiClient.js`. Every request should include the Leaderman app overview, the tutor role, factuality rules, teaching style, and optional current-item context. Keep these guardrails strong if the AI feature changes.
 
 ## Install and Hosting Options
 
@@ -86,13 +91,13 @@ Leaderman can be used in several ways:
 
 - Local development: `npm run dev`, usually on `http://127.0.0.1:5173/`.
 - Phone testing without private AI: `npm run phone`, usually on port `5174` and reachable by LAN IP.
-- Private AI on Mac: `npm run local:ai`, served from `http://127.0.0.1:4174/`.
-- Private AI from phone or iPad: `npm run phone:ai`, served from the Mac on the local network.
+- Private AI, private News, and sync on Mac: `npm run local:ai`, served from `http://127.0.0.1:4174/`.
+- Private AI, private News, and sync from phone or iPad: `npm run phone:ai`, served from the Mac on the local network.
 - Desktop launcher: `npm run mac:app`, which creates `Leaderman.app` on the Desktop and opens the private local app.
 - Public static site: `npm run build:pages`, committed to `docs/`, then served by GitHub Pages.
 - iPhone or iPad home screen app: open the GitHub Pages URL in Safari and use Add to Home Screen.
 
-For personal private AI from phone or iPad, the Mac must remain awake, on the same Wi-Fi, and running the private server.
+For personal private AI, private News, and sync from phone or iPad, the Mac must remain awake, on the same Wi-Fi, and running the private server.
 
 ## Source Documentation Location
 

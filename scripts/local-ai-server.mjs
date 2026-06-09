@@ -5,6 +5,8 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { networkInterfaces, userInfo } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { buildPrivateNewsBriefing, expandPrivateNewsStory } from './private-news.mjs';
+import { readSyncState, SYNC_STATE_PATH, writeSyncState } from './private-sync-store.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST_DIR = join(ROOT, 'dist');
@@ -132,6 +134,78 @@ async function proxyOpenAI(req, res) {
   res.end(text);
 }
 
+async function syncHealth(res) {
+  const snapshot = await readSyncState();
+  json(res, 200, {
+    available: true,
+    path: SYNC_STATE_PATH,
+    updatedAt: snapshot?.syncedAt || null,
+  });
+}
+
+async function getSyncState(res) {
+  const snapshot = await readSyncState();
+  json(res, 200, {
+    snapshot,
+  });
+}
+
+async function saveSyncState(req, res) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (error) {
+    json(res, 400, { error: { message: error.message } });
+    return;
+  }
+
+  const snapshot = body?.snapshot;
+  if (!snapshot?.syncedAt) {
+    json(res, 400, { error: { message: 'Sync snapshot is missing syncedAt.' } });
+    return;
+  }
+
+  const existing = await readSyncState();
+  const nextSnapshot = !existing || snapshot.syncedAt >= existing.syncedAt ? snapshot : existing;
+  await writeSyncState(nextSnapshot);
+  json(res, 200, { snapshot: nextSnapshot });
+}
+
+async function refreshPrivateNews(req, res) {
+  const { key } = getApiKey();
+  const briefing = await buildPrivateNewsBriefing({ apiKey: key || '' });
+  json(res, 200, briefing);
+}
+
+async function expandPrivateNews(req, res) {
+  const { key } = getApiKey();
+  if (!key) {
+    json(res, 503, {
+      error: {
+        message: 'No OpenAI API key found for private news expansion.',
+      },
+    });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (error) {
+    json(res, 400, { error: { message: error.message } });
+    return;
+  }
+
+  const story = body?.story;
+  if (!story?.title) {
+    json(res, 400, { error: { message: 'A compact news story is required.' } });
+    return;
+  }
+
+  const markdown = await expandPrivateNewsStory({ story, apiKey: key });
+  json(res, 200, { markdown });
+}
+
 async function saveOpenAIKey(req, res) {
   if (host !== '127.0.0.1' && host !== 'localhost') {
     json(res, 403, {
@@ -209,8 +283,28 @@ const server = createServer(async (req, res) => {
       json(res, 200, { keyConfigured: Boolean(key), source: key ? source : 'missing' });
       return;
     }
+    if (req.method === 'GET' && req.url?.startsWith('/api/sync-health')) {
+      await syncHealth(res);
+      return;
+    }
+    if (req.method === 'GET' && req.url?.startsWith('/api/sync-state')) {
+      await getSyncState(res);
+      return;
+    }
+    if (req.method === 'POST' && req.url?.startsWith('/api/sync-state')) {
+      await saveSyncState(req, res);
+      return;
+    }
     if (req.method === 'POST' && req.url?.startsWith('/api/openai-responses')) {
       await proxyOpenAI(req, res);
+      return;
+    }
+    if (req.method === 'POST' && req.url?.startsWith('/api/news-refresh')) {
+      await refreshPrivateNews(req, res);
+      return;
+    }
+    if (req.method === 'POST' && req.url?.startsWith('/api/news-expand')) {
+      await expandPrivateNews(req, res);
       return;
     }
     if (req.method === 'POST' && req.url?.startsWith('/api/save-openai-key')) {

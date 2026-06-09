@@ -1,6 +1,6 @@
 # Operations
 
-This page is for future agents and maintainers who need to run, test, publish, or troubleshoot Leaderman.
+This page is for future agents and maintainers who need to run, test, publish, sync, or troubleshoot Leaderman.
 
 ## First-Time Setup
 
@@ -46,7 +46,12 @@ Open:
 http://127.0.0.1:4174/
 ```
 
-The server serves the built app from `dist/` and exposes the local AI proxy at `/api/openai-responses`.
+The server serves the built app from `dist/` and exposes:
+
+- the local AI proxy at `/api/openai-responses`
+- the AI health check at `/api/ai-health`
+- the sync bridge at `/api/sync-health` and `/api/sync-state`
+- private News refresh and expansion endpoints
 
 ## Save the OpenAI Key
 
@@ -71,7 +76,7 @@ OPENAI_API_KEY=sk-your-key npm run local:ai
 
 Do not write real API keys into source files, docs, commits, shell history examples, or screenshots.
 
-## Private AI on Phone or iPad
+## Private AI, News, and Sync on Phone or iPad
 
 Run this on the Mac:
 
@@ -93,6 +98,8 @@ Requirements:
 - The local network allows device-to-device connections.
 
 Saving a key to Keychain from the app is only allowed on the Mac-only server bound to `127.0.0.1` or `localhost`. Use `npm run local:ai` for that setup step, then use `npm run phone:ai`.
+
+When the phone uses the printed LAN URL from the Mac server, it can also use the private sync bridge and News refresh. The public GitHub Pages URL does not provide those endpoints.
 
 ## Desktop App Icon
 
@@ -147,6 +154,17 @@ For the public static app:
 
 This creates a home screen icon backed by the website manifest. It does not provide private local AI unless the phone is opening the Mac's `phone:ai` LAN URL.
 
+## Sync Verification
+
+To verify the private sync bridge locally:
+
+1. Run `npm run local:ai` or `npm run phone:ai`.
+2. Open `/api/sync-health` and confirm it reports `available: true`.
+3. Open the app from that same server URL on desktop and phone.
+4. Make a small user-state change on one device, then confirm it appears on the other after the normal pull cycle or a visibility change.
+
+The sync file lives outside the repo, under the user's local application-support area on the Mac.
+
 ## Verification Checklist
 
 For docs-only changes:
@@ -177,6 +195,20 @@ npm run mac:app
 
 Then verify `/Users/jonathan/Desktop/Leaderman.app` exists and opens the app.
 
+For changes touching the private server:
+
+```bash
+npm test
+npm run build
+```
+
+Then verify:
+
+- `/api/ai-health`
+- `/api/sync-health`
+- News refresh in the app
+- the expected local sync status chip
+
 ## Troubleshooting
 
 If `http://127.0.0.1:4174/` does not open, check whether the private server is running and whether port `4174` is already in use.
@@ -188,6 +220,16 @@ http://127.0.0.1:4174/api/ai-health
 ```
 
 It should report whether a key is loaded from environment, macOS Keychain, or missing.
+
+If the app stays in `Local only`, open:
+
+```text
+http://127.0.0.1:4174/api/sync-health
+```
+
+It should report whether the sync bridge is available and where its local file lives.
+
+If News does not refresh, confirm the app is running from the private server rather than GitHub Pages, then check whether source fetching succeeds and whether a key is available for AI summarization or only deterministic fallback.
 
 If the phone cannot reach the Mac, confirm both devices are on the same Wi-Fi, use the printed LAN URL, keep the server terminal open, and check macOS firewall prompts.
 

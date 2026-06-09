@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { domains, microLessons, philosophySchools } from './seedData.js';
+import { createInitialState, domains, microLessons, philosophySchools } from './seedData.js';
 
 describe('seed lesson articles', () => {
   it('expands every lesson into a source-grounded article', () => {
@@ -155,12 +155,20 @@ describe('seed lesson articles', () => {
         expect(chapter.whyItMatters).toBeTruthy();
         expect(chapter.breakDown.length).toBeGreaterThanOrEqual(5);
         expect(chapter.remember.length).toBeGreaterThanOrEqual(3);
-        expect(chapter.questions.map((question) => question.type)).toEqual([
-          'Plot',
-          'Motivation',
-          'Theme',
-          'Interpretation',
-        ]);
+        expect(chapter.questions || []).toEqual([]);
+      }
+    }
+  });
+
+  it('keeps novels in reading mode instead of quiz mode', () => {
+    const fictionSummaries = microLessons.filter((lesson) => lesson.summaryKind === 'Novel');
+
+    expect(fictionSummaries.length).toBeGreaterThanOrEqual(10);
+
+    for (const lesson of fictionSummaries) {
+      expect(lesson.questions || []).toEqual([]);
+      for (const chapter of lesson.chapterSummaries || []) {
+        expect(chapter.questions || []).toEqual([]);
       }
     }
   });
@@ -192,5 +200,16 @@ describe('seed lesson articles', () => {
         }
       }
     }
+  });
+
+  it('creates a local-first initial state with the new canonical feed slices', () => {
+    const state = createInitialState();
+
+    expect(state.schemaVersion).toBe(2);
+    expect(state.followedTopics).toEqual({});
+    expect(state.savedItems).toEqual({});
+    expect(state.dismissedItems).toEqual({});
+    expect(state.itemActivity).toEqual({});
+    expect(state.news.items).toEqual([]);
   });
 });

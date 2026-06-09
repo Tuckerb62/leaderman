@@ -3081,12 +3081,7 @@ function buildSummaryBreakDown(spec) {
 
 function buildSummaryQuestions(spec) {
   if (spec.summaryKind === 'Novel') {
-    return [
-      { type: 'Plot', prompt: `What pressure or conflict sets ${spec.title} in motion?` },
-      { type: 'Motivation', prompt: `Which character or group is easiest to misread, and what might they believe they are protecting?` },
-      { type: 'Theme', prompt: `How does the story develop ${spec.themeNotes[0]?.toLowerCase() || 'its central theme'} through concrete events rather than explanation?` },
-      { type: 'Interpretation', prompt: `What unresolved tension should you keep watching as the story moves forward?` },
-    ];
+    return [];
   }
 
   return [
@@ -3421,6 +3416,13 @@ function buildChapterSummaries(spec) {
   });
 }
 
+function novelReadingChapters(chapters = []) {
+  return chapters.map((chapter) => ({
+    ...chapter,
+    questions: [],
+  }));
+}
+
 const summaryLessons = summarySpecs.map((spec, index) => ({
   ...(() => {
     const collectionId = summaryCollectionBySlug[spec.slug] || null;
@@ -3465,7 +3467,7 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
   summaryBullets: spec.summaryBullets,
   timeline: spec.timeline,
   themeNotes: spec.themeNotes,
-  chapterSummaries: spec.summaryKind === 'Novel' ? (spec.chapterSummaries || []) : buildChapterSummaries(spec),
+  chapterSummaries: spec.summaryKind === 'Novel' ? novelReadingChapters(spec.chapterSummaries || []) : buildChapterSummaries(spec),
   expansionAvailable: true,
   historicalExample: null,
   sourceBasis: spec.sourceIds.map((id) => sourceTitle(id)),
@@ -3476,7 +3478,7 @@ const summaryLessons = summarySpecs.map((spec, index) => ({
 export const microLessons = [...leadershipLessons, ...summaryLessons];
 
 export const createInitialState = () => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   sources: sourceCards,
   lessons: microLessons,
   reviews: microLessons.reduce((acc, lesson, index) => {
@@ -3498,6 +3500,11 @@ export const createInitialState = () => ({
   notes: {},
   lessonExpansions: {},
   readingProgress: {},
+  followedTopics: {},
+  savedItems: {},
+  dismissedItems: {},
+  itemActivity: {},
+  news: createInitialNewsState(),
   settings: {
     dailyGoalCards: 10,
     currentFocus: 'Decision Quality',
@@ -3511,3 +3518,4 @@ export const createInitialState = () => ({
     },
   },
 });
+import { createInitialNewsState } from './newsStorage.js';
