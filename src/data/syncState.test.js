@@ -116,6 +116,38 @@ describe('sync state helpers', () => {
     expect(merged.articleTutorThreadsByKey['article:leadership-foundations-authority'].messages).toHaveLength(1);
   });
 
+  it('syncs the profile username across devices without syncing resume state', () => {
+    const local = createInitialState();
+    local.settings.profile = {
+      username: 'Old device name',
+      updatedAt: '2026-06-09T12:00:00.000Z',
+    };
+    local.settings.resume = {
+      view: 'library',
+      lessonId: 'lesson-stoic-control',
+      updatedAt: '2026-06-09T12:00:00.000Z',
+    };
+
+    const remoteState = createInitialState();
+    remoteState.settings.profile = {
+      username: 'Curious Cat',
+      updatedAt: '2026-06-09T13:00:00.000Z',
+    };
+    remoteState.settings.resume = {
+      view: 'feed',
+      lessonId: '',
+      updatedAt: '2026-06-09T13:00:00.000Z',
+    };
+
+    const remote = buildSyncSnapshot(remoteState, '2026-06-09T13:00:00.000Z');
+    const merged = mergeSyncSnapshot(local, remote);
+
+    expect(remote.settings.profile.username).toBe('Curious Cat');
+    expect(remote.settings.resume).toBeUndefined();
+    expect(merged.settings.profile.username).toBe('Curious Cat');
+    expect(merged.settings.resume.view).toBe('library');
+  });
+
   it('backfills missing AI-written content without overwriting local generated edits', () => {
     const local = createInitialState();
     local.lessonExpansions = {

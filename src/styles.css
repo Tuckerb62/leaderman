@@ -317,20 +317,48 @@ p {
 }
 
 .overview-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
 }
 
 .overview-card {
+  flex: 1 0 188px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(247, 240, 228, 0.06);
   padding: 16px;
+  scroll-snap-align: start;
 }
 
 .overview-card h3 {
   color: var(--ink-light);
+}
+
+.onboarding-username {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.onboarding-username label {
+  color: var(--muted-light);
+  font-size: 0.76rem;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.onboarding-username input {
+  border-color: rgba(247, 240, 228, 0.22);
+  background: rgba(247, 240, 228, 0.1);
+  color: var(--ink-light);
+}
+
+.onboarding-username input::placeholder {
+  color: rgba(247, 240, 228, 0.52);
 }
 
 .topbar,

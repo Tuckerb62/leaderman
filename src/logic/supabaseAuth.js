@@ -100,6 +100,6 @@ export async function signOutSupabase() {
   if (!isSupabaseConfigured()) return;
 
   const supabase = getSupabaseClient();
-  const { error } = await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
   if (error) throw formatSupabaseAuthError(error, 'Could not sign out.');
 }

@@ -1106,6 +1106,7 @@ export default function App() {
     recordItemActivity,
     refreshNews,
     expandNewsItem,
+    saveProfileUsername,
     syncStatus,
     isSyncing,
     newsStatus,
@@ -1138,6 +1139,21 @@ export default function App() {
     setView('feed');
   }
 
+  function saveProfileUsername(username) {
+    const cleanUsername = username.trim();
+    setState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        profile: {
+          ...(current.settings?.profile || {}),
+          username: cleanUsername,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  }
+
   if (authState.checking || localRuntime.checking) {
     return <AuthLoadingScreen />;
   }
@@ -1159,7 +1175,13 @@ export default function App() {
   }
 
   if (!overviewSeen) {
-    return <OverviewScreen onContinue={markOverviewSeen} />;
+    return (
+      <OverviewScreen
+        initialUsername={state.settings?.profile?.username || ''}
+        onSaveUsername={saveProfileUsername}
+        onContinue={markOverviewSeen}
+      />
+    );
   }
 
   return (
@@ -1348,12 +1370,30 @@ function AuthGate({ authState, onAuthenticated }) {
   );
 }
 
-function OverviewScreen({ onContinue }) {
+function OverviewScreen({ initialUsername = '', onSaveUsername, onContinue }) {
+  const [username, setUsername] = useState(initialUsername);
+
+  function continueWithUsername() {
+    onSaveUsername?.(username);
+    onContinue();
+  }
+
   return (
     <main className="auth-shell overview-shell">
       <section className="overview-panel">
         <OverviewContent />
-        <button className="primary-button" onClick={onContinue}>Start learning</button>
+        <div className="onboarding-username">
+          <label htmlFor="onboarding-username">Username</label>
+          <input
+            id="onboarding-username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="What should Curiosity call you?"
+            autoComplete="nickname"
+          />
+          <p className="field-help">This is saved in your synced profile, so your other signed-in devices remember it too.</p>
+        </div>
+        <button className="primary-button" onClick={continueWithUsername}>Start learning</button>
       </section>
     </main>
   );
@@ -3318,9 +3358,10 @@ function InterestNodeList({ nodes, followedTopics, toggleFollowTopic, depth = 0 
   );
 }
 
-function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic }) {
+function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProfileUsername }) {
   const [syncNotice, setSyncNotice] = useState('');
   const [isSyncSubmitting, setIsSyncSubmitting] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(state.settings?.profile?.username || '');
   const [settings, setSettings] = useState(() => loadAiSettings());
   const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
   const [aiNotice, setAiNotice] = useState('');
@@ -3344,6 +3385,10 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic }) {
     interestSubjectHierarchy.map((subject) => [subject.id, false]),
   ));
   const followedTopics = state.followedTopics || {};
+
+  useEffect(() => {
+    setUsernameDraft(state.settings?.profile?.username || '');
+  }, [state.settings?.profile?.username]);
 
   function refreshServerStatus() {
     setServerStatus('checking');
@@ -3506,6 +3551,56 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic }) {
         <article className="account-card">
           <div className="panel-head">
             <div>
+              <p className="section-label">Profile</p>
+              <h2>Username</h2>
+            </div>
+            <span className="session-chip">{state.settings?.profile?.username ? 'Synced' : 'Not set'}</span>
+          </div>
+
+          <div className="ai-field">
+            <label htmlFor="account-username">What should Curiosity call you?</label>
+            <input
+              id="account-username"
+              value={usernameDraft}
+              onChange={(event) => setUsernameDraft(event.target.value)}
+              placeholder="Add a username"
+              autoComplete="nickname"
+            />
+            <div className="ai-settings-actions">
+              <button
+                className="secondary-button"
+                onClick={() => saveProfileUsername(usernameDraft)}
+                disabled={usernameDraft.trim() === (state.settings?.profile?.username || '')}
+              >
+                Save username
+              </button>
+            </div>
+            <p className="field-help">Your username is part of your synced profile, so it follows your signed-in devices.</p>
+          </div>
+        </article>
+
+        <article className="account-card">
+          <div className="panel-head">
+            <div>
+              <p className="section-label">Sign out</p>
+              <h2>Account session</h2>
+            </div>
+            <span className="session-chip">{syncStatus.authenticated ? 'Signed in' : 'Local only'}</span>
+          </div>
+
+          <p className="field-help">
+            Signing out disconnects this device from your Supabase sync account. Local data on this device stays here unless you reset it.
+          </p>
+          <div className="ai-settings-actions">
+            <button className="warning-button" onClick={signOutCloudSync} disabled={!syncStatus.authenticated || isSyncSubmitting}>
+              {isSyncSubmitting ? 'Signing out...' : 'Sign out of this device'}
+            </button>
+          </div>
+        </article>
+
+        <article className="account-card">
+          <div className="panel-head">
+            <div>
               <p className="section-label">Interests</p>
               <h2>Choose what the Feed should learn from first</h2>
             </div>
@@ -3596,12 +3691,7 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic }) {
             <div className="ai-field">
               <label htmlFor="account-sync-profile">Signed-in sync profile</label>
               <input id="account-sync-profile" value={syncStatus.userEmail || 'Signed in'} readOnly />
-              <div className="ai-settings-actions">
-                <button className="secondary-button" onClick={signOutCloudSync} disabled={isSyncSubmitting}>
-                  {isSyncSubmitting ? 'Working...' : 'Sign out'}
-                </button>
-              </div>
-              <p className="field-help">This profile syncs your Curiosity snapshot only: notes, progress, saved items, generated drafts, and related app state.</p>
+              <p className="field-help">This profile syncs your Curiosity snapshot only: notes, progress, saved items, generated drafts, username, and related app state. Use the Sign out section above when you want to disconnect this device.</p>
             </div>
           )}
 

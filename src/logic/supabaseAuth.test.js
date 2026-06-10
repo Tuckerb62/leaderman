@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const authMock = {
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
+  signOut: vi.fn(),
 };
 
 vi.mock('../utils/supabase.js', () => ({
@@ -14,6 +15,7 @@ describe('supabase auth helpers', () => {
   beforeEach(() => {
     authMock.signInWithPassword.mockReset();
     authMock.signUp.mockReset();
+    authMock.signOut.mockReset();
   });
 
   it('signs in with email and password', async () => {
@@ -49,5 +51,14 @@ describe('supabase auth helpers', () => {
       }),
     });
     expect(result.user.email).toBe('new@example.com');
+  });
+
+  it('signs out only the current device session', async () => {
+    authMock.signOut.mockResolvedValue({ error: null });
+    const { signOutSupabase } = await import('./supabaseAuth.js');
+
+    await signOutSupabase();
+
+    expect(authMock.signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 });
