@@ -128,7 +128,14 @@ p {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
 }
 
 .curiosity-mark {

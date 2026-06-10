@@ -184,11 +184,9 @@ function CuriosityMark({ className = 'curiosity-mark' }) {
   return (
     <span className={className} aria-hidden="true">
       <svg viewBox="0 0 64 64" role="img">
-        <path d="M14 29c0-11 8-19 18-19s18 8 18 19v9c0 10-8 17-18 17s-18-7-18-17v-9Z" />
-        <path d="M18 17 12 7l15 6M46 17l6-10-15 6" />
-        <path d="M24 30c2-3 5-5 9-5 5 0 8 3 8 7 0 5-5 7-8 9v3" />
-        <path d="M32 50h.01" />
-        <path d="M23 37c3 3 6 4 9 4s6-1 9-4" />
+        <path d="M47 16c-3-3-8-5-14-5-11 0-19 8-19 21s8 21 19 21c6 0 11-2 14-5" />
+        <path d="M28 25c1-2 4-4 7-4 4 0 7 3 7 6 0 4-4 6-6 8-1 1-2 2-2 4" />
+        <path d="M34 44h.01" />
       </svg>
     </span>
   );
@@ -384,6 +382,12 @@ export default function App() {
     user: null,
     error: '',
   });
+  const [localRuntime, setLocalRuntime] = useState({
+    checking: true,
+    available: false,
+    localUrl: '',
+    phoneUrls: [],
+  });
   const [view, setView] = useState(() => initialView(state));
   const [librarySubjectId, setLibrarySubjectId] = useState(() => initialLibrarySubjectId(state));
   const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(state));
@@ -411,9 +415,9 @@ export default function App() {
   const [newsStatus, setNewsStatus] = useState({ refreshing: false, error: '' });
   const syncReadyRef = useRef(false);
   const newsAutoRefreshRef = useRef('');
-  const authUserId = authState.user?.id || null;
-  const overviewSeen = authUserId
-    ? Boolean(state.settings?.onboarding?.overviewSeenByUserId?.[authUserId])
+  const deviceAccountId = authState.user?.id || (localRuntime.available ? 'local-desktop-api-host' : null);
+  const overviewSeen = deviceAccountId
+    ? Boolean(state.settings?.onboarding?.overviewSeenByUserId?.[deviceAccountId])
     : false;
 
   useEffect(() => saveState(state), [state]);
@@ -433,6 +437,40 @@ export default function App() {
       ...current,
       news: expireNewsItems(current.news || createInitialNewsState()),
     }));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function detectLocalRuntime() {
+      try {
+        const response = await fetch('/api/sync-health');
+        if (!response.ok) throw new Error('No local runtime');
+        const payload = await response.json();
+        if (!cancelled) {
+          setLocalRuntime({
+            checking: false,
+            available: Boolean(payload.available),
+            localUrl: payload.localUrl || '',
+            phoneUrls: payload.phoneUrls || [],
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setLocalRuntime({
+            checking: false,
+            available: false,
+            localUrl: '',
+            phoneUrls: [],
+          });
+        }
+      }
+    }
+
+    detectLocalRuntime();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1078,7 +1116,7 @@ export default function App() {
   };
 
   function markOverviewSeen() {
-    if (!authUserId) return;
+    if (!deviceAccountId) return;
     setState((current) => ({
       ...current,
       settings: {
@@ -1087,7 +1125,7 @@ export default function App() {
           ...(current.settings?.onboarding || {}),
           overviewSeenByUserId: {
             ...(current.settings?.onboarding?.overviewSeenByUserId || {}),
-            [authUserId]: new Date().toISOString(),
+            [deviceAccountId]: new Date().toISOString(),
           },
         },
         resume: {
@@ -1100,11 +1138,13 @@ export default function App() {
     setView('feed');
   }
 
-  if (authState.checking) {
+  if (authState.checking || localRuntime.checking) {
     return <AuthLoadingScreen />;
   }
 
-  if (!authState.configured || !authState.user) {
+  const needsCloudAuth = !localRuntime.available;
+
+  if (needsCloudAuth && (!authState.configured || !authState.user)) {
     return (
       <AuthGate
         authState={authState}
@@ -1125,9 +1165,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
-          <CuriosityMark />
-          <p>Curiosity</p>
+        <div className="brand" aria-label="Curiosity">
+          <CuriosityMark className="curiosity-mark brand-mark" />
         </div>
 
         <nav className="nav-list" aria-label="Primary">
@@ -1240,7 +1279,7 @@ function AuthGate({ authState, onAuthenticated }) {
       const result = creating
         ? await createSupabaseAccount(cleanEmail, password)
         : await signInSupabaseWithPassword(cleanEmail, password);
-      if (result.user) onAuthenticated(result.user);
+      if (result.user && result.session) onAuthenticated(result.user);
       else setNotice('Check your email to confirm the account, then sign in here.');
     } catch (error) {
       setNotice(error.message);
@@ -1254,9 +1293,9 @@ function AuthGate({ authState, onAuthenticated }) {
       <main className="auth-shell">
         <section className="auth-card">
           <CuriosityMark className="curiosity-mark large" />
-          <p className="section-label">Account required</p>
-          <h1>Connect Supabase to open Curiosity</h1>
-          <p>Curiosity now starts with a real account screen. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` to this deployment, then reopen the app to create an account or sign in.</p>
+          <p className="section-label">Online sync setup needed</p>
+          <h1>Connect Supabase for this web app</h1>
+          <p>The desktop Curiosity app is the API/key home base. The online/PWA version needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` so signed-in devices can remember their account and sync.</p>
         </section>
       </main>
     );
@@ -1268,7 +1307,7 @@ function AuthGate({ authState, onAuthenticated }) {
         <CuriosityMark className="curiosity-mark large" />
         <p className="section-label">Curiosity</p>
         <h1>{creating ? 'Create your account' : 'Sign in'}</h1>
-        <p>{creating ? 'Make a private Curiosity profile for sync and progress.' : 'Welcome back. Sign in to continue your learning cockpit.'}</p>
+        <p>{creating ? 'Make a private Curiosity profile so this device can sync progress from the desktop/API home base.' : 'Welcome back. This device will remember your account and sync your Curiosity state.'}</p>
 
         <form className="auth-form" onSubmit={submitAuth}>
           <label htmlFor="auth-email">Email</label>

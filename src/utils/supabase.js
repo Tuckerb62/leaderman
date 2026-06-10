@@ -32,6 +32,8 @@ export function getSupabaseClient() {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        flowType: 'pkce',
+        storageKey: 'curiosity.supabase.auth.v1',
       },
     });
     cachedConfigKey = configKey;
