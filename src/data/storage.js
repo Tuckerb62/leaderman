@@ -1,8 +1,8 @@
 import { loadAiChat } from './aiChatStorage.js';
 import { createInitialState } from './seedData.js';
+import { trimAiChatMessages, trimSessions } from './stateLimits.js';
 
 const STORAGE_KEY = 'leaderman.state.v1';
-const MAX_SESSIONS = 10;
 
 function validLessonIdSet(seeded) {
   return new Set((seeded.lessons || []).map((lesson) => lesson.id));
@@ -66,7 +66,7 @@ function normalizeUserState(parsed) {
     schemaVersion: seeded.schemaVersion,
     sources: seeded.sources,
     lessons: seeded.lessons,
-    sessions: filterSessions((parsed.sessions || []).slice(0, MAX_SESSIONS), lessonIds),
+    sessions: filterSessions(trimSessions(parsed.sessions || []), lessonIds),
     reflections: filterReflections(parsed.reflections || [], lessonIds),
     readingProgress: {
       ...seeded.readingProgress,
@@ -85,7 +85,7 @@ function normalizeUserState(parsed) {
       ...filterNotesLikeRecord(parsed.noteUpdatedAtByKey || {}, lessonIds),
     },
     aiChatMessages: Array.isArray(parsed.aiChatMessages)
-      ? parsed.aiChatMessages.slice(-80)
+      ? trimAiChatMessages(parsed.aiChatMessages)
       : loadAiChat(),
     lessonExpansions: filterLessonExpansions(parsed.lessonExpansions || {}, lessonIds),
     completedArticlesByKey: {
@@ -143,7 +143,7 @@ export function loadState() {
 }
 
 export function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, sessions: (state.sessions || []).slice(0, MAX_SESSIONS) }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, sessions: trimSessions(state.sessions || []) }));
 }
 
 export function exportState(state) {

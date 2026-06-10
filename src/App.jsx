@@ -43,6 +43,7 @@ import {
   searchArticles,
 } from './data/articleCatalog.js';
 import { createInitialNewsState, describeNewsFreshness, expireNewsItems, isNewsRefreshDue, mergeNewsRefresh, saveNewsExpansion as saveNewsExpansionState, saveNewsItem as saveNewsItemState } from './data/newsStorage.js';
+import { trimAiChatMessages, trimReflections, trimSessions } from './data/stateLimits.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
 import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
@@ -605,7 +606,7 @@ export default function App() {
         const next = markCurrentStudied(current);
         return {
           ...next,
-          sessions: [finished, ...next.sessions].slice(0, 10),
+          sessions: trimSessions([finished, ...next.sessions]),
         };
       });
       setSession(null);
@@ -629,7 +630,7 @@ export default function App() {
       const next = markCurrentStudied(current);
       return {
         ...next,
-        reflections: [
+        reflections: trimReflections([
           {
             id: `reflection-${crypto.randomUUID()}`,
             lessonId,
@@ -637,7 +638,7 @@ export default function App() {
             createdAt: new Date().toISOString(),
           },
           ...next.reflections,
-        ].slice(0, 100),
+        ]),
       };
     });
   }
@@ -659,7 +660,7 @@ export default function App() {
   function saveAiChatMessages(messages) {
     setState((current) => ({
       ...current,
-      aiChatMessages: messages.slice(-80),
+      aiChatMessages: trimAiChatMessages(messages),
     }));
   }
 
@@ -3154,12 +3155,25 @@ function NovelsView({ state, selectedLesson, openCanonicalItem, toggleSavedItem 
             const reading = state.readingProgress?.[lesson.id];
             const itemKey = canonicalItemKey('novels', lesson.id);
             const saved = Boolean(state.savedItems?.[itemKey]);
-            return (
-              <button key={lesson.id} className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'} onClick={() => openCanonicalItem(itemKey, {
+            const openNovel = () => openCanonicalItem(itemKey, {
                 subjectIds: ['novels'],
                 topicIds: ['novels'],
                 domain: 'novels',
-              })}>
+              });
+            return (
+              <article
+                key={lesson.id}
+                className={selectedLesson.id === lesson.id ? 'library-row active' : 'library-row'}
+                role="button"
+                tabIndex={0}
+                onClick={openNovel}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openNovel();
+                  }
+                }}
+              >
                 {lesson.coverImageUrl && <img className="library-row-cover" src={lesson.coverImageUrl} alt="" loading="lazy" />}
                 <div className="library-row-copy">
                   <strong>{lesson.title}</strong>
@@ -3182,7 +3196,7 @@ function NovelsView({ state, selectedLesson, openCanonicalItem, toggleSavedItem 
                     {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
                   </button>
                 </span>
-              </button>
+              </article>
             );
           })}
         </div>

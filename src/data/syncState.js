@@ -1,5 +1,6 @@
 import { createInitialState } from './seedData.js';
 import { createInitialNewsState, mergeNewsState } from './newsStorage.js';
+import { trimAiChatMessages, trimReflections, trimSessions } from './stateLimits.js';
 
 function latestTimestamp(...values) {
   return values
@@ -55,21 +56,18 @@ function mergeReviews(localReviews = {}, remoteReviews = {}) {
 }
 
 function mergeSessions(localSessions = [], remoteSessions = []) {
-  return [...new Map([...localSessions, ...remoteSessions].map((session) => [session.id, session])).values()]
-    .sort((left, right) => (right.endedAt || right.startedAt || '').localeCompare(left.endedAt || left.startedAt || ''))
-    .slice(0, 10);
+  return trimSessions([...new Map([...localSessions, ...remoteSessions].map((session) => [session.id, session])).values()]
+    .sort((left, right) => (right.endedAt || right.startedAt || '').localeCompare(left.endedAt || left.startedAt || '')));
 }
 
 function mergeReflections(localReflections = [], remoteReflections = []) {
-  return [...new Map([...localReflections, ...remoteReflections].map((reflection) => [reflection.id, reflection])).values()]
-    .sort((left, right) => (right.createdAt || '').localeCompare(left.createdAt || ''))
-    .slice(0, 100);
+  return trimReflections([...new Map([...localReflections, ...remoteReflections].map((reflection) => [reflection.id, reflection])).values()]
+    .sort((left, right) => (right.createdAt || '').localeCompare(left.createdAt || '')));
 }
 
 function mergeAiChatMessages(localMessages = [], remoteMessages = []) {
-  return [...new Map([...localMessages, ...remoteMessages].map((message) => [message.id, message])).values()]
-    .sort((left, right) => (left.createdAt || '').localeCompare(right.createdAt || ''))
-    .slice(-80);
+  return trimAiChatMessages([...new Map([...localMessages, ...remoteMessages].map((message) => [message.id, message])).values()]
+    .sort((left, right) => (left.createdAt || '').localeCompare(right.createdAt || '')));
 }
 
 function mergeNotes(localNotes = {}, remoteNotes = {}, localUpdatedAtByKey = {}, remoteUpdatedAtByKey = {}) {
@@ -121,11 +119,11 @@ export function buildSyncSnapshot(state, syncedAt = new Date().toISOString()) {
     syncVersion: 1,
     syncedAt,
     reviews: state.reviews || {},
-    sessions: (state.sessions || []).slice(0, 10),
-    reflections: (state.reflections || []).slice(0, 100),
+    sessions: trimSessions(state.sessions || []),
+    reflections: trimReflections(state.reflections || []),
     notes: state.notes || {},
     noteUpdatedAtByKey: state.noteUpdatedAtByKey || {},
-    aiChatMessages: (state.aiChatMessages || []).slice(-80),
+    aiChatMessages: trimAiChatMessages(state.aiChatMessages || []),
     readingProgress: state.readingProgress || {},
     lessonExpansions: state.lessonExpansions || {},
     completedArticlesByKey: state.completedArticlesByKey || {},

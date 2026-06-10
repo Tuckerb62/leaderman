@@ -1340,6 +1340,15 @@ select:focus {
   align-items: stretch;
 }
 
+.library-row[role="button"] {
+  cursor: pointer;
+}
+
+.library-row:focus-visible {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
+
 .library-row-copy {
   display: grid;
   gap: 4px;
