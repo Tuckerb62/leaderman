@@ -7,10 +7,7 @@ function createBaseStatus(overrides = {}) {
     updatedAt: null,
     path: '',
     error: '',
-    mode: 'local',
-    localUrl: '',
-    phoneUrls: [],
-    hostMode: 'local',
+    mode: 'supabase',
     configured: false,
     authenticated: false,
     requiresSignIn: false,
@@ -18,14 +15,6 @@ function createBaseStatus(overrides = {}) {
     userId: '',
     ...overrides,
   };
-}
-
-async function parseResponse(response, fallbackMessage) {
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || fallbackMessage);
-  }
-  return payload || {};
 }
 
 function formatSupabaseSyncError(error) {
@@ -47,41 +36,13 @@ function normalizeSupabaseSnapshot(row) {
   };
 }
 
-async function fetchLocalSyncHealth() {
-  const response = await fetch('/api/sync-health');
-  const payload = await parseResponse(response, 'Could not reach sync.');
-  return createBaseStatus({
-    ...payload,
-    available: true,
-    mode: 'local',
-  });
-}
+export async function fetchSyncHealth() {
+  if (!isSupabaseConfigured()) return createBaseStatus();
 
-async function fetchLocalSyncSnapshot() {
-  const response = await fetch('/api/sync-state');
-  return parseResponse(response, 'Could not load sync state.');
-}
-
-async function pushLocalSyncSnapshot(snapshot) {
-  const response = await fetch('/api/sync-state', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ snapshot }),
-  });
-  return parseResponse(response, 'Could not save sync state.');
-}
-
-async function fetchSupabaseSyncHealth() {
   const sessionState = await getSupabaseSessionState();
-  if (!sessionState.configured) return createBaseStatus();
-
   const user = sessionState.user;
   if (!user) {
     return createBaseStatus({
-      mode: 'supabase',
-      hostMode: 'cloud',
       path: `Supabase public.${SUPABASE_PROFILE_TABLE}`,
       configured: true,
       requiresSignIn: true,
@@ -97,8 +58,6 @@ async function fetchSupabaseSyncHealth() {
 
   if (error) {
     return createBaseStatus({
-      mode: 'supabase',
-      hostMode: 'cloud',
       path: `Supabase public.${SUPABASE_PROFILE_TABLE}`,
       configured: true,
       authenticated: true,
@@ -112,8 +71,6 @@ async function fetchSupabaseSyncHealth() {
     available: true,
     updatedAt: data?.last_synced_at || data?.updated_at || null,
     path: `Supabase public.${SUPABASE_PROFILE_TABLE}`,
-    mode: 'supabase',
-    hostMode: 'cloud',
     configured: true,
     authenticated: true,
     userEmail: user.email || data?.email || '',
@@ -121,7 +78,11 @@ async function fetchSupabaseSyncHealth() {
   });
 }
 
-async function fetchSupabaseSyncSnapshot() {
+export async function fetchSyncSnapshot() {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Cloud sync is not configured for this build.');
+  }
+
   const sessionState = await getSupabaseSessionState();
   if (!sessionState.user) {
     throw new Error('Sign in before loading cloud sync.');
@@ -141,7 +102,11 @@ async function fetchSupabaseSyncSnapshot() {
   };
 }
 
-async function pushSupabaseSyncSnapshot(snapshot) {
+export async function pushSyncSnapshot(snapshot) {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Cloud sync is not configured for this build.');
+  }
+
   const sessionState = await getSupabaseSessionState();
   if (!sessionState.user) {
     throw new Error('Sign in before saving cloud sync.');
@@ -169,29 +134,4 @@ async function pushSupabaseSyncSnapshot(snapshot) {
   return {
     snapshot: normalizeSupabaseSnapshot(data) || snapshot,
   };
-}
-
-export async function fetchSyncHealth() {
-  if (isSupabaseConfigured()) return fetchSupabaseSyncHealth();
-
-  try {
-    return await fetchLocalSyncHealth();
-  } catch (error) {
-    return createBaseStatus({
-      mode: 'local',
-      error: error.message,
-    });
-  }
-}
-
-export async function fetchSyncSnapshot() {
-  if (isSupabaseConfigured()) return fetchSupabaseSyncSnapshot();
-
-  return fetchLocalSyncSnapshot();
-}
-
-export async function pushSyncSnapshot(snapshot) {
-  if (isSupabaseConfigured()) return pushSupabaseSyncSnapshot(snapshot);
-
-  return pushLocalSyncSnapshot(snapshot);
 }

@@ -1,137 +1,33 @@
 # Security and Privacy
 
-Curiosity is built for personal, local-first use. Its privacy posture depends on keeping user data in the browser by default, keeping API keys out of the public website build, and limiting private-server sync to the user's own Mac.
+Curiosity's posture in one sentence: user data lives in the user's browser and their own Supabase row, API keys never leave the user's device except to OpenAI, and the only shared surface — the lesson catalog — is insert-only and immutable.
 
-## What Stays Local
+## API Keys (BYOK)
 
-The app stores these records in browser storage:
+- Each user pastes their own OpenAI key under Account → AI. It is stored in `localStorage` (or `sessionStorage` when "remember" is off) on that device only.
+- The key is sent only to `api.openai.com`, as a bearer header on direct requests. It is never written to app state, never synced, never sent to Supabase, never proxied through any server.
+- The UI states this plainly and warns that anyone with access to the browser profile could read the key — users should use a key they can revoke.
+- Saving validates the key against OpenAI's `/v1/models` endpoint so a typo fails loudly rather than at first use.
 
-- lesson progress
-- completion and question-answer state
-- session history
-- reflections
-- notes
-- AI-generated expansion drafts
-- saved items
-- dismissed items
-- topic follows
-- item interaction history
-- News stories, News expansion drafts, and topic-ledger state
-- import and export state
-- browser AI settings
-- optional direct-browser API key
+## Per-User Data
 
-There is no analytics pipeline or multi-user sync service in the current product. There is now an optional Supabase Auth profile for one-user cross-device sync.
+The synced snapshot (progress, notes, reflections, saved items, reading positions, reader settings, private AI expansions, profile) lives in browser storage and, when signed in, in the user's own row of `public.user_profiles`. Row-level security restricts select/insert/update to `auth.uid() = user_id`; the `anon` role has no access. Manual JSON export/import remains available for backups.
 
-If Supabase sync is enabled, the sync snapshot is no longer only local to the browser or the user's Mac. It is written to the user's own Supabase project through the browser using the project's publishable key, keyed by the signed-in user's `user_profiles` row.
+## The Shared Catalog
 
-## Manual Backup
+`public.generated_lessons` is readable by all authenticated users. Inserts are allowed only as yourself (`generated_by = auth.uid()`) and only into empty slots (primary-key conflict otherwise). There are **no client update or delete paths** — published canon is immutable, which is what makes auto-publish tolerable without a moderation layer at the current trust level (family and friends). Provenance (model, author, verification notes, timestamp) is stored per lesson. Lessons survive author account deletion with attribution cleared.
 
-The app supports manual JSON export and import. Backups may contain private reflections, notes, completion history, question-answer history, saved items, followed topics, locally generated expansion drafts, News history, and settings. Treat exported files as personal data.
+## Generation Honesty
 
-Import uses the current build's seeded `sources` and `lessons`, then restores user-owned state. This avoids replacing current curriculum with stale backup curriculum.
+The lesson pipeline reduces hallucination — web-search-grounded drafting, an adversarial fact-check pass, removal or hedging of unverified claims — but does not eliminate it. Prompts forbid fabricated quotes, citations, dates, and findings, and prefer omission over invention. The same fidelity rules apply to seeded curriculum.
 
-## API Key Handling
+## What Does Not Exist
 
-There are three key-handling paths:
+- No telemetry or analytics.
+- No server-held or synced API keys.
+- No third-party services beyond Supabase and OpenAI (both chosen and configured by the deployer).
+- No moderation queue — revisit if a public hosted instance grows beyond the current trust level.
 
-1. macOS Keychain through the private local server. This is the preferred personal setup.
-2. `OPENAI_API_KEY` environment variable for the private local server process.
-3. Direct browser storage for a pasted key. This is the least private option and should stay a personal fallback.
+## Auth
 
-The safest app flow is:
-
-```bash
-npm run local:ai
-```
-
-Then save the key through the floating AI panel's Keychain setup area. The browser sends the key once to the local Mac server at `/api/save-openai-key`, and the server stores it in macOS Keychain.
-
-`/api/save-openai-key` is allowed only when the request comes from the Mac itself. Other devices on the network can use the Mac-held key through the server, but they cannot save or overwrite it remotely.
-
-## Direct Browser Key Risk
-
-If the user pastes an API key into direct browser mode and chooses to remember it, the key is stored in browser `localStorage`. Any script running in that same app origin could potentially read it. This is acceptable only as a convenience fallback for the user's private personal setup.
-
-Do not present direct browser key storage as safe for shared computers, public deployments, team use, or untrusted browser extensions.
-
-## Public GitHub Pages Boundary
-
-The GitHub Pages build is static. It should not contain API keys, private reflections, local backups, or generated personal data.
-
-When the app runs from GitHub Pages:
-
-- normal learning features work offline and local-first after loading
-- user data is browser-local to that device
-- `/api/openai-responses` does not exist unless the app is being served by the private local server
-- `/api/sync-state` and `/api/news-refresh` do not exist unless the app is being served by the private local server
-- AI requires either a direct browser OpenAI key or the Mac-hosted private server URL
-- expansion drafts and News state remain in that browser's local state unless the user exports a backup or uses the Mac-hosted sync bridge
-- the public GitHub Pages site is not the free live-sync path for Mac-hosted AI and News, because a secure public page cannot reliably call an insecure local-network API
-
-If Supabase sync is configured, the public site can still sync the user-owned snapshot through Supabase. That changes the privacy boundary: reflections, notes, progress, generated drafts, and other synced slices leave the browser and live in the user's Supabase project.
-
-## Local Private Server Boundary
-
-`scripts/local-ai-server.mjs` serves `dist/` and provides a local proxy to OpenAI, a News endpoint, and a minimal sync bridge. It reads the key from:
-
-1. `OPENAI_API_KEY`
-2. macOS Keychain service `leaderman-openai-key`
-
-It does not write chat transcripts to disk. It forwards the request body to OpenAI and returns the response to the browser.
-
-If the user saves a custom upstream AI endpoint from the desktop app, that endpoint is written to the local app data folder on the Mac through `scripts/private-ai-settings-store.mjs`. That setting is intentionally not stored in browser state, not synced through Supabase, and not returned to non-loopback devices on the local network.
-
-The sync bridge writes a single-user sync snapshot file on the Mac. That file is intended for the same user moving between their own devices on the same network. It is not an account system and should not be repurposed into one casually.
-
-The request body includes the selected model, the user's question, recent chat turns, optional current-lesson or News-story context, selected expansion context, and the centralized Curiosity tutor or expansion instructions. Do not include API keys, local backups, or unrelated private files in this body.
-
-Expansion responses are Markdown drafts. Treat them as private generated learning aids, not verified source curriculum, until authored and checked.
-
-When run with `--host 0.0.0.0`, the server is reachable by other devices on the same local network. This is useful for personal phone and iPad use, but it should be treated as local network exposure.
-
-## Sync Boundaries
-
-The Mac-hosted sync layer is allowed to sync user-owned state such as:
-
-- followed topics and subtopics
-- saved items
-- dismissed state
-- feed-driving interaction history
-- completion and question state
-- reading progress
-- generated lesson expansions
-- saved or archived News items
-- generated News expansions
-- lightweight profile basics when present
-
-If Supabase sync is enabled, it should only store the same user-owned sync snapshot categories inside `public.user_profiles.app_state`. Do not widen the synced payload casually just because the backend is now cloud-hosted.
-
-The sync layer must not sync:
-
-- API keys
-- desktop-only AI endpoint settings
-- Keychain material
-- local private-server secrets
-- arbitrary local files
-- OpenAI API keys
-
-The current sync model is deliberately small and single-user. It trades off rich conflict resolution for a simple last-write and per-slice merge approach suitable for one person's desktop and phone.
-
-## Service Worker and PWA
-
-The service worker in `public/sw.js` is for installability and static asset behavior. Do not cache API key material or personal backups in service worker code.
-
-If changing the service worker, verify that the app still loads after a refresh and does not trap users on stale broken assets.
-
-## Rules for Future Changes
-
-- Never commit real API keys.
-- Never expose a Supabase secret key or service role key in browser code. Use only the publishable key in `VITE_` variables.
-- Never add hidden third-party or cloud sync for notes, reflections, sessions, generated expansions, completion state, or question-answer state without explicit user approval.
-- Never add analytics or telemetry without explicit user approval.
-- Keep AI prompts grounded and cautious about facts.
-- Never ask the model to invent current news from memory. News must come from fetched source material or show an unavailable state.
-- Add source references and uncertainty notes when expanding curriculum.
-- Keep generated GitHub Pages output separate from source documentation.
-- Re-check this document before changing storage, AI, import/export, service worker, publishing, or desktop launcher behavior.
+Email + password via Supabase Auth with email confirmation. Recommended dashboard setting: enable leaked-password protection (Auth → Passwords) so users cannot pick known-compromised passwords.

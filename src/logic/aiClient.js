@@ -1,7 +1,9 @@
+export const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
+
 export const DEFAULT_AI_SETTINGS = {
-  endpoint: '/api/openai-responses',
+  endpoint: OPENAI_RESPONSES_ENDPOINT,
   model: 'gpt-5.4',
-  persistKey: false,
+  persistKey: true,
 };
 
 export const AI_MODEL_OPTIONS = [
@@ -54,6 +56,38 @@ export const AI_MODEL_OPTIONS = [
 
 export function requiresClientApiKey(endpoint = DEFAULT_AI_SETTINGS.endpoint) {
   return /^https?:\/\//i.test(endpoint);
+}
+
+export function looksLikeOpenAiKey(apiKey = '') {
+  return /^sk-[A-Za-z0-9_-]{10,}$/.test(apiKey.trim());
+}
+
+export async function validateApiKey(apiKey) {
+  const cleanKey = (apiKey || '').trim();
+  if (!cleanKey) {
+    throw new Error('Paste an API key first.');
+  }
+  if (!looksLikeOpenAiKey(cleanKey)) {
+    throw new Error('That does not look like an OpenAI API key. Keys start with "sk-".');
+  }
+
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/models', {
+      headers: { Authorization: `Bearer ${cleanKey}` },
+    });
+  } catch {
+    throw new Error('Could not reach OpenAI to check the key. Check your network and try again.');
+  }
+
+  if (response.status === 401) {
+    throw new Error('OpenAI rejected this key. Check that it was copied completely and is still active.');
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error?.message || `Key check failed with status ${response.status}.`);
+  }
+  return true;
 }
 
 export function buildLessonContext(lesson) {

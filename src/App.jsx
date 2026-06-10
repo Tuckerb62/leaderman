@@ -12,7 +12,6 @@ import {
   Library,
   LineChart,
   MessageCircle,
-  Newspaper,
   Play,
   RefreshCw,
   ScrollText,
@@ -42,31 +41,32 @@ import {
   getTopicProgress,
   searchArticles,
 } from './data/articleCatalog.js';
-import { createInitialNewsState, describeNewsFreshness, expireNewsItems, isNewsRefreshDue, mergeNewsRefresh, saveNewsExpansion as saveNewsExpansionState, saveNewsItem as saveNewsItemState } from './data/newsStorage.js';
 import { trimAiChatMessages, trimReflections, trimSessions } from './data/stateLimits.js';
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
 import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
 import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChange, signInSupabaseWithPassword, signOutSupabase } from './logic/supabaseAuth.js';
 import { isSupabaseConfigured } from './utils/supabase.js';
-import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, requiresClientApiKey } from './logic/aiClient.js';
+import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, validateApiKey } from './logic/aiClient.js';
 import { parseExpansionMarkdown } from './logic/expansionMapper.js';
 import { buildFeedItems } from './logic/feedAggregation.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
 import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './logic/reviewScheduler.js';
 import { fetchSyncHealth, fetchSyncSnapshot, pushSyncSnapshot } from './logic/syncClient.js';
+import { BookReader, MarkdownBlock } from './components/BookReader.jsx';
+import { GeneratedLessonView } from './components/GeneratedLessonView.jsx';
+import { buildArticlePages, buildLessonPages } from './logic/lessonPages.js';
+import { slotById, slotsForSubject } from './data/lessonSlots.js';
+import { fetchGeneratedLessons, loadGeneratedLessonsCache } from './logic/generatedLessons.js';
 import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
 import { markStudied, sessionMinutes } from './logic/studyProgress.js';
-import { buildFeedPreviewActivityPatch } from './logic/feedActivity.js';
 
-const NEWS_ARCHIVED = true;
 
 const navItems = [
   { id: 'feed', label: 'Feed', icon: Layers },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'novels', label: 'Literature', icon: BookOpen },
-  ...(!NEWS_ARCHIVED ? [{ id: 'news', label: 'News', icon: Newspaper }] : []),
   { id: 'progress', label: 'Progress', icon: LineChart },
   { id: 'account', label: 'Account', icon: Settings },
 ];
@@ -161,7 +161,6 @@ function viewTitle(view) {
     article: 'Article',
     library: 'Library',
     novels: 'Literature',
-    news: 'News',
     progress: 'Progress',
     account: 'Account',
   }[view];
@@ -169,11 +168,9 @@ function viewTitle(view) {
 
 function syncStatusLabel(syncStatus, isSyncing) {
   if (isSyncing) return 'Syncing';
-  if (syncStatus.mode === 'supabase' && syncStatus.configured && !syncStatus.authenticated) return 'Sign in to sync';
-  if (syncStatus.mode === 'supabase' && syncStatus.error) return 'Sync issue';
-  if (syncStatus.mode === 'supabase' && syncStatus.available) return 'Supabase sync';
-  if (syncStatus.phoneUrls?.length) return 'Phone ready';
-  if (syncStatus.available) return 'Mac sync';
+  if (syncStatus.configured && !syncStatus.authenticated) return 'Sign in to sync';
+  if (syncStatus.error) return 'Sync issue';
+  if (syncStatus.available) return 'Synced';
   return 'Local only';
 }
 
@@ -196,19 +193,15 @@ function CuriosityMark({ className = 'curiosity-mark' }) {
 const overviewCards = [
   {
     title: 'Feed',
-    text: 'A balanced stream of lessons, articles, and saved learning paths so you always have something useful to open.',
+    text: 'Open the app, read what surfaces, put it down. Lessons read like book chapters and remember your page.',
   },
   {
     title: 'Library',
-    text: 'The full subject map: leadership, philosophy, politics, science, history, literature, and more.',
+    text: 'Leadership, philosophy, politics, science, history, literature, medicine. Topics nobody has opened yet can be written into existence.',
   },
   {
-    title: 'Progress',
-    text: 'Simple tracking for completed lessons, question accuracy, reflections, and reading momentum.',
-  },
-  {
-    title: 'AI Coach',
-    text: 'Optional private help for expanding lessons, asking questions, and studying the item you are viewing.',
+    title: 'Tutor',
+    text: 'The floating bubble. It knows what you are reading and can quiz you, run a scenario, or help you think.',
   },
 ];
 
@@ -218,9 +211,8 @@ function OverviewContent() {
       <div className="overview-hero">
         <CuriosityMark className="curiosity-mark large" />
         <div>
-          <p className="section-label">Quick tour</p>
-          <h1>Welcome to Curiosity</h1>
-          <p>Curiosity is your private learning cockpit: open a topic, study a short piece, ask for help when you want it, and let progress quietly build up over time.</p>
+          <h1>Curiosity</h1>
+          <p>A calm nightly reading app. Your progress, notes, and place in every book follow you between devices.</p>
         </div>
       </div>
       <div className="overview-card-grid">
@@ -233,12 +225,6 @@ function OverviewContent() {
       </div>
     </div>
   );
-}
-
-function progressBadge(review) {
-  return isLessonComplete(review)
-    ? { label: 'complete', tone: 'complete' }
-    : { label: 'unread', tone: 'new' };
 }
 
 function expansionKeyFor(lesson, chapter = null) {
@@ -276,11 +262,6 @@ function memoryTitleFor(lesson) {
   return isNovelReadingLesson(lesson) ? 'Keep In Mind' : 'Remember';
 }
 
-function stepLabelFor(step, lesson) {
-  if (isNovelReadingLesson(lesson) && step === 'breakdown') return 'guide';
-  return step;
-}
-
 const domainArtwork = {
   'Self-Command': { mark: 'SC', accent: '#8d9a78', secondary: '#5f6a4d' },
   Communication: { mark: 'CM', accent: '#b59a6a', secondary: '#7a6230' },
@@ -298,31 +279,6 @@ const domainArtwork = {
   History: { mark: 'HS', accent: '#b09a6d', secondary: '#685334' },
   'World History': { mark: 'WH', accent: '#b09a6d', secondary: '#685334' },
 };
-
-function sourceInitials(label) {
-  return label
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word[0])
-    .join('')
-    .slice(0, 3)
-    .toUpperCase();
-}
-
-function feedArtwork(lesson, sources) {
-  const source = sources[0];
-  const sourceTitle = source?.title || lesson.sourceBasis?.[0] || lesson.domain;
-  const sourceAuthor = source?.author || 'Source tradition';
-  const domain = domainArtwork[lesson.domain] || {};
-  return {
-    mark: domain.mark || sourceInitials(sourceTitle || lesson.title) || 'LM',
-    sourceTitle,
-    sourceAuthor,
-    accent: domain.accent || '#8d9a78',
-    secondary: domain.secondary || '#5f6a4d',
-  };
-}
 
 function displayLessonTitle(state, lessonId) {
   if (!lessonId) return 'General';
@@ -383,17 +339,12 @@ export default function App() {
     user: null,
     error: '',
   });
-  const [localRuntime, setLocalRuntime] = useState({
-    checking: true,
-    available: false,
-    localUrl: '',
-    phoneUrls: [],
-  });
   const [view, setView] = useState(() => initialView(state));
   const [librarySubjectId, setLibrarySubjectId] = useState(() => initialLibrarySubjectId(state));
   const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(state));
   const [selectedArticleKey, setSelectedArticleKey] = useState(() => initialArticleKey(state));
-  const [selectedNewsId, setSelectedNewsId] = useState(() => state.news?.items?.[0]?.id || null);
+  const [selectedSlotId, setSelectedSlotId] = useState(null);
+  const [sharedLessons, setSharedLessons] = useState(() => loadGeneratedLessonsCache());
   const [session, setSession] = useState(null);
   const [sessionSummary, setSessionSummary] = useState('');
   const [contextLessonId, setContextLessonId] = useState(null);
@@ -402,10 +353,7 @@ export default function App() {
     updatedAt: null,
     path: '',
     error: '',
-    mode: 'local',
-    localUrl: '',
-    phoneUrls: [],
-    hostMode: 'local',
+    mode: 'supabase',
     configured: false,
     authenticated: false,
     requiresSignIn: false,
@@ -413,10 +361,8 @@ export default function App() {
     userId: '',
   });
   const [isSyncing, setIsSyncing] = useState(false);
-  const [newsStatus, setNewsStatus] = useState({ refreshing: false, error: '' });
   const syncReadyRef = useRef(false);
-  const newsAutoRefreshRef = useRef('');
-  const deviceAccountId = authState.user?.id || (localRuntime.available ? 'local-desktop-api-host' : null);
+  const deviceAccountId = authState.user?.id || null;
   const overviewSeen = deviceAccountId
     ? Boolean(state.settings?.onboarding?.overviewSeenByUserId?.[deviceAccountId])
     : false;
@@ -432,47 +378,6 @@ export default function App() {
       }),
     );
   }, [view, selectedLessonId, selectedArticleKey, librarySubjectId]);
-
-  useEffect(() => {
-    setState((current) => ({
-      ...current,
-      news: expireNewsItems(current.news || createInitialNewsState()),
-    }));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function detectLocalRuntime() {
-      try {
-        const response = await fetch('/api/sync-health');
-        if (!response.ok) throw new Error('No local runtime');
-        const payload = await response.json();
-        if (!cancelled) {
-          setLocalRuntime({
-            checking: false,
-            available: Boolean(payload.available),
-            localUrl: payload.localUrl || '',
-            phoneUrls: payload.phoneUrls || [],
-          });
-        }
-      } catch {
-        if (!cancelled) {
-          setLocalRuntime({
-            checking: false,
-            available: false,
-            localUrl: '',
-            phoneUrls: [],
-          });
-        }
-      }
-    }
-
-    detectLocalRuntime();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -527,15 +432,43 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!authState.user) return;
+    fetchGeneratedLessons()
+      .then(setSharedLessons)
+      .catch(() => {});
+  }, [authState.user]);
+
   const libraryLessons = useMemo(() => buildLibraryLessonIndex(state.lessons), [state.lessons]);
   const topicBank = useMemo(() => buildTopicBank(state.lessons), [state.lessons]);
 
   const stats = useMemo(() => progressStats(state), [state]);
   const selectedLesson = state.lessons.find((lesson) => lesson.id === selectedLessonId) || state.lessons[0];
   const selectedArticle = articleByKey[selectedArticleKey] || articles[0] || null;
-  const selectedNewsItem = state.news?.items?.find((item) => item.id === selectedNewsId) || state.news?.items?.[0] || null;
   const aiContextLesson = state.lessons.find((lesson) => lesson.id === contextLessonId) || selectedLesson;
-  const showFloatingAi = view === 'learn' || view === 'article';
+  const selectedSharedLesson = selectedSlotId ? sharedLessons[selectedSlotId] : null;
+  const aiContext = view === 'article' && selectedArticle
+    ? {
+        title: selectedArticle.title,
+        domain: selectedArticle.subject,
+        coreIdea: selectedArticle.summary || '',
+        sourceBasis: [selectedArticle.sourceFile].filter(Boolean),
+        scenario: '',
+        practiceRep: '',
+        reviewPrompt: '',
+      }
+    : view === 'generated' && selectedSharedLesson
+      ? {
+          title: selectedSharedLesson.title,
+          domain: slotById(selectedSlotId)?.subject || 'Library',
+          coreIdea: selectedSharedLesson.openingLine || '',
+          sourceBasis: ['Shared library lesson'],
+          scenario: '',
+          practiceRep: '',
+          reviewPrompt: '',
+        }
+      : aiContextLesson;
+  const showFloatingAi = view === 'learn' || view === 'article' || (view === 'generated' && Boolean(selectedSharedLesson));
 
   function markCurrentStudied(current) {
     return {
@@ -738,6 +671,48 @@ export default function App() {
     });
   }
 
+  function savePagePosition(bookKey, pageIndex) {
+    setState((current) => {
+      const existing = current.readingProgress?.[bookKey] || {};
+      const turnedForward = pageIndex > (existing.pageIndex || 0);
+      return {
+        ...current,
+        settings: turnedForward
+          ? {
+              ...current.settings,
+              studyStats: {
+                ...(current.settings?.studyStats || {}),
+                pagesTurned: (current.settings?.studyStats?.pagesTurned || 0) + 1,
+              },
+            }
+          : current.settings,
+        readingProgress: {
+          ...(current.readingProgress || {}),
+          [bookKey]: {
+            ...existing,
+            bookKey,
+            pageIndex,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      };
+    });
+  }
+
+  function saveReaderSettings(patch) {
+    setState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        reader: {
+          ...(current.settings?.reader || {}),
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  }
+
   function saveLessonExpansion(key, expansion) {
     setState((current) => ({
       ...current,
@@ -773,10 +748,9 @@ export default function App() {
   }
 
   function openCanonicalItem(itemKey, details = {}) {
-    const route = resolveCanonicalItemRoute(state, itemKey);
-    if (route.view === 'news') {
-      setSelectedNewsId(route.newsId);
-      setView('news');
+    if (itemKey.startsWith('generated:')) {
+      setSelectedSlotId(itemKey.slice('generated:'.length));
+      setView('generated');
       recordItemActivity(itemKey, {
         ...details,
         lastOpenedAt: new Date().toISOString(),
@@ -785,6 +759,7 @@ export default function App() {
       return;
     }
 
+    const route = resolveCanonicalItemRoute(state, itemKey);
     if (route.view === 'article') {
       setSelectedArticleKey(route.articleKey);
       setView('article');
@@ -820,13 +795,10 @@ export default function App() {
         };
       }
 
-      const { domain, newsId } = options;
+      const { domain } = options;
       return {
         ...current,
         savedItems: nextSavedItems,
-        news: domain === 'news'
-          ? saveNewsItemState(current.news || createInitialNewsState(), newsId, !exists)
-          : current.news,
       };
     });
   }
@@ -859,66 +831,6 @@ export default function App() {
         followedTopics: next,
       };
     });
-  }
-
-  async function refreshNews({ automatic = false } = {}) {
-    if (newsStatus.refreshing) return;
-    setNewsStatus({ refreshing: true, error: '' });
-    try {
-      const response = await fetch('/api/news-refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: loadAiSettings().apiKey || '' }),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          payload?.error?.message
-            || (response.status === 404 || response.status === 405
-              ? 'Your private Curiosity server is out of date. Restart Curiosity.app or rerun npm run local:ai, then refresh News again.'
-              : 'Could not refresh private news.'),
-        );
-      }
-      if (!payload || !Array.isArray(payload.stories)) {
-        throw new Error('Your private Curiosity server did not return a valid News response. Restart the private server and try again.');
-      }
-      setState((current) => ({
-        ...current,
-        news: mergeNewsRefresh(
-          expireNewsItems(current.news || createInitialNewsState(), payload.refreshedAt),
-          payload.stories || [],
-          payload.refreshedAt,
-        ),
-      }));
-      setNewsStatus({ refreshing: false, error: '' });
-    } catch (error) {
-      setNewsStatus({
-        refreshing: false,
-        error: automatic
-          ? ''
-          : error?.message === 'Failed to fetch'
-            ? 'News refresh needs the Mac-hosted private server URL. A browser key alone is not enough on the public site.'
-            : error.message,
-      });
-    }
-  }
-
-  async function expandNewsItem(newsItem) {
-    const response = await fetch('/api/news-expand', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ story: newsItem, apiKey: loadAiSettings().apiKey || '' }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload?.error?.message || 'Could not expand this story.');
-    setState((current) => ({
-      ...current,
-      news: saveNewsExpansionState(current.news || createInitialNewsState(), newsItem.id, {
-        markdown: payload.markdown,
-        structured: parseExpansionMarkdown(payload.markdown),
-        updatedAt: new Date().toISOString(),
-      }),
-    }));
   }
 
   async function importBackup(file) {
@@ -967,10 +879,7 @@ export default function App() {
       updatedAt: healthPayload.updatedAt || null,
       path: healthPayload.path || '',
       error: healthPayload.error || '',
-      mode: healthPayload.mode || 'local',
-      localUrl: healthPayload.localUrl || '',
-      phoneUrls: healthPayload.phoneUrls || [],
-      hostMode: healthPayload.hostMode || 'local',
+      mode: 'supabase',
       configured: healthPayload.configured || false,
       authenticated: healthPayload.authenticated || false,
       requiresSignIn: healthPayload.requiresSignIn || false,
@@ -1069,24 +978,13 @@ export default function App() {
     return () => window.clearTimeout(timeoutId);
   }, [state, syncStatus.available]);
 
-  useEffect(() => {
-    if (NEWS_ARCHIVED) return;
-    const todayKey = new Date().toISOString().slice(0, 10);
-    if (!isNewsRefreshDue(state.news || createInitialNewsState(), new Date().toISOString())) return;
-    if (newsAutoRefreshRef.current === todayKey) return;
-    newsAutoRefreshRef.current = todayKey;
-    refreshNews({ automatic: true });
-  }, [state.news?.lastRefreshedAt]);
-
   const commonProps = {
     state,
     selectedLesson,
     selectedArticle,
-    selectedNewsItem,
     topicBank,
     libraryLessons,
     setSelectedLessonId,
-    setSelectedNewsId,
     setContextLessonId,
     setView,
     startSession,
@@ -1097,6 +995,8 @@ export default function App() {
     saveReflection,
     saveLessonNote,
     saveReadingProgress,
+    savePagePosition,
+    saveReaderSettings,
     saveLessonExpansion,
     saveGeneratedArticle,
     saveArticleTutorThread,
@@ -1105,13 +1005,11 @@ export default function App() {
     toggleFollowTopic,
     dismissItem,
     recordItemActivity,
-    refreshNews,
-    expandNewsItem,
     saveProfileUsername,
     syncStatus,
     isSyncing,
-    newsStatus,
     rememberFeedItem,
+    sharedLessons,
     session,
     librarySubjectId,
     setLibrarySubjectId,
@@ -1155,13 +1053,11 @@ export default function App() {
     }));
   }
 
-  if (authState.checking || localRuntime.checking) {
+  if (authState.checking) {
     return <AuthLoadingScreen />;
   }
 
-  const needsCloudAuth = !localRuntime.available;
-
-  if (needsCloudAuth && (!authState.configured || !authState.user)) {
+  if (!authState.configured || !authState.user) {
     return (
       <AuthGate
         authState={authState}
@@ -1230,7 +1126,7 @@ export default function App() {
       </aside>
 
       <main className={view === 'feed' ? 'main-shell feed-main' : 'main-shell'}>
-        {view !== 'feed' && (
+        {view !== 'feed' && view !== 'learn' && view !== 'article' && view !== 'generated' && (
           <header className="topbar">
             <div>
               <p className="date-line">{formatDateLine()}</p>
@@ -1240,7 +1136,7 @@ export default function App() {
               <button
                 className="sync-chip"
                 onClick={() => setView('account')}
-                title={syncStatus.available ? syncStatus.phoneUrls?.[0] || syncStatus.localUrl || syncStatus.path : syncStatus.error || 'Open Account'}
+                title={syncStatus.available ? syncStatus.path : syncStatus.error || 'Open Account'}
               >
                 {syncStatus.available ? <Wifi size={14} /> : <WifiOff size={14} />}
                 <span>{syncStatusLabel(syncStatus, isSyncing)}</span>
@@ -1254,13 +1150,25 @@ export default function App() {
         {view === 'learn' && <LearnView {...commonProps} />}
         {view === 'article' && <ArticleDetailView {...commonProps} />}
         {view === 'library' && <LibraryView {...commonProps} />}
-        {!NEWS_ARCHIVED && view === 'news' && <NewsView {...commonProps} />}
+        {view === 'generated' && (
+          <GeneratedLessonView
+            slot={slotById(selectedSlotId)}
+            lesson={sharedLessons[selectedSlotId] || null}
+            completed={Boolean(state.completedArticlesByKey?.[`generated:${selectedSlotId}`]?.completed)}
+            onComplete={() => setArticleCompletion(`generated:${selectedSlotId}`, true)}
+            position={state.readingProgress?.[`generated:${selectedSlotId}`]?.pageIndex || 0}
+            onPosition={(pageIndex) => savePagePosition(`generated:${selectedSlotId}`, pageIndex)}
+            readerSettings={state.settings?.reader}
+            onReaderSettings={saveReaderSettings}
+            onPublished={(slotId, lesson) => setSharedLessons((current) => ({ ...current, [slotId]: lesson }))}
+          />
+        )}
         {view === 'progress' && <ProgressView {...commonProps} stats={stats} />}
         {view === 'account' && <AccountView {...commonProps} />}
       </main>
       {showFloatingAi && (
         <FloatingAiPanel
-          lesson={aiContextLesson}
+          lesson={aiContext}
           messages={state.aiChatMessages || []}
           onSaveMessages={saveAiChatMessages}
           onClearMessages={clearAiChatMessages}
@@ -1409,17 +1317,17 @@ function Metric({ label, value }) {
   );
 }
 
-function FeedView({ state, completeLesson, setArticleCompletion, recordLessonQuestion, saveReflection, openCanonicalItem, toggleSavedItem, dismissItem, recordItemActivity, rememberFeedItem }) {
-  const [expandedId, setExpandedId] = useState(null);
+function FeedView({ state, completeLesson, setArticleCompletion, openCanonicalItem, toggleSavedItem, dismissItem, rememberFeedItem, sharedLessons }) {
   const [ratedCards, setRatedCards] = useState({});
-  const feedIds = useMemo(() => buildFeedItems(state, { limit: 100 }).map((item) => item.key), [state]);
+  const generatedLessons = useMemo(() => Object.values(sharedLessons || {}), [sharedLessons]);
+  const feedIds = useMemo(() => buildFeedItems(state, { limit: 100, generatedLessons }).map((item) => item.key), [state, generatedLessons]);
   const feedStackRef = useRef(null);
   const restoredFeedPosition = useRef(false);
   const rememberFrame = useRef(0);
   const feedItems = useMemo(() => {
-    const itemsByKey = new Map(buildFeedItems(state, { limit: 120 }).map((item) => [item.key, item]));
+    const itemsByKey = new Map(buildFeedItems(state, { limit: 120, generatedLessons }).map((item) => [item.key, item]));
     return feedIds.map((itemKey) => itemsByKey.get(itemKey)).filter(Boolean);
-  }, [feedIds, state]);
+  }, [feedIds, state, generatedLessons]);
 
   useEffect(() => {
     if (restoredFeedPosition.current) return;
@@ -1463,38 +1371,13 @@ function FeedView({ state, completeLesson, setArticleCompletion, recordLessonQue
             key={item.key}
             item={item}
             review={item.lesson ? state.reviews[item.lesson.id] : null}
-            sources={item.lesson ? item.lesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean) : []}
-            expansion={item.domain === 'news' ? state.news?.expansions?.[item.newsId] : null}
-            expanded={expandedId === item.key}
             rated={ratedCards[item.key]}
-            onExpand={() => {
-              const nextId = expandedId === item.key ? null : item.key;
-              setExpandedId(nextId);
-              if (nextId) {
-                recordItemActivity(item.key, buildFeedPreviewActivityPatch({
-                  itemKey: item.key,
-                  subjectIds: item.subjectIds || [],
-                  topicIds: item.topicIds || [],
-                  domain: item.domain,
-                  existingActivity: state.itemActivity?.[item.key],
-                }));
-              }
-            }}
             onComplete={() => {
               setRatedCards((current) => ({
                 ...current,
-                [item.key]: {
-                  status: item.domain === 'news' ? 'saved' : 'complete',
-                  label: item.domain === 'news' ? 'Saved' : 'Marked complete',
-                },
+                [item.key]: { status: 'complete', label: 'Finished' },
               }));
-              if (item.domain === 'news') {
-                toggleSavedItem(item.key, {
-                  domain: 'news',
-                  newsId: item.newsId,
-                  subjectIds: item.subjectIds || [],
-                });
-              } else if (item.domain === 'article') {
+              if (item.domain === 'article' || item.domain === 'generated') {
                 setArticleCompletion(item.key, true);
               } else {
                 completeLesson(item.lesson.id);
@@ -1516,8 +1399,6 @@ function FeedView({ state, completeLesson, setArticleCompletion, recordLessonQue
                 [item.key]: { status: 'skip', label: 'Dismissed', compact: true },
               }));
             }}
-            onRecordQuestion={(isCorrect) => item.lesson && recordLessonQuestion(item.lesson.id, isCorrect)}
-            onSaveReflection={(text) => item.lesson && saveReflection(item.lesson.id, text)}
             onOpenFull={() => openCanonicalItem(item.key, { subjectIds: item.subjectIds || [], topicIds: item.topicIds || [], domain: item.domain })}
           />
         ))}
@@ -1526,40 +1407,11 @@ function FeedView({ state, completeLesson, setArticleCompletion, recordLessonQue
   );
 }
 
-function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand, onComplete, onSkip, onRecordQuestion, onSaveReflection, onOpenFull }) {
+function FeedCard({ item, review, rated, onComplete, onSkip, onOpenFull }) {
   const lesson = item.lesson;
-  const newsItem = item.newsItem;
-  const article = item.article;
-  const badge = item.domain === 'news'
-    ? { label: newsItem.status === 'saved' ? 'saved' : newsItem.priority || 'briefing', tone: newsItem.status === 'saved' ? 'complete' : 'new' }
-    : item.domain === 'article'
-      ? { label: item.completed ? 'complete' : item.saved ? 'saved' : 'unread', tone: item.completed ? 'complete' : 'new' }
-    : progressBadge(review);
-  const artwork = lesson
-    ? feedArtwork(lesson, sources)
-    : article
-      ? {
-          mark: sourceInitials(article.subject),
-          sourceTitle: article.subject,
-          sourceAuthor: (item.pathLabel || articleFeedPathLabel(article)).split(': ').join(' · '),
-          accent: '#256f6c',
-          secondary: '#3f5f88',
-        }
-    : {
-        mark: sourceInitials(newsItem.category || 'News'),
-        sourceTitle: newsItem.sources?.[0]?.title || newsItem.category,
-        sourceAuthor: newsItem.category,
-        accent: '#7b8a96',
-        secondary: '#46515a',
-      };
-  const summaryLesson = lesson ? isSummaryLesson(lesson) : false;
-  const [decision, setDecision] = useState('');
-  const [reflection, setReflection] = useState('');
-  const gesture = useRef({ lastTapAt: 0, startX: 0, startY: 0, startedAt: 0 });
-  const cardStyle = {
-    '--feed-accent': artwork.accent,
-    '--feed-accent-2': artwork.secondary,
-  };
+  const openingLine = item.domain === 'library' ? lesson.coreIdea : item.summary;
+  const finished = item.domain === 'library' ? Boolean(review?.completed) : Boolean(item.completed);
+  const gesture = useRef({ startX: 0, startY: 0 });
 
   function isInteractiveTarget(target) {
     return target.closest('button, textarea, input, select, a, label, summary, details');
@@ -1575,10 +1427,8 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
   function handleGestureStart(event) {
     if (isInteractiveTarget(event.target)) return;
     gesture.current = {
-      ...gesture.current,
       startX: event.clientX,
       startY: event.clientY,
-      startedAt: Date.now(),
     };
   }
 
@@ -1593,8 +1443,6 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
     const swipeThreshold = 72;
 
     if (distance >= swipeThreshold) {
-      if (expanded) return;
-      gesture.current.lastTapAt = 0;
       if (absX > absY) {
         onComplete();
         return;
@@ -1606,18 +1454,13 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
       return;
     }
 
-    const now = Date.now();
-    if (now - gesture.current.lastTapAt < 320) {
-      gesture.current.lastTapAt = 0;
-      onExpand();
-      return;
+    if (distance < 12) {
+      onOpenFull();
     }
-    gesture.current.lastTapAt = now;
   }
 
   function handleGestureKeyDown(event) {
     if (isInteractiveTarget(event.target)) return;
-    if (expanded && event.key !== 'Enter') return;
     if (event.key === 'ArrowRight') {
       event.preventDefault();
       onComplete();
@@ -1629,23 +1472,16 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      onExpand();
+      onOpenFull();
     }
   }
 
   if (rated?.compact) {
     return (
-      <article className="feed-card rated-line" style={cardStyle} data-feed-id={item.key}>
-        <div className="feed-backdrop" aria-hidden="true">
-          <span className="feed-backdrop-mark">{artwork.mark}</span>
-          <span className="feed-backdrop-source">
-            <span>{artwork.sourceTitle}</span>
-            <small>{artwork.sourceAuthor}</small>
-          </span>
-        </div>
+      <article className="feed-card rated-line" data-feed-id={item.key}>
         <div className="rated-line-content">
           <span>{item.title}</span>
-          <small>{rated.status === 'complete' || rated.status === 'saved' ? 'saved' : 'dismissed'}</small>
+          <small>{rated.status === 'skip' ? 'dismissed' : 'saved'}</small>
         </div>
       </article>
     );
@@ -1653,181 +1489,22 @@ function FeedCard({ item, review, sources, expansion, expanded, rated, onExpand,
 
   return (
     <article
-      className={expanded ? 'feed-card expanded' : 'feed-card'}
-      style={cardStyle}
+      className="feed-card"
       data-feed-id={item.key}
       tabIndex={0}
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}
       onKeyDown={handleGestureKeyDown}
-      aria-label={`${item.title} feed card`}
+      aria-label={item.title}
     >
-      <div className="feed-backdrop" aria-hidden="true">
-        <span className="feed-backdrop-mark">{artwork.mark}</span>
-        <span className="feed-backdrop-source">
-          <span>{artwork.sourceTitle}</span>
-          <small>{artwork.sourceAuthor}</small>
-        </span>
-      </div>
       <div className="feed-card-content">
-        <div className="feed-card-head">
-          <span className={item.domain === 'article' ? 'domain-tag article-subject-label' : 'domain-tag'}>
-            {item.domain === 'news' ? newsItem.category : item.domain === 'article' ? article.subject.toUpperCase() : lesson.domain}
-          </span>
-          <span className={`status-badge ${badge.tone}`}>{badge.label}</span>
-        </div>
-        {item.domain === 'article' && <p className="feed-article-path">{item.pathLabel || articleFeedPathLabel(article)}</p>}
         <h2>{item.title}</h2>
-        <p className="core-idea">{item.domain === 'news' ? newsItem.whatHappened : item.domain === 'article' ? item.summary : lesson.coreIdea}</p>
-        {item.domain !== 'article' && <p className="source-line">{artwork.sourceTitle}</p>}
-        {rated && <p className="rating-feedback">{rated.label}</p>}
-
-        {expanded && !rated && (
-          <button className="feed-complete-button feed-complete-button-inline" onClick={onComplete}>
-            {item.domain === 'news' ? 'Save story' : 'Mark complete'}
-          </button>
-        )}
-
-        {expanded && item.domain === 'news' && (
-          <div className="feed-expanded">
-            <InfoBlock title="Sources" text={(newsItem.sources || []).map((source) => source.title).join(' · ')} />
-            {expansion ? (
-              <GeneratedExpansion expansion={expansion} lesson={{ summaryKind: null }} title="Story briefing" />
-            ) : (
-              <>
-                <InfoBlock title="Why it matters" text={newsItem.whyItMatters} />
-                <InfoBlock title="What is known" text={newsItem.whatIsKnown} />
-                <InfoBlock title="What is uncertain" text={newsItem.whatIsUncertain} />
-              </>
-            )}
-            <button className="text-link" onClick={onOpenFull}>Open full story →</button>
-          </div>
-        )}
-
-        {expanded && item.domain === 'article' && (
-          <div className="feed-expanded">
-            <InfoBlock title="Summary" text={item.summary} />
-            <p className="reading-meta">
-              Progress: subject {item.progressContext?.subjectProgress || 0}% · topic {item.progressContext?.topicProgress || 0}%
-            </p>
-            <button className="text-link" onClick={onOpenFull}>Open article →</button>
-          </div>
-        )}
-
-        {expanded && summaryLesson && (
-          <SummaryLessonBody lesson={lesson} sources={sources} onOpenFull={onOpenFull} />
-        )}
-
-        {expanded && lesson && !summaryLesson && (
-          <div className="feed-expanded">
-            <InfoList title="Quick version" items={lesson.quickVersion || []} />
-            <div className="article-body">
-              {lesson.articleParagraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-            <div className="two-column">
-              <InfoList title="Break Down" items={lesson.breakDown || []} />
-              <InfoList title="Remember" items={lesson.remember || []} />
-            </div>
-            <QuestionList questions={lesson.questions || []} />
-            <div className="lesson-section">
-              <h3>Scenario</h3>
-              <p>{lesson.scenario}</p>
-              <InfoBlock title="Practice rep" text={lesson.practiceRep} />
-            </div>
-            <DecisionOptions lesson={lesson} selected={decision} onSelect={setDecision} onAnswer={onRecordQuestion} />
-            <div className="lesson-section">
-              <h3>Reflection</h3>
-              <p>{lesson.reflectionPrompt}</p>
-              <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private answer you want to remember..." />
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  onSaveReflection(reflection);
-                  setReflection('');
-                }}
-              >
-                Save reflection
-              </button>
-            </div>
-            <div className="source-grid">
-              {sources.map((source) => (
-                <SourceMini key={source.id} source={source} />
-              ))}
-            </div>
-            <button className="text-link" onClick={onOpenFull}>Open full lesson →</button>
-          </div>
-        )}
+        <p className="core-idea">{openingLine}</p>
+        {(rated || finished) && <p className="feed-state">{rated?.label || 'Finished'}</p>}
       </div>
     </article>
   );
 }
-
-function DecisionOptions({ lesson, selected, onSelect, onAnswer }) {
-  const answered = Boolean(selected);
-  return (
-    <div className="lesson-section">
-      <h3>Decision options</h3>
-      <div className="option-list">
-        {lesson.decisionOptions.map((option) => {
-          const isSelected = selected === option;
-          const isPreferred = answered && option === lesson.preferredOption;
-          return (
-            <button
-              key={option}
-              className={isPreferred ? 'option-card preferred' : isSelected ? 'option-card selected' : 'option-card'}
-              onClick={() => {
-                if (!answered) onAnswer?.(option === lesson.preferredOption);
-                onSelect(option);
-              }}
-            >
-              {option}
-              {isPreferred && <span>best first move</span>}
-            </button>
-          );
-        })}
-      </div>
-      {answered && (
-        <InfoBlock
-          title={selected === lesson.preferredOption ? 'Why it works' : `Preferred move: ${lesson.preferredOption}`}
-          text={lesson.reviewPrompt}
-        />
-      )}
-    </div>
-  );
-}
-
-function SummaryLessonBody({ lesson, sources, onOpenFull }) {
-  return (
-    <div className="feed-expanded summary-expanded">
-      {lesson.coverImageUrl && (
-        <div className="summary-hero-image">
-          <img src={lesson.coverImageUrl} alt="" loading="lazy" />
-        </div>
-      )}
-      <InfoList title="Quick version" items={lesson.quickVersion || lesson.summaryBullets || []} />
-      <div className="article-body">
-        {lesson.articleParagraphs.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
-      <div className="two-column">
-        <InfoList title="Key points" items={lesson.summaryBullets || []} />
-        <InfoList title={lesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={lesson.timeline || []} />
-      </div>
-      <InfoList title={memoryTitleFor(lesson)} items={lesson.remember || lesson.themeNotes || []} />
-      {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
-      <div className="source-grid">
-        {sources.map((source) => (
-          <SourceMini key={source.id} source={source} />
-        ))}
-      </div>
-      {onOpenFull && <button className="text-link" onClick={onOpenFull}>Open full summary →</button>}
-    </div>
-  );
-}
-
 function InfoList({ title, items }) {
   if (!items?.length) return null;
   return (
@@ -1920,34 +1597,14 @@ function CompactSeedDetails({ title = 'Compact version', children }) {
 
 async function resolveExpansionAiTarget() {
   const settings = loadAiSettings();
-  let serverStatus = 'offline';
 
-  try {
-    const response = await fetch('/api/ai-health');
-    if (!response.ok) throw new Error('No local server');
-    const payload = await response.json();
-    serverStatus = payload.keyConfigured ? 'ready' : 'missing-key';
-  } catch {
-    serverStatus = 'offline';
-  }
-
-  if (serverStatus === 'missing-key') {
-    throw new Error('Open Account and save an OpenAI key to Keychain first.');
-  }
-
-  const endpoint = serverStatus === 'ready'
-    ? DEFAULT_AI_SETTINGS.endpoint
-    : 'https://api.openai.com/v1/responses';
-  const needsKey = requiresClientApiKey(endpoint);
-  const apiKey = needsKey ? settings.apiKey : '';
-
-  if (needsKey && !apiKey) {
-    throw new Error('Open Account and save a browser key, or start the local AI server and save a Keychain key.');
+  if (!settings.apiKey) {
+    throw new Error('Open Account and save your OpenAI API key first.');
   }
 
   return {
-    apiKey,
-    endpoint,
+    apiKey: settings.apiKey,
+    endpoint: DEFAULT_AI_SETTINGS.endpoint,
     model: settings.model,
   };
 }
@@ -2180,33 +1837,25 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   );
 }
 
-function LearnView({ state, selectedLesson, session, setSelectedLessonId, setContextLessonId, completeCurrentLesson, completeLesson, recordLessonQuestion, saveReflection, saveLessonNote, saveReadingProgress, saveLessonExpansion }) {
-  const summaryLesson = isSummaryLesson(selectedLesson);
-  const novelReadingMode = isNovelReadingLesson(selectedLesson);
+function LearnView({ state, selectedLesson, session, setContextLessonId, completeCurrentLesson, completeLesson, saveLessonNote, saveReadingProgress, savePagePosition, saveReaderSettings, saveLessonExpansion }) {
   const savedReadingProgress = state.readingProgress?.[selectedLesson.id];
   const chapterSummaries = selectedLesson.chapterSummaries || [];
   const savedChapterIndex = Math.max(0, Math.min(chapterSummaries.length - 1, savedReadingProgress?.chapterIndex || 0));
   const lessonExpansionKey = expansionKeyFor(selectedLesson);
   const lessonExpansion = state.lessonExpansions?.[lessonExpansionKey];
-  const [step, setStep] = useState(() => (summaryLesson ? 'summary' : 'article'));
   const [currentChapterIndex, setCurrentChapterIndex] = useState(savedChapterIndex);
-  const [reflection, setReflection] = useState('');
-  const [decision, setDecision] = useState('');
-  const [showFidelity, setShowFidelity] = useState(false);
-  const sources = selectedLesson.sourceIds.map((id) => sourceById(state, id)).filter(Boolean);
-  const sessionProgress = session ? `${session.currentIndex + 1} / ${session.lessonIds.length}` : 'Solo lesson';
-  const stepItems = summaryLesson
-    ? novelReadingMode
-      ? ['summary', 'overview', 'breakdown', 'notes']
-      : ['summary', 'overview', 'breakdown', 'questions', 'notes']
-    : ['article', 'breakdown', 'questions', 'scenario', 'decision', 'reflection'];
+  const review = state.reviews?.[selectedLesson.id];
+  const completed = Boolean(review?.completed);
+  const pages = useMemo(
+    () => buildLessonPages(selectedLesson, lessonExpansion),
+    [selectedLesson, lessonExpansion],
+  );
 
   useEffect(() => {
-    setStep(isSummaryLesson(selectedLesson) ? 'summary' : 'article');
     setCurrentChapterIndex(Math.max(0, Math.min((selectedLesson.chapterSummaries || []).length - 1, state.readingProgress?.[selectedLesson.id]?.chapterIndex || 0)));
-    setDecision('');
     setContextLessonId(selectedLesson.id);
-  }, [selectedLesson.id, setContextLessonId, state.readingProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLesson.id, setContextLessonId]);
 
   function selectChapter(index, markComplete = false) {
     setCurrentChapterIndex(index);
@@ -2218,348 +1867,52 @@ function LearnView({ state, selectedLesson, session, setSelectedLessonId, setCon
     selectChapter(nextIndex, true);
   }
 
-  return (
-    <section className="learn-grid">
-      <div className="lesson-panel">
-        <div className="lesson-header">
-          <div>
-            <p className="section-label">{selectedLesson.domain}</p>
-            <h2>{selectedLesson.title}</h2>
-          </div>
-          <span className="session-chip">{sessionProgress}</span>
-        </div>
-
-        <div className="step-tabs">
-          {stepItems.map((item) => (
-            <button key={item} className={step === item ? 'active' : ''} onClick={() => setStep(item)}>
-              {stepLabelFor(item, selectedLesson)}
-            </button>
-          ))}
-        </div>
-
-        {summaryLesson && step === 'summary' && chapterSummaries.length > 0 && (
-          <ChapterReader
-            lesson={selectedLesson}
-            chapters={chapterSummaries}
-            currentIndex={currentChapterIndex}
-            progress={savedReadingProgress}
-            onSelectChapter={selectChapter}
-            onCompleteChapter={completeCurrentChapter}
-            lessonExpansions={state.lessonExpansions || {}}
-            onSaveExpansion={saveLessonExpansion}
-          />
-        )}
-
-        {summaryLesson && step === 'summary' && chapterSummaries.length === 0 && (
-          <div className="article-section">
-            {selectedLesson.coverImageUrl && (
-              <div className="summary-hero-image">
-                <img src={selectedLesson.coverImageUrl} alt="" loading="lazy" />
-              </div>
-            )}
-            <p className="reading-meta">
-              Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
-            </p>
-            {lessonExpansion ? (
-              <>
-                <GeneratedExpansion expansion={lessonExpansion} lesson={selectedLesson} title={novelReadingMode ? 'Full reader guide' : 'Full summary'} />
-                <CompactSeedDetails title={novelReadingMode ? 'Compact book version' : 'Original summary seed'}>
-                  <div className="article-body">
-                    {selectedLesson.articleParagraphs.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
-                    ))}
-                  </div>
-                  {selectedLesson.summaryKind === 'Novel' && (
-                    <InfoBlock
-                      title="Chapter retellings"
-                      text="True chapter retellings have not been authored for this book yet. Expand creates a private draft from the current study guide instead of showing fake chapter cards."
-                    />
-                  )}
-                </CompactSeedDetails>
-              </>
-            ) : (
-              <>
-                <div className="article-body">
-                  {selectedLesson.articleParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </div>
-                {selectedLesson.summaryKind === 'Novel' && (
-                  <InfoBlock
-                    title="Chapter retellings"
-                    text="True chapter retellings have not been authored for this book yet. Expand creates a private draft from the current study guide instead of showing fake chapter cards."
-                  />
-                )}
-              </>
-            )}
-            <ExpansionButton
-              lesson={selectedLesson}
-              expansionKey={lessonExpansionKey}
-              onSaveExpansion={saveLessonExpansion}
-              label={lessonExpansion ? (selectedLesson.summaryKind === 'Novel' ? 'Regenerate full guide' : 'Regenerate full summary') : (selectedLesson.summaryKind === 'Novel' ? 'Expand book guide' : 'Expand summary')}
-            />
-          </div>
-        )}
-
-        {summaryLesson && step === 'overview' && (
-          <div className="article-section">
-            {selectedLesson.coverImageUrl && (
-              <div className="summary-hero-image">
-                <img src={selectedLesson.coverImageUrl} alt="" loading="lazy" />
-              </div>
-            )}
-            <p className="reading-meta">
-              Source basis: {selectedLesson.sourceBasis.join(', ')} · Type: {selectedLesson.summaryKind}
-            </p>
-            {lessonExpansion ? (
-              <>
-                <GeneratedExpansion expansion={lessonExpansion} lesson={selectedLesson} title={novelReadingMode ? 'Full reader guide' : 'Full summary'} />
-                <CompactSeedDetails title={novelReadingMode ? 'Compact book version' : 'Original summary seed'}>
-                  <InfoList title="Quick version" items={selectedLesson.quickVersion || selectedLesson.summaryBullets || []} />
-                  <div className="article-body">
-                    {selectedLesson.articleParagraphs.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
-                    ))}
-                  </div>
-                  <div className="two-column">
-                    <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
-                    <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
-                  </div>
-                  <InfoList title={memoryTitleFor(selectedLesson)} items={selectedLesson.remember || selectedLesson.themeNotes || []} />
-                  {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
-                </CompactSeedDetails>
-              </>
-            ) : (
-              <>
-                <InfoList title="Quick version" items={selectedLesson.quickVersion || selectedLesson.summaryBullets || []} />
-                <div className="article-body">
-                  {selectedLesson.articleParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </div>
-                <div className="two-column">
-                  <InfoList title="Key points" items={selectedLesson.summaryBullets || []} />
-                  <InfoList title={selectedLesson.summaryKind === 'History' ? 'Timeline' : 'Characters / structure'} items={selectedLesson.timeline || []} />
-                </div>
-                <InfoList title={memoryTitleFor(selectedLesson)} items={selectedLesson.remember || selectedLesson.themeNotes || []} />
-                {selectedLesson.reflectionLens && <InfoBlock title="Leadership reflection" text={selectedLesson.reflectionLens} />}
-              </>
-            )}
-            <ExpansionButton
-              lesson={selectedLesson}
-              expansionKey={lessonExpansionKey}
-              onSaveExpansion={saveLessonExpansion}
-              label={lessonExpansion ? 'Regenerate full version' : 'Expand overview'}
-            />
-          </div>
-        )}
-
-        {summaryLesson && step === 'breakdown' && (
-          <>
-            <InfoList title={guideTitleFor(selectedLesson)} items={selectedLesson.breakDown || []} />
-            {selectedLesson.reflectionLens && <InfoBlock title="Why it stays relevant" text={selectedLesson.reflectionLens} />}
-          </>
-        )}
-
-        {summaryLesson && !novelReadingMode && step === 'questions' && <QuestionList questions={selectedLesson.questions || []} />}
-
-        {summaryLesson && step === 'notes' && (
-          <div className="lesson-section">
-            <h3>Private notes</h3>
-            <p>Capture what you want to remember from this summary.</p>
-            <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private note you want to remember..." />
-            <button
-              className="secondary-button"
-              onClick={() => {
-                saveReflection(selectedLesson.id, reflection);
-                setReflection('');
-              }}
-            >
-              Save note
-            </button>
-          </div>
-        )}
-
-        {!summaryLesson && step === 'article' && (
-          <div className="article-section">
-            <p className="reading-meta">
-              Source basis: {selectedLesson.sourceBasis.join(', ')} · Historical lens: {selectedLesson.historicalExample?.title || 'Leadership history'}
-            </p>
-            {lessonExpansion ? (
-              <>
-                <GeneratedExpansion expansion={lessonExpansion} lesson={selectedLesson} title="Full lesson" />
-                <CompactSeedDetails title="Original lesson seed">
-                  <InfoList title="Quick version" items={selectedLesson.quickVersion || []} />
-                  <div className="article-body">
-                    {selectedLesson.articleParagraphs.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
-                    ))}
-                  </div>
-                  <div className="two-column">
-                    <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
-                    <InfoList title="Remember" items={selectedLesson.remember || []} />
-                  </div>
-                </CompactSeedDetails>
-              </>
-            ) : (
-              <>
-                <InfoList title="Quick version" items={selectedLesson.quickVersion || []} />
-                <div className="article-body">
-                  {selectedLesson.articleParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </div>
-                <div className="two-column">
-                  <InfoBlock title="What it gets right" text={selectedLesson.whatItGetsRight} />
-                  <InfoList title="Remember" items={selectedLesson.remember || []} />
-                </div>
-              </>
-            )}
-            <ExpansionButton
-              lesson={selectedLesson}
-              expansionKey={lessonExpansionKey}
-              onSaveExpansion={saveLessonExpansion}
-              label={lessonExpansion ? 'Regenerate full lesson' : 'Expand lesson'}
-            />
-          </div>
-        )}
-
-        {!summaryLesson && step === 'breakdown' && <InfoList title="Break Down" items={selectedLesson.breakDown || []} />}
-
-        {!summaryLesson && step === 'questions' && <QuestionList questions={selectedLesson.questions || []} />}
-
-        {!summaryLesson && step === 'scenario' && (
-          <div className="lesson-section">
-            <h3>Scenario</h3>
-            <p>{selectedLesson.scenario}</p>
-            <InfoBlock title="Practice rep" text={selectedLesson.practiceRep} />
-          </div>
-        )}
-
-        {!summaryLesson && step === 'decision' && (
-          <DecisionOptions
-            lesson={selectedLesson}
-            selected={decision}
-            onSelect={setDecision}
-            onAnswer={(isCorrect) => recordLessonQuestion(selectedLesson.id, isCorrect)}
-          />
-        )}
-
-        {!summaryLesson && step === 'reflection' && (
-          <div className="lesson-section">
-            <h3>Reflection</h3>
-            <p>{selectedLesson.reflectionPrompt}</p>
-            <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Write the private answer you want to remember..." />
-            <button
-              className="secondary-button"
-              onClick={() => {
-                saveReflection(selectedLesson.id, reflection);
-                setReflection('');
-              }}
-            >
-              Save reflection
-            </button>
-          </div>
-        )}
-
-        <div className="completion-bar">
-          <button className="success-button" onClick={() => (session ? completeCurrentLesson() : completeLesson(selectedLesson.id))}>
-            {session ? 'Complete & continue' : 'Mark complete'}
-          </button>
-        </div>
-      </div>
-
-      <aside className="right-rail">
-        <button className="secondary-button wide" onClick={() => setShowFidelity((current) => !current)}>
-          {showFidelity ? 'Hide sources & fidelity' : 'Show sources & fidelity'}
-        </button>
-        {showFidelity && (
-          <>
-            <FidelityPanel lesson={selectedLesson} />
-            <div className="source-panel">
-              <p className="section-label">Source basis</p>
-              {sources.map((source) => (
-                <SourceMini key={source.id} source={source} />
-              ))}
-            </div>
-          </>
-        )}
+  if (chapterSummaries.length > 0) {
+    return (
+      <section className="reader-view">
+        <ChapterReader
+          lesson={selectedLesson}
+          chapters={chapterSummaries}
+          currentIndex={currentChapterIndex}
+          progress={savedReadingProgress}
+          onSelectChapter={selectChapter}
+          onCompleteChapter={completeCurrentChapter}
+          lessonExpansions={state.lessonExpansions || {}}
+          onSaveExpansion={saveLessonExpansion}
+        />
         <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
-      </aside>
+      </section>
+    );
+  }
 
-      <div className="queue-panel">
-        <p className="section-label">Next lessons</p>
-        {recommendedLessons(state, 8).map((lesson) => (
-          <button
-            key={lesson.id}
-            className={lesson.id === selectedLesson.id ? 'queue-row active' : 'queue-row'}
-            onClick={() => {
-              setSelectedLessonId(lesson.id);
-              setContextLessonId(lesson.id);
-            }}
-          >
-            <span>{lesson.title}</span>
-            <small>{lesson.domain}</small>
-          </button>
-        ))}
+  return (
+    <section className="reader-view">
+      <BookReader
+        bookKey={selectedLesson.id}
+        kicker={selectedLesson.domain}
+        title={selectedLesson.title}
+        pages={pages}
+        position={savedReadingProgress?.pageIndex || 0}
+        onPosition={(pageIndex) => savePagePosition(selectedLesson.id, pageIndex)}
+        completed={completed}
+        onComplete={() => (session ? completeCurrentLesson() : completeLesson(selectedLesson.id))}
+        completeLabel={session ? 'Finished, continue' : 'Finished'}
+        readerSettings={state.settings?.reader}
+        onReaderSettings={saveReaderSettings}
+        footer={[selectedLesson.sourceBasis?.join(', '), selectedLesson.fidelityNote].filter(Boolean).join(' — ')}
+      />
+      <div className="reader-quiet-actions">
+        <ExpansionButton
+          lesson={selectedLesson}
+          expansionKey={lessonExpansionKey}
+          onSaveExpansion={saveLessonExpansion}
+          label={lessonExpansion ? 'Rewrite the expanded lesson' : 'Expand this lesson'}
+        />
       </div>
+      <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
     </section>
   );
 }
-
-function MarkdownBlock({ markdown = '' }) {
-  const blocks = [];
-  let listItems = [];
-
-  function flushList() {
-    if (listItems.length) {
-      blocks.push({ type: 'list', items: listItems });
-      listItems = [];
-    }
-  }
-
-  for (const rawLine of markdown.split('\n')) {
-    const line = rawLine.trim();
-    if (!line) {
-      flushList();
-      continue;
-    }
-    const heading = line.match(/^(#{1,3})\s+(.+)$/);
-    if (heading) {
-      flushList();
-      blocks.push({ type: 'heading', level: heading[1].length, text: heading[2] });
-      continue;
-    }
-    const bullet = line.match(/^[-*]\s+(.+)$/);
-    if (bullet) {
-      listItems.push(bullet[1]);
-      continue;
-    }
-    flushList();
-    blocks.push({ type: 'paragraph', text: line });
-  }
-  flushList();
-
-  return (
-    <div className="article-body markdown-body">
-      {blocks.map((block, index) => {
-        if (block.type === 'heading') {
-          const Tag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
-          return <Tag key={`${block.type}-${index}`}>{block.text}</Tag>;
-        }
-        if (block.type === 'list') {
-          return (
-            <ul key={`${block.type}-${index}`}>
-              {block.items.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          );
-        }
-        return <p key={`${block.type}-${index}`}>{block.text}</p>;
-      })}
-    </div>
-  );
-}
-
 function progressLabel(progress) {
   return `${progress.completed}/${progress.total} · ${progress.percent}%`;
 }
@@ -2598,75 +1951,31 @@ function ArticleDetailView({
   selectedArticle,
   setArticleCompletion,
   saveLessonNote,
-  saveReflection,
   saveGeneratedArticle,
-  saveArticleTutorThread,
   toggleSavedItem,
+  savePagePosition,
+  saveReaderSettings,
 }) {
-  const [reflection, setReflection] = useState('');
-  const [tutorMessage, setTutorMessage] = useState('');
   const [isExpandingArticle, setIsExpandingArticle] = useState(false);
   const [expansionError, setExpansionError] = useState('');
-  const [isTutoring, setIsTutoring] = useState(false);
-  const [tutorError, setTutorError] = useState('');
+  const generated = selectedArticle ? state.generatedArticlesByKey?.[selectedArticle.key] : null;
+  const pages = useMemo(
+    () => (selectedArticle ? buildArticlePages(selectedArticle, generated) : []),
+    [selectedArticle, generated],
+  );
+
   if (!selectedArticle) {
     return (
-      <section className="article-reader-grid">
-        <div className="lesson-panel">
-          <p>No article is selected.</p>
-        </div>
+      <section className="reader-view">
+        <p className="empty-copy">No article is selected.</p>
       </section>
     );
   }
 
-  const completedState = state.completedArticlesByKey?.[selectedArticle.key];
-  const completed = Boolean(completedState?.completed);
+  const completed = Boolean(state.completedArticlesByKey?.[selectedArticle.key]?.completed);
   const saved = Boolean(state.savedItems?.[selectedArticle.key]);
-  const generated = state.generatedArticlesByKey?.[selectedArticle.key];
-  const tutorThread = state.articleTutorThreadsByKey?.[selectedArticle.key]?.messages || [];
-  const articleReflections = (state.reflections || []).filter((item) => item.lessonId === selectedArticle.key);
-  const subjectProgress = getSubjectProgress(selectedArticle.subjectId, state.completedArticlesByKey || {});
-  const topicProgress = getTopicProgress(selectedArticle.subjectId, selectedArticle.topicId, state.completedArticlesByKey || {});
-  const subtopicProgress = getSubtopicProgress(selectedArticle.subjectId, selectedArticle.topicId, selectedArticle.subtopicId, state.completedArticlesByKey || {});
   const isLiterature = selectedArticle.articleType === 'literature';
-
-  function savePrivateReflection() {
-    if (!reflection.trim()) return;
-    saveReflection(selectedArticle.key, reflection);
-    setReflection('');
-  }
-
-  async function askTutor() {
-    if (!tutorMessage.trim() || isTutoring) return;
-    const userTurn = {
-      role: 'user',
-      content: tutorMessage.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    const nextThread = [...tutorThread, userTurn];
-    setIsTutoring(true);
-    setTutorError('');
-    setTutorMessage('');
-    saveArticleTutorThread(selectedArticle.key, nextThread);
-    try {
-      const target = await resolveExpansionAiTarget();
-      const answer = await askArticleTutor({
-        ...target,
-        article: selectedArticle,
-        generatedArticle: generated || null,
-        userMessage: userTurn.content,
-        conversationHistory: tutorThread,
-      });
-      saveArticleTutorThread(selectedArticle.key, [
-        ...nextThread,
-        { role: 'assistant', content: answer, createdAt: new Date().toISOString() },
-      ]);
-    } catch (error) {
-      setTutorError(error.message);
-    } finally {
-      setIsTutoring(false);
-    }
-  }
+  const savedPosition = state.readingProgress?.[selectedArticle.key]?.pageIndex || 0;
 
   async function runArticleExpansion() {
     if (isExpandingArticle) return;
@@ -2691,124 +2000,47 @@ function ArticleDetailView({
   }
 
   return (
-    <section className="article-reader-grid">
-      <article className="lesson-panel article-reader-panel">
-        <div className="article-reader-kicker">
-          <span>{isLiterature ? 'Reader guide mode' : 'Article mode'}</span>
-          <span>{completed ? 'Complete' : 'Unread'}</span>
-        </div>
-        <div className="article-breadcrumbs">
-          {selectedArticle.hierarchyPath.map((part) => (
-            <span key={part}>{part}</span>
-          ))}
-        </div>
-        <div className="lesson-header article-reader-title">
-          <div>
-            <p className="section-label">{selectedArticle.subject}</p>
-            <h2>{isLiterature ? humanizeLiteratureLabel(selectedArticle.title) : selectedArticle.title}</h2>
-          </div>
-          <span className="session-chip">{isLiterature ? 'Literature' : 'Standard'}</span>
-        </div>
-
-        <p className="article-summary">{selectedArticle.summary}</p>
-        <MarkdownBlock markdown={selectedArticle.bodyMarkdown} />
-
-        {generated?.articleMarkdown && (
-          <div className="generated-expansion article-generated">
-            <div className="generated-expansion-head">
-              <span>{generated.title || 'Generated article'}</span>
-              <small>{generated.model ? `Generated with ${generated.model}` : 'Generated privately'}</small>
-            </div>
-            <MarkdownBlock markdown={generated.articleMarkdown} />
-            {generated.practicalTakeaway && <InfoBlock title="Practical takeaway" text={generated.practicalTakeaway} />}
-            {Array.isArray(generated.imageQueries) && generated.imageQueries.length > 0 && (
-              <InfoList title="Image search ideas" items={generated.imageQueries} />
-            )}
-          </div>
-        )}
-
-        <div className="completion-bar article-actions">
-          <button className="success-button" onClick={() => setArticleCompletion(selectedArticle.key, !completed)}>
-            {completed ? 'Mark incomplete' : 'Done'}
-          </button>
-          <button
-            className={saved ? 'secondary-button active' : 'secondary-button'}
-            onClick={() => toggleSavedItem(selectedArticle.key, {
-              domain: 'article',
-              subjectIds: [selectedArticle.subjectId],
-              topicIds: [selectedArticle.subjectId, selectedArticle.topicId, selectedArticle.subtopicId, selectedArticle.subsubtopicId].filter(Boolean),
-            })}
-          >
-            {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-            {saved ? 'Saved' : 'Save'}
-          </button>
-          <button
-            className="secondary-button"
-            onClick={runArticleExpansion}
-            disabled={isExpandingArticle}
-          >
-            <Sparkles size={16} />
-            {isExpandingArticle ? 'Expanding...' : generated ? 'Regenerate article' : 'AI Expand'}
-          </button>
-        </div>
-        {expansionError && <p className="error-text">{expansionError}</p>}
-
-        <div className="lesson-section article-tutor">
-          <h3>Article tutor</h3>
-          {tutorThread.length > 0 && (
-            <div className="tutor-thread">
-              {tutorThread.map((message, index) => (
-                <div key={`${message.role}-${index}`} className={`tutor-message ${message.role}`}>
-                  <strong>{message.role === 'assistant' ? 'Tutor' : 'You'}</strong>
-                  <MarkdownBlock markdown={message.content} />
-                </div>
-              ))}
-            </div>
-          )}
-          {tutorError && <p className="error-text">{tutorError}</p>}
-          <textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Capture a private reflection..." />
-          <div className="article-actions compact-actions">
-            <button className="secondary-button" onClick={savePrivateReflection}>Save reflection</button>
-          </div>
-          {articleReflections.length > 0 && (
-            <div className="tutor-thread article-reflection-log">
-              {articleReflections.slice(0, 3).map((entry) => (
-                <div key={entry.id} className="tutor-message user">
-                  <strong>Private reflection</strong>
-                  <MarkdownBlock markdown={entry.text} />
-                </div>
-              ))}
-            </div>
-          )}
-          <textarea value={tutorMessage} onChange={(event) => setTutorMessage(event.target.value)} placeholder="Ask a question about this article..." />
-          <button className="secondary-button" onClick={askTutor} disabled={isTutoring}>
-            <Send size={16} />
-            {isTutoring ? 'Asking...' : 'Ask tutor'}
-          </button>
-        </div>
-      </article>
-
-      <aside className="right-rail article-context-rail">
-        <NoteBox note={state.notes[selectedArticle.key] || ''} onSave={(note) => saveLessonNote(selectedArticle.key, note)} />
-        <div className="source-panel">
-          <p className="section-label">Progress</p>
-          <Metric label="Subject" value={progressLabel(subjectProgress)} />
-          <Metric label="Topic" value={progressLabel(topicProgress)} />
-          <Metric label="Subtopic" value={progressLabel(subtopicProgress)} />
-        </div>
-        <div className="source-panel">
-          <p className="section-label">Source</p>
-          <small>{selectedArticle.sourceFile}</small>
-          {selectedArticle.sourceContext?.length > 0 && (
-            <p>{selectedArticle.sourceContext.join(' ')}</p>
-          )}
-        </div>
-      </aside>
+    <section className="reader-view">
+      <BookReader
+        bookKey={selectedArticle.key}
+        kicker={selectedArticle.hierarchyPath.join(' · ')}
+        title={isLiterature ? humanizeLiteratureLabel(selectedArticle.title) : selectedArticle.title}
+        pages={pages}
+        position={savedPosition}
+        onPosition={(pageIndex) => savePagePosition(selectedArticle.key, pageIndex)}
+        completed={completed}
+        onComplete={() => setArticleCompletion(selectedArticle.key, true)}
+        readerSettings={state.settings?.reader}
+        onReaderSettings={saveReaderSettings}
+        footer={selectedArticle.sourceFile}
+      />
+      <div className="reader-quiet-actions">
+        <button
+          className={saved ? 'secondary-button active' : 'secondary-button'}
+          onClick={() => toggleSavedItem(selectedArticle.key, {
+            domain: 'article',
+            subjectIds: [selectedArticle.subjectId],
+            topicIds: [selectedArticle.subjectId, selectedArticle.topicId, selectedArticle.subtopicId, selectedArticle.subsubtopicId].filter(Boolean),
+          })}
+        >
+          {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+          {saved ? 'Saved' : 'Save'}
+        </button>
+        <button
+          className="secondary-button"
+          onClick={runArticleExpansion}
+          disabled={isExpandingArticle}
+        >
+          <Sparkles size={16} />
+          {isExpandingArticle ? 'Expanding...' : generated ? 'Rewrite the expanded article' : 'Expand this article'}
+        </button>
+      </div>
+      {expansionError && <p className="error-text">{expansionError}</p>}
+      <NoteBox note={state.notes[selectedArticle.key] || ''} onSave={(note) => saveLessonNote(selectedArticle.key, note)} />
     </section>
   );
 }
-
-function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTopic, librarySubjectId, setLibrarySubjectId }) {
+function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTopic, librarySubjectId, setLibrarySubjectId, sharedLessons }) {
   const treePanelRef = useRef(null);
   const [query, setQuery] = useState('');
   const [treeOpen, setTreeOpen] = useState(false);
@@ -3044,6 +2276,31 @@ function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTo
         </div>
 
         <div className="library-stoic-list">
+          {!query.trim() && topicId === 'all' && slotsForSubject(selectedSubject?.id).map((slot) => {
+            const published = sharedLessons?.[slot.slotId];
+            const slotKey = `generated:${slot.slotId}`;
+            const completed = Boolean(state.completedArticlesByKey?.[slotKey]?.completed);
+            return (
+              <button
+                key={slot.slotId}
+                className={published ? 'library-row' : 'library-row slot-row'}
+                onClick={() => openCanonicalItem(slotKey, {
+                  subjectIds: [slot.subjectId],
+                  topicIds: [slot.subjectId],
+                  domain: 'generated',
+                })}
+              >
+                <div className="library-row-copy">
+                  <strong>{published?.title || slot.title}</strong>
+                  <p>{published?.openingLine || slot.brief}</p>
+                  <small>{[slot.subject, slot.topic].filter(Boolean).join(': ')}</small>
+                </div>
+                <span className="library-row-meta">
+                  {published ? (completed ? 'Done' : 'Lesson') : 'Not written yet'}
+                </span>
+              </button>
+            );
+          })}
           {visibleArticles.map((article) => {
             const completed = Boolean(state.completedArticlesByKey?.[article.key]?.completed);
             const saved = Boolean(state.savedItems?.[article.key]);
@@ -3217,122 +2474,6 @@ function NovelsView({ state, selectedLesson, openCanonicalItem, toggleSavedItem 
   );
 }
 
-function NewsView({ state, selectedNewsItem, setSelectedNewsId, newsStatus, refreshNews, expandNewsItem, toggleSavedItem }) {
-  const [query, setQuery] = useState('');
-  const [expandingId, setExpandingId] = useState('');
-  const freshness = describeNewsFreshness(state.news || createInitialNewsState(), new Date().toISOString());
-  const stories = (state.news?.items || []).filter((item) => {
-    const text = `${item.title} ${item.category} ${item.whatHappened}`.toLowerCase();
-    return text.includes(query.toLowerCase());
-  });
-  const selectedStory = selectedNewsItem || stories[0] || null;
-  const expansion = selectedStory ? state.news?.expansions?.[selectedStory.id] : null;
-
-  async function handleExpand(story) {
-    if (!story || expandingId) return;
-    setExpandingId(story.id);
-    try {
-      await expandNewsItem(story);
-    } finally {
-      setExpandingId('');
-    }
-  }
-
-  return (
-    <section className="library-grid">
-      <div className="library-main">
-        <div className="search-row">
-          <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search briefings, categories, or entities" />
-        </div>
-
-        <div className="library-shelf-hero">
-          <span className="library-shelf-icon">
-            <Newspaper size={20} />
-          </span>
-          <div className="library-shelf-copy">
-            <p className="section-label">Private briefing room</p>
-            <h2>Daily news</h2>
-            <p>Compact real-source briefings first, deeper analysis only when you explicitly expand a story.</p>
-            <small className={freshness.stale ? 'news-refresh-note stale' : 'news-refresh-note'}>
-              {newsStatus.refreshing ? 'Refreshing now...' : freshness.label}
-            </small>
-          </div>
-          <button className="secondary-button" onClick={() => refreshNews()} disabled={newsStatus.refreshing}>
-            <RefreshCw size={16} />
-            {newsStatus.refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
-
-        <div className="library-list">
-          {stories.length === 0 && (
-            <article className="source-card compact collection-context-card">
-              <span>Unavailable</span>
-              <h3>No private briefing yet</h3>
-              <p>{newsStatus.error || 'Open the private local server to refresh the daily briefing. The public site stays usable without it.'}</p>
-            </article>
-          )}
-          {stories.map((story) => {
-            const saved = Boolean(state.savedItems?.[canonicalItemKey('news', story.id)]);
-            return (
-              <button key={story.id} className={selectedStory?.id === story.id ? 'library-row active' : 'library-row'} onClick={() => setSelectedNewsId(story.id)}>
-                <div className="library-row-copy">
-                  <strong>{story.title}</strong>
-                  <p>{story.whatHappened}</p>
-                  <small>{story.sources?.map((source) => source.title).join(' · ')}</small>
-                </div>
-                <span className="library-row-meta">
-                  {story.category}
-                  <small>{saved ? 'Saved' : story.priority}</small>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <aside className="source-list-panel library-context-panel">
-        {selectedStory ? (
-          <>
-            <article className="source-card compact collection-context-card">
-              <span>{selectedStory.category}</span>
-              <h3>{selectedStory.title}</h3>
-              <p>{selectedStory.whatHappened}</p>
-              <small>{selectedStory.sources?.map((source) => source.title).join(' · ')}</small>
-            </article>
-            <div className="ai-settings-actions">
-              <button className="secondary-button" onClick={() => toggleSavedItem(canonicalItemKey('news', selectedStory.id), {
-                domain: 'news',
-                newsId: selectedStory.id,
-                subjectIds: [selectedStory.category.toLowerCase().replace(/\s+/g, '-')],
-              })}>
-                {state.savedItems?.[canonicalItemKey('news', selectedStory.id)] ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-                {state.savedItems?.[canonicalItemKey('news', selectedStory.id)] ? 'Saved' : 'Save'}
-              </button>
-              <button className="secondary-button" onClick={() => handleExpand(selectedStory)} disabled={expandingId === selectedStory.id}>
-                <Sparkles size={16} />
-                {expandingId === selectedStory.id ? 'Expanding...' : expansion ? 'Regenerate detail' : 'Expand detail'}
-              </button>
-            </div>
-            {expansion ? (
-              <GeneratedExpansion expansion={expansion} lesson={{ summaryKind: null }} title="Story detail" />
-            ) : (
-              <>
-                <InfoBlock title="Why it matters" text={selectedStory.whyItMatters} />
-                <InfoBlock title="What is known" text={selectedStory.whatIsKnown} />
-                <InfoBlock title="What is uncertain" text={selectedStory.whatIsUncertain} />
-                <InfoBlock title="What to watch" text={selectedStory.whatToWatch} />
-              </>
-            )}
-          </>
-        ) : (
-          <p className="empty-copy">Select a story to read the full briefing.</p>
-        )}
-      </aside>
-    </section>
-  );
-}
-
 function InterestNodeList({ nodes, followedTopics, toggleFollowTopic, depth = 0 }) {
   return (
     <div className={`interest-node-list depth-${depth}`}>
@@ -3379,22 +2520,10 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
   const [settings, setSettings] = useState(() => loadAiSettings());
   const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
   const [aiNotice, setAiNotice] = useState('');
-  const [serverStatus, setServerStatus] = useState('checking');
-  const [canSaveKeychain, setCanSaveKeychain] = useState(false);
-  const [canSaveDesktopSettings, setCanSaveDesktopSettings] = useState(false);
-  const [desktopEndpoint, setDesktopEndpoint] = useState(DEFAULT_AI_SETTINGS.endpoint);
-  const [desktopEndpointDraft, setDesktopEndpointDraft] = useState(DEFAULT_AI_SETTINGS.endpoint);
-  const [isSavingDesktopEndpoint, setIsSavingDesktopEndpoint] = useState(false);
-  const [keychainKey, setKeychainKey] = useState('');
-  const [isSavingKeychain, setIsSavingKeychain] = useState(false);
+  const [isSavingKey, setIsSavingKey] = useState(false);
   const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
   const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
   const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
-  const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
-    ? DEFAULT_AI_SETTINGS.endpoint
-    : 'https://api.openai.com/v1/responses';
-  const endpointNeedsKey = requiresClientApiKey(effectiveEndpoint);
-  const phoneUrl = syncStatus.phoneUrls?.[0] || '';
   const [openInterestSubjects, setOpenInterestSubjects] = useState(() => Object.fromEntries(
     interestSubjectHierarchy.map((subject) => [subject.id, false]),
   ));
@@ -3404,31 +2533,10 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
     setUsernameDraft(state.settings?.profile?.username || '');
   }, [state.settings?.profile?.username]);
 
-  function refreshServerStatus() {
-    setServerStatus('checking');
-    fetch('/api/ai-health')
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
-      .then((payload) => {
-        setCanSaveKeychain(Boolean(payload.canSaveKeychain));
-        setCanSaveDesktopSettings(Boolean(payload.canSaveDesktopSettings));
-        setDesktopEndpoint(payload.desktopAiEndpoint || DEFAULT_AI_SETTINGS.endpoint);
-        setDesktopEndpointDraft(payload.desktopAiEndpoint || DEFAULT_AI_SETTINGS.endpoint);
-        setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
-      })
-      .catch(() => {
-        setCanSaveKeychain(false);
-        setCanSaveDesktopSettings(false);
-        setDesktopEndpoint(DEFAULT_AI_SETTINGS.endpoint);
-        setDesktopEndpointDraft(DEFAULT_AI_SETTINGS.endpoint);
-        setServerStatus('offline');
-      });
-  }
-
   useEffect(() => {
     const latest = loadAiSettings();
     setSettings(latest);
     setDraftKey(latest.apiKey);
-    refreshServerStatus();
   }, []);
 
   function updateSettings(nextSettings) {
@@ -3445,12 +2553,21 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
     updateSettings({ ...settings, model: modelId });
   }
 
-  function saveBrowserKey() {
-    if (!draftKey.trim()) return;
-    saveApiKey(draftKey.trim(), settings.persistKey);
-    const latest = { ...settings, apiKey: draftKey.trim(), hasStoredKey: true };
-    setSettings(latest);
-    setAiNotice(settings.persistKey ? 'API key saved in this browser.' : 'API key saved for this browser session.');
+  async function saveBrowserKey() {
+    const cleanKey = draftKey.trim();
+    if (!cleanKey || isSavingKey) return;
+    setIsSavingKey(true);
+    setAiNotice('');
+    try {
+      await validateApiKey(cleanKey);
+      saveApiKey(cleanKey, settings.persistKey);
+      setSettings({ ...settings, apiKey: cleanKey, hasStoredKey: true });
+      setAiNotice(settings.persistKey ? 'Key checked with OpenAI and saved on this device.' : 'Key checked with OpenAI and saved for this session.');
+    } catch (error) {
+      setAiNotice(error.message);
+    } finally {
+      setIsSavingKey(false);
+    }
   }
 
   function removeBrowserKey() {
@@ -3458,78 +2575,6 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
     setDraftKey('');
     setSettings({ ...settings, apiKey: '', hasStoredKey: false });
     setAiNotice('API key cleared.');
-  }
-
-  async function saveKeychainKey() {
-    const cleanKey = keychainKey.trim();
-    if (!cleanKey || isSavingKeychain) return;
-    setIsSavingKeychain(true);
-    setAiNotice('');
-    try {
-      const response = await fetch('/api/save-openai-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: cleanKey }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the key.');
-      setKeychainKey('');
-      setAiNotice('API key saved to macOS Keychain.');
-      refreshServerStatus();
-    } catch (error) {
-      setAiNotice(error.message);
-    } finally {
-      setIsSavingKeychain(false);
-    }
-  }
-
-  async function saveDesktopEndpoint() {
-    if (!canSaveDesktopSettings || isSavingDesktopEndpoint) return;
-    setIsSavingDesktopEndpoint(true);
-    setAiNotice('');
-    try {
-      const response = await fetch('/api/desktop-ai-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: desktopEndpointDraft.trim() }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error?.message || 'Could not save the desktop endpoint.');
-      const nextEndpoint = payload.endpoint || DEFAULT_AI_SETTINGS.endpoint;
-      setDesktopEndpoint(nextEndpoint);
-      setDesktopEndpointDraft(nextEndpoint);
-      setAiNotice(nextEndpoint === DEFAULT_AI_SETTINGS.endpoint ? 'Desktop AI endpoint cleared.' : 'Desktop AI endpoint saved on this Mac.');
-      refreshServerStatus();
-    } catch (error) {
-      setAiNotice(error.message);
-    } finally {
-      setIsSavingDesktopEndpoint(false);
-    }
-  }
-
-  async function clearDesktopEndpoint() {
-    if (!canSaveDesktopSettings || isSavingDesktopEndpoint) return;
-    setDesktopEndpointDraft('');
-    setIsSavingDesktopEndpoint(true);
-    setAiNotice('');
-    try {
-      const response = await fetch('/api/desktop-ai-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: '' }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error?.message || 'Could not clear the desktop endpoint.');
-      const nextEndpoint = payload.endpoint || DEFAULT_AI_SETTINGS.endpoint;
-      setDesktopEndpoint(nextEndpoint);
-      setDesktopEndpointDraft(nextEndpoint);
-      setAiNotice('Desktop AI endpoint cleared.');
-      refreshServerStatus();
-    } catch (error) {
-      setAiNotice(error.message);
-    } finally {
-      setIsSavingDesktopEndpoint(false);
-    }
   }
 
   async function signOutCloudSync() {
@@ -3543,16 +2588,6 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
       setSyncNotice(error.message);
     } finally {
       setIsSyncSubmitting(false);
-    }
-  }
-
-  async function copyPhoneUrl() {
-    if (!phoneUrl || !navigator.clipboard?.writeText) return;
-    try {
-      await navigator.clipboard.writeText(phoneUrl);
-      setSyncNotice('Phone address copied.');
-    } catch {
-      setSyncNotice('Could not copy the phone address from this browser.');
     }
   }
 
@@ -3719,37 +2754,6 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
         <article className="account-card">
           <div className="panel-head">
             <div>
-              <p className="section-label">Local device</p>
-              <h2>Mac and phone setup</h2>
-            </div>
-            <span className="session-chip">{phoneUrl ? 'Phone ready' : syncStatus.mode === 'local' && syncStatus.available ? 'Mac sync' : 'Local only'}</span>
-          </div>
-
-          <div className={`server-status ${phoneUrl || (syncStatus.mode === 'local' && syncStatus.available) ? 'ready' : 'offline'}`}>
-            <span>{phoneUrl ? 'Phone address is ready' : syncStatus.mode === 'local' && syncStatus.available ? 'Mac sync is ready' : 'No local sync bridge detected'}</span>
-            <p>
-              {phoneUrl
-                ? 'Open this address on the same Wi-Fi to use your Mac as the home base for private AI, News, and local-network sync.'
-                : syncStatus.mode === 'local' && syncStatus.available
-                  ? 'The local sync bridge is active on this Mac, but there is no phone-ready network address yet.'
-                  : 'If you run the private Mac server, this section will show the phone-ready local address here.'}
-            </p>
-          </div>
-
-          {phoneUrl && (
-            <div className="ai-field">
-              <label htmlFor="account-phone-url">Phone address</label>
-              <input id="account-phone-url" value={phoneUrl} readOnly />
-              <div className="ai-settings-actions">
-                <button className="secondary-button" onClick={copyPhoneUrl}>Copy address</button>
-              </div>
-            </div>
-          )}
-        </article>
-
-        <article className="account-card">
-          <div className="panel-head">
-            <div>
               <p className="section-label">Help</p>
               <h2>What is inside Curiosity?</h2>
             </div>
@@ -3764,68 +2768,37 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
             <p className="section-label">AI</p>
             <h2>API key and model settings</h2>
           </div>
-          <span className="session-chip">{serverStatus === 'ready' ? 'Private server' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
+          <span className="session-chip">{settings.hasStoredKey ? 'Key saved' : 'Key needed'}</span>
         </div>
 
-        <div className={`server-status ${serverStatus}`}>
-          <span>{serverStatus === 'ready' ? 'Private server ready' : serverStatus === 'missing-key' ? 'Key needed' : 'Browser key mode'}</span>
-          <p>
-            {serverStatus === 'ready'
-              ? 'Your Mac server will make AI requests.'
-              : serverStatus === 'missing-key'
-                ? canSaveKeychain
-                  ? 'Save a key to Keychain on this Mac.'
-                  : 'The Mac server is running, but the key must be saved from the Mac itself.'
-                : 'No private server was found, so the browser will call OpenAI directly when a key is present.'}
+        <div className="ai-field">
+          <label htmlFor="account-ai-key">OpenAI API key</label>
+          <input
+            id="account-ai-key"
+            type="password"
+            value={draftKey}
+            onChange={(event) => setDraftKey(event.target.value)}
+            placeholder="sk-..."
+            autoComplete="off"
+          />
+          <p className="field-help">
+            Your key stays on this device and is sent only to OpenAI. It is never synced to your account or stored anywhere else. Anyone with access to this browser profile could read it, so use a key you can revoke.
           </p>
         </div>
-
-        {serverStatus !== 'offline' && canSaveKeychain && (
-          <div className="ai-field">
-            <label htmlFor="account-keychain-key">Save key to Mac Keychain</label>
-            <input
-              id="account-keychain-key"
-              type="password"
-              value={keychainKey}
-              onChange={(event) => setKeychainKey(event.target.value)}
-              placeholder="Paste once, save to Keychain"
-              autoComplete="off"
-            />
-            <div className="ai-settings-actions">
-              <button className="secondary-button" onClick={saveKeychainKey} disabled={!keychainKey.trim() || isSavingKeychain}>
-                {isSavingKeychain ? 'Saving...' : 'Remember on this Mac'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {endpointNeedsKey && (
-          <>
-            <div className="ai-field">
-              <label htmlFor="account-ai-key">OpenAI API key</label>
-              <input
-                id="account-ai-key"
-                type="password"
-                value={draftKey}
-                onChange={(event) => setDraftKey(event.target.value)}
-                placeholder="sk-..."
-                autoComplete="off"
-              />
-            </div>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={settings.persistKey}
-                onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
-              />
-              Remember key in this browser
-            </label>
-            <div className="ai-settings-actions">
-              <button className="secondary-button" onClick={saveBrowserKey}>Save key</button>
-              <button className="secondary-button" onClick={removeBrowserKey}>Clear key</button>
-            </div>
-          </>
-        )}
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={settings.persistKey}
+            onChange={(event) => updateSettings({ ...settings, persistKey: event.target.checked })}
+          />
+          Remember key on this device
+        </label>
+        <div className="ai-settings-actions">
+          <button className="secondary-button" onClick={saveBrowserKey} disabled={!draftKey.trim() || isSavingKey}>
+            {isSavingKey ? 'Checking key...' : 'Check and save key'}
+          </button>
+          <button className="secondary-button" onClick={removeBrowserKey} disabled={!settings.hasStoredKey}>Clear key</button>
+        </div>
 
         <div className="ai-field">
           <label htmlFor="account-ai-model">Model</label>
@@ -3845,36 +2818,6 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
           </div>
         )}
 
-        <details>
-          <summary>Desktop-only endpoint</summary>
-          {canSaveDesktopSettings ? (
-            <div className="ai-field">
-              <label htmlFor="account-ai-endpoint">Endpoint saved on this Mac</label>
-              <input
-                id="account-ai-endpoint"
-                value={desktopEndpointDraft}
-                onChange={(event) => setDesktopEndpointDraft(event.target.value)}
-                placeholder={DEFAULT_AI_SETTINGS.endpoint}
-              />
-              <div className="ai-settings-actions">
-                <button className="secondary-button" onClick={saveDesktopEndpoint} disabled={isSavingDesktopEndpoint}>
-                  {isSavingDesktopEndpoint ? 'Saving...' : 'Save endpoint on this Mac'}
-                </button>
-                <button className="secondary-button" onClick={clearDesktopEndpoint} disabled={isSavingDesktopEndpoint || desktopEndpoint === DEFAULT_AI_SETTINGS.endpoint}>
-                  Clear
-                </button>
-              </div>
-              <p className="field-help">
-                This endpoint is stored in the desktop app's local Mac data, not in browser sync. Other devices do not save or receive it.
-              </p>
-            </div>
-          ) : (
-            <p className="field-help">
-              Custom endpoints are only persisted by the Mac-hosted desktop app. Browser-only and phone sessions do not save this setting.
-            </p>
-          )}
-        </details>
-
         {aiNotice && <p className="settings-notice">{aiNotice}</p>}
       </article>
     </section>
@@ -3882,31 +2825,20 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
 }
 
 function ProgressView({ state, stats, startSession }) {
+  const pagesTurned = state.settings?.studyStats?.pagesTurned || 0;
   return (
     <section className="progress-grid">
       <div className="progress-hero">
-        <p className="section-label">Local progress</p>
+        <p className="section-label">Progress</p>
         <div className="progress-metrics">
           <Metric label="Complete" value={`${stats.completionPercent}%`} />
-          <Metric label="Questions right" value={stats.questionAccuracy === null ? '-' : `${stats.questionAccuracy}%`} />
-          <Metric label="Cards complete" value={stats.completed} />
+          <Metric label="Finished" value={stats.completed} />
+          <Metric label="Pages turned" value={pagesTurned} />
         </div>
         <button className="primary-button" onClick={() => startSession()}>
           <Play size={16} />
           Continue
         </button>
-      </div>
-
-      <div className="signal-panel">
-        <p className="section-label">Question record</p>
-        <div className="weak-row">
-          <span>Answered</span>
-          <small>{stats.questionAttempts}</small>
-        </div>
-        <div className="weak-row">
-          <span>Correct</span>
-          <small>{stats.correctAnswers}</small>
-        </div>
       </div>
 
       <div className="reflection-panel">
@@ -3923,6 +2855,32 @@ function ProgressView({ state, stats, startSession }) {
     </section>
   );
 }
+const TUTOR_SUGGESTIONS = [
+  { label: 'Quiz me on this', prompt: 'Quiz me on this lesson. Ask one recall or application question at a time, wait for my answer, then tell me how I did.' },
+  { label: 'Run a scenario', prompt: 'Give me one realistic judgment scenario based on this lesson, let me decide what to do, then critique my decision honestly.' },
+  { label: 'Help me reflect', prompt: 'Ask me one good reflection question about this lesson and help me think it through.' },
+];
+
+const AI_BUBBLE_POSITION_KEY = 'curiosity.aiBubblePosition.v1';
+
+function loadBubblePosition() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(AI_BUBBLE_POSITION_KEY) || 'null');
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return saved;
+  } catch {
+    // fall through to default position
+  }
+  return null;
+}
+
+function clampBubblePosition(position) {
+  const size = 50;
+  const margin = 8;
+  return {
+    x: Math.max(margin, Math.min(window.innerWidth - size - margin, position.x)),
+    y: Math.max(margin, Math.min(window.innerHeight - size - margin, position.y)),
+  };
+}
 
 function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) {
   const [open, setOpen] = useState(false);
@@ -3930,43 +2888,63 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
   const [question, setQuestion] = useState('');
   const [isAsking, setIsAsking] = useState(false);
   const [notice, setNotice] = useState('');
-  const [serverStatus, setServerStatus] = useState('checking');
-  const effectiveEndpoint = serverStatus === 'ready' || serverStatus === 'missing-key'
-    ? DEFAULT_AI_SETTINGS.endpoint
-    : 'https://api.openai.com/v1/responses';
-  const endpointNeedsKey = requiresClientApiKey(effectiveEndpoint);
-
-  function refreshServerStatus() {
-    setServerStatus('checking');
-    fetch('/api/ai-health')
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('No local server'))))
-      .then((payload) => {
-        setServerStatus(payload.keyConfigured ? 'ready' : 'missing-key');
-      })
-      .catch(() => {
-        setServerStatus('offline');
-      });
-  }
-
-  useEffect(() => refreshServerStatus(), []);
+  const [bubblePosition, setBubblePosition] = useState(() => loadBubblePosition());
+  const drag = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0 });
 
   useEffect(() => {
     if (!open) return;
     const latest = loadAiSettings();
     setSettings(latest);
     setNotice('');
-    refreshServerStatus();
   }, [open]);
 
-  async function askQuestion() {
-    const cleanQuestion = question.trim();
-    if (!cleanQuestion || isAsking) return;
-    if (serverStatus === 'missing-key') {
-      setNotice('Private server is running, but no key is saved yet. Open Account to add one.');
-      return;
+  function handleBubblePointerDown(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    drag.current = {
+      active: true,
+      moved: false,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleBubblePointerMove(event) {
+    if (!drag.current.active) return;
+    if (!drag.current.moved) {
+      const distance = Math.hypot(event.clientX - drag.current.startX, event.clientY - drag.current.startY);
+      if (distance < 6) return;
+      drag.current.moved = true;
     }
-    if (endpointNeedsKey && !settings.apiKey) {
-      setNotice('Open Account to configure your API key before using AI Coach.');
+    setBubblePosition(clampBubblePosition({
+      x: event.clientX - drag.current.offsetX,
+      y: event.clientY - drag.current.offsetY,
+    }));
+  }
+
+  function handleBubblePointerUp(event) {
+    if (!drag.current.active) return;
+    const wasDragged = drag.current.moved;
+    drag.current.active = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (wasDragged && bubblePosition) {
+      try {
+        localStorage.setItem(AI_BUBBLE_POSITION_KEY, JSON.stringify(bubblePosition));
+      } catch {
+        // position just stays for this session
+      }
+    } else {
+      setOpen(true);
+    }
+  }
+
+  async function askQuestion(promptText) {
+    const cleanQuestion = (promptText ?? question).trim();
+    if (!cleanQuestion || isAsking) return;
+    if (!settings.apiKey) {
+      setNotice('Open Account and save your OpenAI API key before using the tutor.');
       return;
     }
 
@@ -3984,8 +2962,8 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
 
     try {
       const answer = await askOpenAI({
-        apiKey: endpointNeedsKey ? settings.apiKey : '',
-        endpoint: effectiveEndpoint,
+        apiKey: settings.apiKey,
+        endpoint: DEFAULT_AI_SETTINGS.endpoint,
         model: settings.model,
         messages,
         question: cleanQuestion,
@@ -4016,16 +2994,27 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
     }
   }
 
+  const bubbleStyle = bubblePosition
+    ? { left: bubblePosition.x, top: bubblePosition.y, right: 'auto', bottom: 'auto' }
+    : undefined;
+
   return (
     <>
-      <button className="ai-float-button" onClick={() => setOpen(true)} aria-label="Open AI Coach">
+      <button
+        className="ai-float-button"
+        style={bubbleStyle}
+        onPointerDown={handleBubblePointerDown}
+        onPointerMove={handleBubblePointerMove}
+        onPointerUp={handleBubblePointerUp}
+        aria-label="Open tutor"
+      >
         <MessageCircle size={21} />
       </button>
-      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close AI Coach" />}
+      {open && <button className="ai-scrim" onClick={() => setOpen(false)} aria-label="Close tutor" />}
       <aside className={open ? 'floating-ai open' : 'floating-ai'} aria-hidden={!open}>
         <div className="floating-ai-head">
           <div>
-            <span>AI Coach</span>
+            <span>Tutor</span>
             <strong>{lesson?.title || 'Current lesson'}</strong>
           </div>
           <div className="ai-head-actions">
@@ -4047,18 +3036,29 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
         <div className="ai-message-list" aria-live="polite">
           {messages.length === 0 && (
             <div className="ai-empty">
-              <strong>No conversation yet.</strong>
-              <p>Ask about the current card, a historical parallel, or a decision you are facing.</p>
+              <p>Ask anything about what you are reading, or try one of these.</p>
             </div>
           )}
           {messages.map((message) => (
             <article key={message.id} className={message.role === 'user' ? 'ai-message user' : 'ai-message assistant'}>
-              <span>{message.role === 'user' ? 'You' : 'AI Coach'}</span>
+              <span>{message.role === 'user' ? 'You' : 'Tutor'}</span>
               <p>{message.content}</p>
             </article>
           ))}
           {isAsking && <p className="ai-thinking">Thinking...</p>}
         </div>
+
+        {messages.length === 0 && (
+          <div className="ai-suggestions">
+            {TUTOR_SUGGESTIONS.map((suggestion) => (
+              <button key={suggestion.label} className="ai-suggestion-chip" onClick={() => askQuestion(suggestion.prompt)} disabled={isAsking}>
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {notice && <p className="settings-notice">{notice}</p>}
 
         <div className="ai-composer">
           <textarea
@@ -4066,42 +3066,13 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
             onChange={(event) => setQuestion(event.target.value)}
             placeholder="Ask about this lesson..."
           />
-          <button className="primary-button" onClick={askQuestion} disabled={isAsking || !question.trim()}>
+          <button className="primary-button" onClick={() => askQuestion()} disabled={isAsking || !question.trim()}>
             <Send size={16} />
             Ask
           </button>
         </div>
       </aside>
     </>
-  );
-}
-
-function FidelityPanel({ lesson }) {
-  const summaryLesson = isSummaryLesson(lesson);
-  const rows = summaryLesson
-    ? [
-        ['Source basis', lesson.sourceBasis.join(', ')],
-        ['Summary type', lesson.summaryKind === 'History' ? 'World history study guide' : 'Novel study guide'],
-        ...(lesson.summaryKind === 'History' && lesson.reflectionLens ? [['Leadership reflection', lesson.reflectionLens]] : []),
-        ['Source note', lesson.fidelityNote],
-      ]
-    : [
-        ['Source basis', lesson.sourceBasis.join(', ')],
-        ['History lens', lesson.historicalExample?.title || 'General leadership history'],
-        ['Analogy', lesson.historicalExample?.analogy || 'Pattern matched to context.'],
-        ['Caution', lesson.ethicsCheck],
-        ['Source note', lesson.fidelityNote],
-      ].filter(([, text]) => Boolean(text));
-  return (
-    <div className="fidelity-panel">
-      <p className="section-label">Source notes</p>
-      {rows.map(([label, text]) => (
-        <div key={label} className="fidelity-row">
-          <span>{label}</span>
-          <p>{text}</p>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -4115,17 +3086,6 @@ function InfoBlock({ title, text }) {
   );
 }
 
-function SourceMini({ source }) {
-  return (
-    <article className="source-mini">
-      <BookOpen size={16} />
-      <div>
-        <strong>{source.title}</strong>
-        <p>{source.usefulIdea}</p>
-      </div>
-    </article>
-  );
-}
 
 function NoteBox({ note, onSave }) {
   const [draft, setDraft] = useState(note);

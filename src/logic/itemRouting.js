@@ -4,16 +4,6 @@ import { parseCanonicalItemKey } from './itemIdentity.js';
 export function resolveCanonicalItemRoute(state, key) {
   const { domain, itemId } = parseCanonicalItemKey(key);
 
-  if (domain === 'news') {
-    const newsItem = (state.news?.items || []).find((item) => item.id === itemId);
-    return {
-      view: 'news',
-      domain,
-      newsId: newsItem?.id || itemId,
-      newsItem: newsItem || null,
-    };
-  }
-
   if (domain === 'article') {
     const article = articleBySlug[itemId] || null;
     return {

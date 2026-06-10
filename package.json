@@ -8,10 +8,6 @@
     "phone": "vite --host 0.0.0.0 --port 5174",
     "build": "vite build",
     "build:pages": "VITE_BASE=/leaderman/ vite build --outDir docs && touch docs/.nojekyll",
-    "keychain:set": "node scripts/save-openai-key-to-keychain.mjs",
-    "local:ai": "npm run build && node scripts/local-ai-server.mjs --host 127.0.0.1 --port 4174",
-    "mac:app": "node scripts/create-mac-app.mjs",
-    "phone:ai": "npm run build && node scripts/local-ai-server.mjs --host 0.0.0.0 --port 4174",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run"
   },

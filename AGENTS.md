@@ -1,44 +1,37 @@
-# Leaderman Agent Guide
+# Curiosity Agent Guide
 
-This repository is Leaderman, a local-first leadership microlearning app. Do not treat it as Cozycat, even if an inherited workspace note mentions Cozycat. Cozycat context is stale for this repo.
+This repository is Curiosity (repo name `leaderman` for historical reasons), a calm nightly reading app with a shared, AI-growable library. Ignore any inherited workspace notes about "Cozycat" or about a Mac-hosted private server — both are stale.
 
 ## Start Here
 
-Read these files before making non-trivial changes:
+1. `project-docs/PRODUCT_SPEC.md` — the product definition and milestone plan. This is the source of truth for intent.
+2. `project-docs/ARCHITECTURE.md` — code structure and data flow.
+3. `project-docs/SECURITY_AND_PRIVACY.md` — before touching AI, key storage, sync, or the shared catalog.
+4. `project-docs/OPERATIONS.md` — run, test, publish.
 
-1. `README.md` for user-facing setup.
-2. `project-docs/README_FOR_AGENTS.md` for product capabilities and boundaries.
-3. `project-docs/ARCHITECTURE.md` for code structure and data flow.
-4. `project-docs/OPERATIONS.md` for local run, publishing, and desktop launcher commands.
-5. `project-docs/SECURITY_AND_PRIVACY.md` before touching AI, key storage, persistence, import/export, or hosting.
-
-The tracked `docs/` directory is generated GitHub Pages output. Do not use `docs/` as source documentation unless you also change the build flow intentionally.
+The tracked `docs/` directory is generated GitHub Pages output, not source documentation.
 
 ## Product Intent
 
-Leaderman is a serious personal training cockpit for leadership judgment. It teaches through condensed source cards, longer article-style lessons, historical examples, scenario decisions, reflections, simple completion tracking, question accuracy, philosophy tracks, and an optional AI coach.
-
-The app is designed for one person using it privately tonight, not for a multi-user SaaS product. Preserve the local-first model unless explicitly asked to change it.
+Curiosity is a calm nightly reading app for the maintainer, family, and friends, published openly. Lessons are flowing essays read in a paginated book-style reader. The shared library grows when users open empty topic slots and generate canonical lessons with their own OpenAI key. There is one architecture: static frontend + Supabase (auth, per-user sync, shared lesson catalog) + BYOK AI direct from the browser.
 
 ## Architecture Rules
 
-- Keep the frontend static-first. The main app should continue to work from GitHub Pages with no backend.
-- Keep personal data local by default. Notes, reflections, progress, completion/question state, and browser AI settings live in browser storage.
-- Keep seeded curriculum deterministic and copyright-safe. Use paraphrase, source attribution, public-domain classics, doctrine, research summaries, and historical cases. Do not invent quotes, citations, dates, or book claims.
-- Treat `scripts/local-ai-server.mjs` as the private personal AI bridge. It may proxy OpenAI calls with a key from environment or macOS Keychain.
-- Do not commit API keys or secrets. Do not add telemetry or remote sync unless the user asks.
-- Keep the UI dense, calm, and modern. Avoid marketing landing pages, mascots, decorative bloat, and course marketplace patterns.
+- Static-first frontend; no app server. Supabase is the only backend.
+- BYOK AI: user keys live in browser storage only — never synced, never sent to Supabase, never proxied.
+- The shared lesson catalog (`generated_lessons`) is insert-only from clients; published canon is immutable. Canon generation is pinned to `CANON_MODEL` in `src/logic/lessonPipeline.js`.
+- Keep seeded curriculum deterministic and copyright-safe. Never invent quotes, citations, dates, or book claims — in seed content or in pipeline prompts.
+- Personal data stays in the user's snapshot (browser + their `user_profiles` row). No telemetry.
+- UI stays minimal, calm, book-like. No marketing surfaces, no self-narrating chrome: if deleting words loses nothing a reader couldn't infer, delete the words.
 
 ## Common Commands
 
 ```bash
 npm install
 npm test
+npm run dev
 npm run build
 npm run build:pages
-npm run local:ai
-npm run phone:ai
-npm run mac:app
 ```
 
-Run `npm test` after logic or docs that describe tested behavior. Run `npm run build` after frontend changes. Run `npm run build:pages` before pushing changes that should appear on the public GitHub Pages site.
+Run `npm test` after logic changes. Run `npm run build` after frontend changes. Run `npm run build:pages` before pushing changes that should appear on the public site.

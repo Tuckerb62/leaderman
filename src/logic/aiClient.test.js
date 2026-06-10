@@ -15,7 +15,9 @@ import {
   expandArticleFromMarkdown,
   askArticleTutor,
   extractResponseText,
+  looksLikeOpenAiKey,
   requiresClientApiKey,
+  validateApiKey,
 } from './aiClient.js';
 
 const lesson = {
@@ -99,6 +101,41 @@ describe('ai client helpers', () => {
   it('only requires browser-held keys for absolute API endpoints', () => {
     expect(requiresClientApiKey('/api/openai-responses')).toBe(false);
     expect(requiresClientApiKey('https://api.openai.com/v1/responses')).toBe(true);
+  });
+
+  it('defaults to calling OpenAI directly from the browser', () => {
+    expect(DEFAULT_AI_SETTINGS.endpoint).toBe('https://api.openai.com/v1/responses');
+    expect(requiresClientApiKey(DEFAULT_AI_SETTINGS.endpoint)).toBe(true);
+  });
+
+  it('recognizes plausible OpenAI key shapes', () => {
+    expect(looksLikeOpenAiKey('sk-proj-abc123def456')).toBe(true);
+    expect(looksLikeOpenAiKey('not-a-key')).toBe(false);
+    expect(looksLikeOpenAiKey('')).toBe(false);
+  });
+
+  it('rejects malformed keys before contacting OpenAI', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+
+    await expect(validateApiKey('garbage')).rejects.toThrow('start with "sk-"');
+    await expect(validateApiKey('')).rejects.toThrow('Paste an API key first.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('checks a plausible key against the OpenAI models endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    globalThis.fetch = fetchMock;
+
+    await expect(validateApiKey('sk-proj-abc123def456')).resolves.toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/models');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-proj-abc123def456');
+  });
+
+  it('reports a rejected key plainly', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+
+    await expect(validateApiKey('sk-proj-abc123def456')).rejects.toThrow('OpenAI rejected this key');
   });
 
   it('sends the Curiosity overview and chosen model in the OpenAI request body', async () => {

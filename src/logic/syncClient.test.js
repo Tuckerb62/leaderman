@@ -21,54 +21,26 @@ function mockNoSupabase() {
 }
 
 describe('sync client', () => {
-  it('calls the built-in sync bridge health endpoint', async () => {
+  it('reports sync as unavailable when Supabase is not configured', async () => {
     mockNoSupabase();
-    const { fetchSyncHealth } = await import('./syncClient.js');
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ available: true }),
-    });
+    const fetchMock = vi.fn();
     globalThis.fetch = fetchMock;
 
+    const { fetchSyncHealth } = await import('./syncClient.js');
     const payload = await fetchSyncHealth();
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/sync-health');
-    expect(payload.mode).toBe('local');
-    expect(payload.available).toBe(true);
+    expect(payload.mode).toBe('supabase');
+    expect(payload.configured).toBe(false);
+    expect(payload.available).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('loads the built-in sync snapshot', async () => {
+  it('refuses snapshot reads and writes when Supabase is not configured', async () => {
     mockNoSupabase();
-    const { fetchSyncSnapshot } = await import('./syncClient.js');
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ snapshot: null }),
-    });
-    globalThis.fetch = fetchMock;
+    const { fetchSyncSnapshot, pushSyncSnapshot } = await import('./syncClient.js');
 
-    await fetchSyncSnapshot();
-
-    expect(fetchMock).toHaveBeenCalledWith('/api/sync-state');
-  });
-
-  it('posts snapshots to the built-in sync endpoint', async () => {
-    mockNoSupabase();
-    const { pushSyncSnapshot } = await import('./syncClient.js');
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ snapshot: { syncedAt: '2026-06-08T12:00:00.000Z' } }),
-    });
-    globalThis.fetch = fetchMock;
-
-    await pushSyncSnapshot({ syncedAt: '2026-06-08T12:00:00.000Z' });
-
-    expect(fetchMock).toHaveBeenCalledWith('/api/sync-state', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ snapshot: { syncedAt: '2026-06-08T12:00:00.000Z' } }),
-    });
+    await expect(fetchSyncSnapshot()).rejects.toThrow('Cloud sync is not configured');
+    await expect(pushSyncSnapshot({ syncedAt: '2026-06-08T12:00:00.000Z' })).rejects.toThrow('Cloud sync is not configured');
   });
 
   it('reports sign-in required when Supabase is configured without a session', async () => {

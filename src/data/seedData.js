@@ -3513,7 +3513,6 @@ export const createInitialState = () => ({
   savedItems: {},
   dismissedItems: {},
   itemActivity: {},
-  news: createInitialNewsState(),
   settings: {
     dailyGoalCards: 10,
     currentFocus: 'Decision Quality',
@@ -3531,4 +3530,3 @@ export const createInitialState = () => ({
     },
   },
 });
-import { createInitialNewsState } from './newsStorage.js';

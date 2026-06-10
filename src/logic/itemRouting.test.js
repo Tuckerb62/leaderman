@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../data/seedData.js';
-import { createInitialNewsState } from '../data/newsStorage.js';
 import { articles } from '../data/articleCatalog.js';
 import { resolveCanonicalItemRoute } from './itemRouting.js';
 
@@ -13,25 +12,6 @@ describe('item routing', () => {
       view: 'learn',
       domain: 'library',
       lessonId: lesson.id,
-    });
-  });
-
-  it('routes news items into the news detail view', () => {
-    const state = createInitialState();
-    state.news = createInitialNewsState();
-    state.news.items = [
-      {
-        id: 'news-1',
-        topicKey: 'markets-fed-cut',
-        title: 'Fed holds rates',
-        category: 'Markets',
-      },
-    ];
-
-    expect(resolveCanonicalItemRoute(state, 'news:news-1')).toMatchObject({
-      view: 'news',
-      domain: 'news',
-      newsId: 'news-1',
     });
   });
 

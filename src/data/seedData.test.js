@@ -149,6 +149,5 @@ describe('seed lesson articles', () => {
     expect(state.savedItems).toEqual({});
     expect(state.dismissedItems).toEqual({});
     expect(state.itemActivity).toEqual({});
-    expect(state.news.items).toEqual([]);
   });
 });

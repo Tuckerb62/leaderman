@@ -1,301 +1,82 @@
 # Architecture
 
-Curiosity is a Vite React single-page app with optional local Node tooling for private AI, private News, single-user sync, and desktop launching. The main product is intentionally static-first: it can run from GitHub Pages without a server, while the private server version runs from the user's Mac. Optional Supabase Auth plus `public.user_profiles` adds cloud sync for the user's own state snapshot.
+Curiosity is a static Vite + React single-page app backed only by Supabase. There is no app server: the frontend is hosted on GitHub Pages (or any static host), Supabase provides auth, per-user state sync, and the shared lesson catalog, and AI calls go directly from the browser to OpenAI with the user's own key.
 
 ## Key Files
 
-- `src/App.jsx`: main React application, Feed, navigation, shared item routing, Library, Novels, News, Progress, import/export controls, floating AI Coach UI, and local state updates.
-- `src/styles.css`: full app styling, responsive layout, dashboard surfaces, controls, lesson cards, and mobile behavior.
-- `src/data/seedData.js`: deterministic source cards, seeded lessons, initial progress records, and app state factory.
-- `src/data/storage.js`: local state load/save, backup export, and backup import normalization.
-- `src/data/topicBank.js`: subject and subtopic definitions plus deterministic lesson-to-topic indexing for Library.
-- `src/data/newsStorage.js`: News storage, dedupe ledger, retention, saved story state, and expansion persistence.
-- `src/data/syncState.js`: sync snapshot building and merge logic for both the Mac-hosted sync bridge and the Supabase-backed user profile snapshot.
-- `src/logic/supabaseAuth.js`: magic-link sign-in, session lookup, and auth-state subscription for Supabase sync.
-- `src/data/aiSettings.js`: browser AI settings and optional browser-side key storage, excluding the desktop-only custom endpoint.
-- `src/logic/reviewScheduler.js`: completion tracking and question-answer transitions.
-- `src/logic/selectors.js`: source lookup and progress stats from the seeded lesson model.
-- `src/logic/itemIdentity.js`: canonical keys for library, novels, and news items.
-- `src/logic/itemRouting.js`: canonical item routing into shared detail views.
-- `src/logic/feedAggregation.js`: Feed aggregation, scoring, domain interleaving, and reason-line generation.
-- `src/logic/aiClient.js`: AI instructions, lesson context, Responses API payload construction, response parsing, and endpoint behavior.
-- `scripts/local-ai-server.mjs`: static file server plus private OpenAI proxy, sync endpoints, news endpoints, and macOS Keychain saving.
-- `scripts/private-ai-settings-store.mjs`: desktop-only custom AI endpoint storage in the local app data folder on the Mac.
-- `scripts/private-sync-store.mjs`: sync snapshot file storage on the user's Mac.
-- `scripts/private-news.mjs`: curated source fetching, clustering, summarization fallback, and News expansion helpers.
-- `scripts/save-openai-key-to-keychain.mjs`: terminal-based Keychain setup.
-- `scripts/create-mac-app.mjs`: creates the local macOS `Curiosity.app` launcher.
-- `public/manifest.webmanifest`, `public/icon.svg`, `public/sw.js`: installable web app assets.
-- `docs/`: generated GitHub Pages output from `npm run build:pages`.
-- `project-docs/`: maintainable source documentation.
+- `src/App.jsx`: application shell — auth gate, navigation, Feed, Library, Literature, Progress, Account, view routing, and state actions.
+- `src/components/BookReader.jsx`: the paginated book-style reader (serif typography, paper/dark themes, text size, page indicator, completion) plus the shared `MarkdownBlock` renderer.
+- `src/components/GeneratedLessonView.jsx`: shared-library lessons — renders the reader for published lessons, or the generation panel (explainer, watch-it-work stages) for empty slots.
+- `src/styles.css`: full app styling.
+- `src/data/seedData.js`: deterministic seeded lessons and app state factory.
+- `src/data/articleCatalog.js` + `src/data/markdownCurriculumParser.js`: the markdown curriculum (subject → topic → subtopic tree) parsed from `src/data/sources/*.md`.
+- `src/data/lessonSlots.js`: the curated list of empty lesson slots the shared library can grow into. Grow the library by adding entries here.
+- `src/data/storage.js`: local state load/save and backup import/export.
+- `src/data/syncState.js`: sync snapshot build and merge (per-slice timestamps, last-write with backfill).
+- `src/data/aiSettings.js`: browser AI settings and key storage (localStorage/sessionStorage only).
+- `src/logic/aiClient.js`: OpenAI Responses API client — tutor instructions, expansion prompts, payload construction, key validation (`validateApiKey`), direct-endpoint default.
+- `src/logic/lessonPages.js`: pagination — splits prose into 500–1k word pages at paragraph boundaries.
+- `src/logic/lessonPipeline.js`: the five-step canon generation pipeline (draft → verify → fix → optimize → publish) with the pinned `CANON_MODEL`, web-search grounding, and localStorage checkpointing.
+- `src/logic/generatedLessons.js`: shared catalog client — fetch/cache `generated_lessons`, publish with race handling.
+- `src/logic/supabaseAuth.js` + `src/utils/supabase.js`: auth session handling and client config.
+- `src/logic/syncClient.js`: Supabase sync provider (health, pull, push).
+- `src/logic/feedAggregation.js`: Feed scoring, mixing, and domain interleaving across articles, seeded lessons, and generated lessons.
+- `src/logic/itemIdentity.js` + `src/logic/itemRouting.js`: canonical item keys and routing into detail views.
+- `supabase/migrations/`: the database schema. Self-hosters apply these to their own project.
 
-## Data Model
+## Backend (Supabase)
 
-The app state is created by `createInitialState()` in `src/data/seedData.js`. The effective state shape is:
+Two tables, both under row-level security:
 
-```js
-{
-  schemaVersion: 2,
-  sources: SourceCard[],
-  lessons: MicroLesson[],
-  reviews: Record<lessonId, LessonProgress>,
-  sessions: Session[],
-  reflections: Reflection[],
-  notes: Record<lessonId, string>,
-  readingProgress: Record<lessonId, ReadingProgress>,
-  lessonExpansions: Record<expansionKey, GeneratedExpansion>,
-  followedTopics: Record<topicId, FollowState>,
-  savedItems: Record<itemKey, SavedState>,
-  dismissedItems: Record<itemKey, DismissState>,
-  itemActivity: Record<itemKey, ActivityState>,
-  news: NewsState,
-  settings: object
-}
-```
+- `public.user_profiles` — one row per user: `app_state` jsonb snapshot, last-synced timestamps. Policies: select/insert/update own row only; `anon` has no access.
+- `public.generated_lessons` — the shared library canon: `slot_id` (primary key), `lesson` jsonb (`{title, openingLine, pages[]}`), `model`, `generated_by`, `verification_notes`, `created_at`. Policies: all authenticated users can select; insert only as yourself; **no update or delete** — canon is immutable from clients, and the primary key makes the first publisher win any race. `generated_by` survives author deletion (`on delete set null`).
 
-`SourceCard` records explain where a lesson draws from:
+## Reading Experience
 
-```js
-{
-  id,
-  title,
-  author,
-  domain,
-  coreArgument,
-  usefulIdea,
-  blindSpot,
-  opposingView,
-  application,
-  tags
-}
-```
+Lessons render through `BookReader`: one flowing essay, paginated into ~500–1k word pages, serif type, paper and dark themes, adjustable text size. Page position is saved per book key into `readingProgress` (synced), so any device resumes the exact page. Finishing the last page is the completion action. Reader theme/size live in `settings.reader` (synced). Forward page turns increment `settings.studyStats.pagesTurned`.
 
-`MicroLesson` records drive the learning experience:
+Three content kinds flow through the same reader:
 
-```js
-{
-  id,
-  slug,
-  title,
-  domain,
-  sourceIds,
-  sourceBasis,
-  article,
-  coreIdea,
-  getsRight,
-  misses,
-  opposingView,
-  historicalExample,
-  scenario,
-  decisionOptions,
-  practiceRep,
-  reflectionPrompt,
-  reviewPrompt,
-  ethicsCheck,
-  agentNotes,
-  order
-}
-```
+- seeded lessons (`view: 'learn'`) — `articleParagraphs`, or the user's private AI expansion when present
+- markdown articles (`view: 'article'`) — `bodyMarkdown`, or the user's private generated article
+- shared-library lessons (`view: 'generated'`) — pages from the `generated_lessons` catalog
 
-`LessonProgress` is produced and updated by `src/logic/reviewScheduler.js`:
+The floating tutor bubble is draggable (position in localStorage), carries the current reading context, and offers suggestion chips (quiz, scenario, reflect) when the conversation is empty.
 
-```js
-{
-  status,
-  completed,
-  completedAt,
-  attempts,
-  questionAttempts,
-  correctAnswers,
-  lastQuestionAt,
-  lastReviewedAt
-}
-```
+## The Growing Library
 
-`Session` records capture completed five-card learning sessions:
+`src/data/lessonSlots.js` declares topics the library should cover but doesn't yet. Empty slots render in the Library as "Not written yet" rows. Opening one shows the generation panel; confirming runs `runLessonPipeline` in the browser on the user's key:
 
-```js
-{
-  id,
-  startedAt,
-  endedAt,
-  lessonIds,
-  results,
-  minutes
-}
-```
+1. **Draft** — flowing essay, variable depth (1–6 pages), web search enabled, anti-padding rules.
+2. **Verify** — separate adversarial call checks every factual claim against web search; outputs confirmed/corrected/unverified.
+3. **Fix** — applies corrections; unverified claims are removed or hedged. Skipped when verification found nothing.
+4. **Optimize** — editing pass only; no new factual claims allowed.
+5. **Publish** — client-side shape validation, then insert into `generated_lessons`.
 
-Canonical items sit on top of the seeded lesson model:
-
-```js
-{
-  key: 'library:lesson-id' | 'novels:lesson-id' | 'news:story-id',
-  domain: 'library' | 'novels' | 'news',
-  itemId: string
-}
-```
-
-The Feed stores and routes canonical item keys, not a separate feed-only content type. `resolveCanonicalItemRoute(...)` maps those keys into the shared detail experience.
-
-## State Flow
-
-```mermaid
-flowchart LR
-  Seed["src/data/seedData.js"] --> Load["loadState()"]
-  Browser["localStorage"] --> Load
-  Load --> React["App state"]
-  React --> Views["Feed / Library / Novels / News / Progress / Hidden Detail / Floating AI"]
-  Views --> Actions["complete, answer question, note, reflection, expand, save, dismiss, follow, session, import"]
-  Actions --> React
-  React --> Save["saveState()"]
-  Save --> Browser
-  React --> Export["manual JSON export"]
-  Import["manual JSON import"] --> Load
-```
-
-`lessonExpansions` stores local AI-generated Markdown drafts for expanded lessons, summaries, and authored chapter or section entries. News expansions live under the News state. These drafts are user-owned local data, not deterministic curriculum.
-
-`loadState()` always keeps source cards and lessons from the current seed data. Imported or saved user state restores completion state, question-answer counts, notes, reflections, sessions, reading progress, lesson expansion drafts, saved items, followed topics, dismissed items, News state, and settings. This prevents stale exported curriculum from overwriting newer built-in curriculum.
-
-## Feed Aggregation and Routing
-
-`src/logic/feedAggregation.js` builds Feed entries from three canonical domains:
-
-- Library lessons from `buildLibraryLessonIndex(...)`
-- Novel and book lessons detected through `summaryKind === 'Novel'`
-- Private News stories from `state.news.items`
-
-Aggregation rules:
-
-- direct-interest items are favored through saved state, follow state, and interaction history
-- adjacent exploration fills the remaining space
-- the target is roughly 80 percent direct interest and 20 percent adjacent exploration
-- domain interleaving avoids long same-domain runs
-- every card gets a plain-language reason line
-
-The Feed does not own separate detail content. Opening a Feed item routes to the same underlying detail path as the native tab.
-
-## Library and Novels
-
-`src/data/topicBank.js` maps seeded lessons into a deterministic subject tree. This is intentionally curated and finite, not a marketplace. Current coverage is stronger in leadership, philosophy, history, business, writing, and politics than in emergency medicine or biopharm; those lower-coverage subjects exist in the topic model so they can be expanded without changing the architecture.
-
-Novels are not a parallel content system. They are existing lesson records promoted into a separate tab and canonical domain, with reading progress and chapter summaries reused where available.
-
-## News
-
-News state lives in `src/data/newsStorage.js` and includes:
-
-- `items`
-- `topicLedger`
-- `expansions`
-- `refreshedAt`
-
-The private server fetches source material from a small curated source list, then returns compact stories with:
-
-- title
-- category
-- what happened
-- sources
-
-Saved or archived stories survive refresh and retention cleanup. Unsaved stories expire after 14 days. The topic ledger reduces repeated coverage of the same event.
-
-Public GitHub Pages has no private News refresh path. The tab can still render stored local News state, but new refreshes require the private server.
-
-## Progress Tracker
-
-Progress is still intentionally simple. It reports percent complete, question percent right, completed card count, and recent reflection activity instead of a more elaborate mastery system.
+Each completed step checkpoints to localStorage so a dropped connection resumes rather than re-paying. Published lessons appear in the Library, the Feed, and the reader for every user. Generation runs foreground by design: browsers suspend background tabs, and the UI shows the stage in progress.
 
 ## AI Flow
 
-```mermaid
-flowchart LR
-  UI["Floating AI panel / Expand buttons"] --> Client["src/logic/aiClient.js"]
-  Client --> Endpoint{"Endpoint"}
-  Endpoint -->|"default /api/openai-responses"| LocalServer["scripts/local-ai-server.mjs"]
-  LocalServer --> DesktopEndpoint["desktop-only endpoint file"]
-  LocalServer --> Key{"API key source"}
-  Key --> Env["OPENAI_API_KEY"]
-  Key --> Keychain["macOS Keychain"]
-  LocalServer --> OpenAI["OpenAI Responses API"]
-  Endpoint -->|"fallback direct OpenAI"| Direct["Direct browser request with pasted key"]
-  Direct --> OpenAI
-```
+All AI goes directly from the browser to `https://api.openai.com/v1/responses` with the user's key (`DEFAULT_AI_SETTINGS.endpoint`). The key is validated against `/v1/models` before saving and stored in localStorage (or sessionStorage when "remember" is off). The tutor and private expansions use the user's chosen model (`AI_MODEL_OPTIONS` + custom ID); canon generation always uses `CANON_MODEL`.
 
-The default endpoint is `/api/openai-responses`. That only works when using the private local server. The server may itself use a desktop-only custom upstream endpoint saved in the local app data folder on the Mac. On GitHub Pages, the app can still run without AI, or the user can fall back to a direct OpenAI browser request with a pasted key.
+## State and Sync
 
-The selected model is stored with AI settings. Curated model choices and descriptions live in `AI_MODEL_OPTIONS`; `DEFAULT_AI_SETTINGS.model` sets the default. The UI also supports a custom model ID.
+App state is created by `createInitialState()` and persisted to localStorage on every change. Signed-in devices push/pull a snapshot through `user_profiles.app_state`: debounced push on change, periodic pull, pull on visibility change. Merge is per-slice last-write with backfill for generated content (`mergeSyncSnapshot`). Synced slices include reviews, sessions, reflections, notes, reading positions (and reader settings), lesson expansions, completed/generated articles, saved/dismissed items, followed topics, and profile settings. Never synced: API keys, resume view state, the shared catalog (which lives in `generated_lessons`, cached in localStorage).
 
-The API request body includes a centralized `instructions` prompt. It gives the AI an overview of Curiosity, defines the tutor role, requires factual caveats, asks for examples and practical drills, and includes current lesson context when enabled.
+## Feed
 
-Expansion requests use the same endpoint and key settings as AI Coach. The expansion prompt asks for structured Markdown, avoids repeated boilerplate, keeps source uncertainty separate from teaching content, and stores the result only in local or synced user-owned state.
-
-News refresh follows a similar pattern, but it starts from fetched source material. The app should never ask the model to invent current events from memory. AI is used only to summarize, cluster, dedupe, and optionally expand actual fetched source material.
-
-## Sync Flow
-
-```mermaid
-flowchart LR
-  BrowserState["Browser local state"] --> Snapshot["buildSyncSnapshot()"]
-  Snapshot --> Provider{"Sync provider"}
-  Provider --> Server["scripts/local-ai-server.mjs /api/sync-state"]
-  Server --> File["private-sync-store.mjs sync-state.json on Mac"]
-  File --> Server
-  BrowserState --> Auth["Supabase Auth session (optional)"]
-  Provider --> Supabase["Supabase public.user_profiles.app_state"]
-  Supabase --> Merge["mergeSyncSnapshot()"]
-  Server --> Merge
-  Merge --> BrowserState
-```
-
-The sync bridge is intentionally small. Curiosity now has two providers at this seam:
-
-- default local bridge through the Mac-hosted private server
-- optional Supabase sync through `public.user_profiles` when `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are present and the user is signed in
-
-Both providers sync the same snapshot shape built by `buildSyncSnapshot(...)`.
-
-The sync model remains intentionally small:
-
-- single user
-- optional one-user auth profile for cross-device sync
-- no synced API keys
-- best-effort last-write merge by per-slice timestamps plus periodic client pull and push
-
-This is enough for one person using desktop and phone either through the Mac-hosted server or through their own Supabase project, but it is not a multi-user conflict-resolution system.
+`buildFeedItems(state, { limit, generatedLessons })` mixes three domains — markdown articles (including literature chapter groups), seeded library lessons, and shared generated lessons — scored by saved/follow/activity signals with ~80/20 direct-interest vs exploration mixing and domain interleaving. Feed cards are deliberately bare: title, opening line, one quiet state marker. Tap opens the item; swipe right completes; swipe up dismisses.
 
 ## Build Outputs
 
-`npm run build` creates `dist/` for local preview and private server use.
-
-`npm run build:pages` creates `docs/` for GitHub Pages with `VITE_BASE=/leaderman/`. This folder is generated output and should be considered replaceable.
-
-The desktop launcher does not bundle a copy of the app. It points to this repo path, runs `npm run build`, starts `scripts/local-ai-server.mjs` in LAN mode, and opens `http://127.0.0.1:4174/` on the Mac while also making a phone-ready local-network address available.
+- `npm run build` → `dist/` for local preview.
+- `npm run build:pages` → `docs/` for GitHub Pages (with `VITE_BASE=/leaderman/`). Generated output; replaceable.
 
 ## Testing
 
-Current automated tests use Vitest and cover:
-
-- AI settings behavior.
-- AI chat persistence behavior.
-- AI client payload and response parsing behavior.
-- canonical item identity and routing.
-- Feed aggregation and domain interleaving.
-- completion and question-answer transitions.
-- streak and session-minute helpers.
-- seed data integrity.
-- storage import and export normalization.
-- topic bank indexing.
-- News storage, retention, and dedupe behavior.
-- sync snapshot build and merge behavior.
-
-Run:
+Vitest covers: pagination, the lesson pipeline (prompts, validation, run order, checkpoint resume), the catalog normalizer, AI client payloads and key validation, sync snapshot build/merge, storage import/export, feed aggregation and interleaving, item identity/routing, study progress, seed data integrity, and topic bank indexing.
 
 ```bash
 npm test
-```
-
-For UI changes, also run a build:
-
-```bash
-npm run build
+npm run build   # after UI changes
 ```

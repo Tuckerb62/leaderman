@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { articles } from '../data/articleCatalog.js';
 import { createInitialState } from '../data/seedData.js';
-import { createInitialNewsState } from '../data/newsStorage.js';
 import { buildFeedItems } from './feedAggregation.js';
 
 describe('feed aggregation', () => {
-  it('mixes article, library, and news items into one canonical feed', () => {
+  it('mixes article and library items into one canonical feed', () => {
     const state = createInitialState();
     const lesson = state.lessons.find((item) => item.summaryKind !== 'Novel');
 
@@ -20,28 +19,11 @@ describe('feed aggregation', () => {
         updatedAt: '2026-06-08T12:00:00.000Z',
       },
     };
-    state.news = {
-      ...createInitialNewsState(),
-      items: [
-        {
-          id: 'story-1',
-          topicKey: 'technology-ai',
-          title: 'Model update',
-          category: 'Technology',
-          whatHappened: 'A large lab shipped a model update.',
-          status: 'fresh',
-          updatedAt: '2026-06-08T12:00:00.000Z',
-          relatedTopics: ['ai-future'],
-        },
-      ],
-    };
-
     const feed = buildFeedItems(state, { limit: 12, now: '2026-06-08T12:00:00.000Z' });
     const domains = new Set(feed.map((item) => item.domain));
 
     expect(domains.has('article')).toBe(true);
     expect(domains.has('library')).toBe(true);
-    expect(domains.has('news')).toBe(true);
   });
 
   it('includes markdown article cards with article keys, progress, and saved state', () => {

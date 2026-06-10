@@ -1,6 +1,7 @@
 import { articles, humanizeLiteratureLabel } from '../data/articleCatalog.js';
 import { buildLibraryLessonIndex, describeLessonTopics } from '../data/topicBank.js';
-import { canonicalArticleItem, canonicalLessonItem, canonicalNewsItem } from './itemIdentity.js';
+import { slotById } from '../data/lessonSlots.js';
+import { canonicalArticleItem, canonicalLessonItem } from './itemIdentity.js';
 
 function stableHash(text) {
   return [...text].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 100000, 7);
@@ -73,7 +74,7 @@ function takeUniqueFromPool(target, seen, pool, count, mixBucket) {
 }
 
 function ensureDomainCoverage(items, allRanked, limit) {
-  const requiredDomains = ['article', 'library', 'news']
+  const requiredDomains = ['article', 'library']
     .filter((domain) => allRanked.some((item) => item.domain === domain));
   const withCoverage = [...items];
   const seen = new Set(withCoverage.map((item) => item.key));
@@ -150,7 +151,7 @@ function directReason(item, state) {
 
   const followed = item.topicIds?.find((topicId) => state.followedTopics?.[topicId]);
   if (followed) {
-    return item.domain === 'news' ? 'New update in a topic you follow' : `Related to the ${followed.replace(/-/g, ' ')} topics you follow`;
+    return `Related to the ${followed.replace(/-/g, ' ')} topics you follow`;
   }
 
   const activity = state.itemActivity?.[item.key];
@@ -158,12 +159,10 @@ function directReason(item, state) {
     return item.subjectTitle ? `Related to your recent ${item.subjectTitle} activity` : 'Related to your recent reading activity';
   }
 
-  if (item.domain === 'news') return 'Fresh update from your private briefing';
   return 'Because this matches your active study map';
 }
 
 function coldStartReason(item) {
-  if (item.domain === 'news') return 'Fresh briefing for tonight';
   return `A high-signal ${item.subjectTitle || 'study'} item to start with`;
 }
 
@@ -180,17 +179,6 @@ function lessonFeedEntry(lesson, domain) {
     topicIds: [...topics.map((topic) => topic.subjectId), ...topics.flatMap((topic) => topic.subtopicIds)],
     subjectTitle,
     sortDate: lesson.completedAt || lesson.order,
-  };
-}
-
-function newsFeedEntry(newsItem) {
-  return {
-    ...canonicalNewsItem(newsItem),
-    title: newsItem.title,
-    newsItem,
-    topicIds: [newsItem.category?.toLowerCase().replace(/\s+/g, '-'), ...(newsItem.relatedTopics || [])],
-    subjectTitle: newsItem.category,
-    sortDate: newsItem.updatedAt,
   };
 }
 
@@ -328,7 +316,28 @@ function articleFeedEntry(article, state, progressMaps) {
   };
 }
 
-export function buildFeedItems(state, { limit = 40, now = new Date().toISOString() } = {}) {
+function generatedFeedEntry(lesson, state) {
+  const slot = slotById(lesson.slotId);
+  const key = `generated:${lesson.slotId}`;
+  return {
+    key,
+    domain: 'generated',
+    itemId: lesson.slotId,
+    id: key,
+    type: 'generated',
+    title: lesson.title,
+    summary: lesson.openingLine || slot?.brief || '',
+    subjectId: slot?.subjectId || null,
+    subjectIds: slot ? [slot.subjectId] : [],
+    subjectTitle: slot?.subject || '',
+    completed: Boolean(state.completedArticlesByKey?.[key]?.completed),
+    saved: Boolean(state.savedItems?.[key]),
+    topicIds: slot ? [slot.subjectId] : [],
+    sortDate: lesson.createdAt || lesson.slotId,
+  };
+}
+
+export function buildFeedItems(state, { limit = 40, now = new Date().toISOString(), generatedLessons = [] } = {}) {
   const articleProgressMaps = buildArticleProgressMaps(state);
   const standardArticleItems = articles
     .filter((article) => article.articleType !== 'literature')
@@ -343,11 +352,12 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
   const literatureItems = [...literatureGroups.values()].map((chapters) => literatureFeedEntry(chapters, state, articleProgressMaps));
   const articleItems = [...standardArticleItems, ...literatureItems];
   const libraryItems = buildLibraryLessonIndex(state.lessons).map((lesson) => lessonFeedEntry(lesson, 'library'));
-  const newsItems = (state.news?.items || []).map(newsFeedEntry);
   const dismissed = new Set(Object.keys(state.dismissedItems || {}));
   const topicSignals = buildTopicSignals(state);
 
-  const scored = [...articleItems, ...libraryItems, ...newsItems]
+  const generatedItems = generatedLessons.map((lesson) => generatedFeedEntry(lesson, state));
+
+  const scored = [...articleItems, ...libraryItems, ...generatedItems]
     .filter((item) => !dismissed.has(item.key))
     .map((item) => {
       const activity = state.itemActivity?.[item.key];
@@ -369,7 +379,6 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
         + topicClickScore * 10
         + followedScore * 30
         + savedTopicScore * 16
-        + (item.domain === 'news' ? 50 : 0)
         + stableHash(`${item.key}-${now.slice(0, 10)}`) / 1000;
       const randomScore = stableHash(`random:${now.slice(0, 10)}:${item.key}`);
       const unexplored = openCount === 0 && topicClickScore === 0 && !saved;
@@ -419,7 +428,7 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
 
   if (feed.length > 0) return feed;
 
-  return interleaveDomains([...articleItems, ...libraryItems, ...newsItems])
+  return interleaveDomains([...articleItems, ...libraryItems])
     .slice(0, limit)
     .map((item) => ({
       ...item,

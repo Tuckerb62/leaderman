@@ -1,30 +1,19 @@
 # Curiosity
 
-Curiosity is a local-first personal learning cockpit. It keeps a calm Feed surface, adds a structured Library, promotes Novels into a separate reading shelf, and supports a private News briefing plus optional sync through either the user's Mac or Supabase.
+Curiosity is a calm nightly reading app. Open it on your phone, anywhere; if you were mid-lesson it opens onto the page you left, otherwise it shows a quiet feed of what to read next. Lessons read like chapters of a book. The curriculum is shared by all users; progress, notes, and reading positions are per account. The library grows: topics that have no lesson yet can be written into existence by any reader, and the result becomes part of the app for everyone.
 
-## For AI Agents and Maintainers
+## How It Works
 
-Start with `AGENTS.md`, then read `project-docs/README_FOR_AGENTS.md`.
-
-Source documentation lives in `project-docs/`. The tracked `docs/` folder is generated GitHub Pages output and can be replaced by `npm run build:pages`.
-
-## What It Includes
-
-- `Feed`: the default surface. It aggregates canonical items from Library, Novels, and News without becoming its own content type.
-- `Library`: a structured topic map with deterministic seeded learning items.
-- `Novels`: a separate reading shelf for book- and novel-driven study items.
-- `News`: a private briefing tab powered by the local server when available.
-- `Progress`: completion, question accuracy, and recent study history.
-- Shared detail view: items opened from Feed route to the same underlying detail experience used by their native tab.
-- Floating AI: optional private expansion and coaching, only on explicit user action.
+- **Frontend**: a static Vite + React build, hosted on GitHub Pages. No app server.
+- **Accounts and sync**: Supabase (email + password). Your snapshot — progress, notes, saved items, reading positions, settings — syncs through your own row in `public.user_profiles`.
+- **AI**: bring your own OpenAI key. The key is stored only in your browser, sent only to OpenAI, and never synced. Paste it under Account → AI; the app verifies it with a test call before saving.
+- **The growing library**: the topic tree includes slots that have no lesson yet. Opening one runs a five-step writing pipeline on your key (draft with web search → fact-check against sources → correct → polish → publish). The finished lesson is published to the shared `generated_lessons` catalog, immutable, for all users.
 
 ## Use It Online
 
-After GitHub Pages finishes deploying, open:
-
 https://Tuckerb62.github.io/leaderman/
 
-The public GitHub Pages build stays static-first. Your notes, progress, saved items, generated lesson drafts, and preferences stay in your browser by default. If you choose Supabase sync, those user-owned state slices can also sync through your signed-in profile.
+On iPhone/iPad: open in Safari → Share → Add to Home Screen. On Mac: use the browser's install/add-to-dock option.
 
 ## Run Locally
 
@@ -39,126 +28,24 @@ For phone testing from the same Wi-Fi network:
 npm run phone
 ```
 
-## Private AI Setup
+The app needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env` to enable sign-in and sync. Without them it shows a setup notice.
 
-For personal use, the safest setup is to keep your OpenAI API key on your Mac and let Curiosity call a local private server. The browser never receives the key.
+## Self-Hosting
 
-Option A: save your key inside the app:
+1. Create a free Supabase project.
+2. Apply the migrations in `supabase/migrations/` (they create `user_profiles` and `generated_lessons` with row-level security).
+3. Put your project's URL and publishable key in `.env`:
+   ```
+   VITE_SUPABASE_URL=https://<your-project>.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=<your-key>
+   ```
+4. Build and host the static output anywhere (`npm run build`, or `npm run build:pages` for GitHub Pages).
 
-```bash
-npm run local:ai
-```
+Free-tier notes: Supabase pauses projects after about a week of inactivity (one click to restore), and auth emails are rate-limited to a few per hour.
 
-Open:
+## Deploy (GitHub Pages)
 
-```text
-http://127.0.0.1:4174/
-```
-
-Open the floating AI button, use the gear icon, paste your key into "Save key to Mac Keychain," and press "Remember on this Mac."
-
-Option B: save your key from the terminal:
-
-```bash
-npm run keychain:set
-```
-
-Then run Curiosity with private AI on your Mac:
-
-```bash
-npm run local:ai
-```
-
-Open:
-
-```text
-http://127.0.0.1:4174/
-```
-
-To use it from your phone on the same Wi-Fi network:
-
-```bash
-npm run phone:ai
-```
-
-The terminal will print a phone URL like:
-
-```text
-http://192.168.x.x:4174/
-```
-
-Keep that terminal window open while using the app. If Keychain is not available, you can also start the server with:
-
-```bash
-OPENAI_API_KEY=sk-your-key npm run local:ai
-```
-
-## Sync and News
-
-The working free sync path is simple:
-
-- your Mac is the home base
-- your phone opens the Mac-hosted Curiosity address on the same Wi-Fi
-- the Mac keeps the OpenAI key
-- both devices read and write the same synced state through the Mac
-
-News refresh still depends on the private Mac server. The app fetches source material, stores source URLs and titles, and uses AI only for summarization and optional expansion when available.
-
-The simple split is:
-
-- synced through the Mac: progress, saved items, generated content, and News history
-- stays only on your Mac: the OpenAI key
-
-Important:
-
-- the public GitHub Pages site is still useful as a static copy of the app
-- but the public site is not the synced phone setup for private AI, News, or live shared state
-- for the synced phone setup, use the phone address shown by the Mac-hosted app
-
-## Install Without the App Store
-
-Curiosity is installable as a web app, so you do not need an Apple Developer account or App Store publishing.
-
-Mac:
-
-Option A, Desktop launcher app:
-
-```bash
-npm run mac:app
-```
-
-This creates `Curiosity.app` on your Desktop. Double-click it to start the private local server, open Curiosity on your Mac, and make the same app reachable from your phone on the same Wi-Fi.
-
-Option B, browser-installed app:
-
-1. Open the app in Safari or Chrome.
-2. Use the browser's install/add-to-dock option.
-3. Launch it from the Dock like a normal app.
-
-iPhone or iPad:
-
-For the synced phone version that shares your Mac state tonight:
-
-1. Open `Curiosity.app` on your Mac.
-2. Press the in-app `Phone` button.
-3. On your phone, open the shown `http://192.168.x.x:4174/` address in Safari while both devices are on the same Wi-Fi.
-4. If you want a shortcut, use Share -> Add to Home Screen.
-
-That phone address is the real synced version. It gives the phone the same saved state, News, and AI bridge as the Mac app, while the API key stays on the Mac.
-
-The public GitHub Pages URL is still useful as the public static copy of the app:
-
-1. Open `https://Tuckerb62.github.io/leaderman/` in Safari.
-2. Tap Share.
-3. Tap Add to Home Screen.
-
-Use that public copy when you want the static app only. Use the Mac-hosted phone address when you want live shared state, News, and private AI.
-
-## Deploy
-
-This repo deploys to GitHub Pages from the tracked `docs/` folder on `main`.
-
-To update the published site after code changes:
+This repo publishes the tracked `docs/` folder on `main`:
 
 ```bash
 npm run build:pages
@@ -167,4 +54,8 @@ git commit -m "Update Curiosity site"
 git push
 ```
 
-If publishing under a different GitHub repository name, update `build:pages` in `package.json` from `/leaderman/` to `/<repo-name>/`.
+If publishing under a different repository name, change `/leaderman/` in the `build:pages` script.
+
+## For AI Agents and Maintainers
+
+Start with `AGENTS.md`, then `project-docs/PRODUCT_SPEC.md` (the product definition) and `project-docs/ARCHITECTURE.md` (code structure).

@@ -58,22 +58,12 @@ describe('sync state helpers', () => {
         updatedAt: '2026-06-08T13:00:00.000Z',
       },
     };
-    remote.news.items = [
-      {
-        id: 'story-1',
-        topicKey: 'fed-rates',
-        title: 'Fed holds rates',
-        status: 'fresh',
-        updatedAt: '2026-06-08T13:00:00.000Z',
-      },
-    ];
 
     const merged = mergeSyncSnapshot(local, remote);
 
     expect(merged.sources).toHaveLength(local.sources.length);
     expect(merged.lessons).toHaveLength(local.lessons.length);
     expect(merged.savedItems['library:lesson-stoic-control']).toBeTruthy();
-    expect(merged.news.items[0].id).toBe('story-1');
   });
 
   it('syncs article-keyed completion, generated articles, and tutor threads', () => {
@@ -164,12 +154,6 @@ describe('sync state helpers', () => {
         updatedAt: '2026-06-09T12:00:00.000Z',
       },
     };
-    local.news.expansions = {
-      'story-local': {
-        markdown: '## Local\nKeep my local news expansion.',
-        updatedAt: '2026-06-09T12:00:00.000Z',
-      },
-    };
 
     const remote = buildSyncSnapshot(createInitialState(), '2026-06-09T13:00:00.000Z');
     remote.lessonExpansions = {
@@ -196,19 +180,6 @@ describe('sync state helpers', () => {
         updatedAt: '2026-06-09T13:00:00.000Z',
       },
     };
-    remote.news = {
-      ...remote.news,
-      expansions: {
-        'story-local': {
-          markdown: '## Remote\nDo not overwrite local news.',
-          updatedAt: '2026-06-09T13:00:00.000Z',
-        },
-        'story-remote': {
-          markdown: '## Remote\nBackfill missing news.',
-          updatedAt: '2026-06-09T13:00:00.000Z',
-        },
-      },
-    };
 
     const merged = mergeSyncSnapshot(local, remote);
 
@@ -216,8 +187,6 @@ describe('sync state helpers', () => {
     expect(merged.lessonExpansions['lesson:lesson-hidden-rule'].markdown).toContain('Backfill this missing lesson draft');
     expect(merged.generatedArticlesByKey['article:local-edited'].articleMarkdown).toContain('Keep this local generated article');
     expect(merged.generatedArticlesByKey['article:remote-missing'].articleMarkdown).toContain('Backfill this article');
-    expect(merged.news.expansions['story-local'].markdown).toContain('Keep my local news expansion');
-    expect(merged.news.expansions['story-remote'].markdown).toContain('Backfill missing news');
   });
 
   it('prefers the newer note and merges reflections across devices', () => {

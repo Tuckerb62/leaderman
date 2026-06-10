@@ -34,7 +34,7 @@ function filterLessonExpansions(expansions = {}, lessonIds) {
 function filterSavedLikeRecord(record = {}, lessonIds) {
   return filterMappedRecord(record, (key) => {
     if (isLegacyNovelItemKey(key)) return false;
-    if (isArticleKey(key) || String(key).startsWith('news:')) return true;
+    if (isArticleKey(key)) return true;
     if (String(key).startsWith('library:')) return lessonIds.has(String(key).slice('library:'.length));
     return true;
   });
@@ -115,13 +115,6 @@ function normalizeUserState(parsed) {
     itemActivity: {
       ...seeded.itemActivity,
       ...filterSavedLikeRecord(parsed.itemActivity || {}, lessonIds),
-    },
-    news: {
-      ...seeded.news,
-      ...(parsed.news || {}),
-      items: parsed.news?.items || seeded.news.items,
-      topicLedger: parsed.news?.topicLedger || seeded.news.topicLedger,
-      expansions: parsed.news?.expansions || seeded.news.expansions,
     },
     settings: {
       ...seeded.settings,

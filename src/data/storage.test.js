@@ -127,7 +127,7 @@ describe('storage import', () => {
     expect(loaded.aiChatMessages).toEqual([{ id: 'chat-1', role: 'user', content: 'Hello', createdAt: '2026-06-09T12:00:00.000Z' }]);
   });
 
-  it('adds the new sync and news slices to fresh state', () => {
+  it('adds the new sync slices to fresh state', () => {
     const state = createInitialState();
 
     expect(state.completedArticlesByKey).toEqual({});
@@ -139,11 +139,6 @@ describe('storage import', () => {
     expect(state.itemActivity).toEqual({});
     expect(state.noteUpdatedAtByKey).toEqual({});
     expect(state.aiChatMessages).toEqual([]);
-    expect(state.news).toMatchObject({
-      items: [],
-      topicLedger: {},
-      expansions: {},
-    });
   });
 
   it('loads older schema-1 backups into the new state shape', () => {
@@ -153,7 +148,6 @@ describe('storage import', () => {
     delete backup.savedItems;
     delete backup.dismissedItems;
     delete backup.itemActivity;
-    delete backup.news;
     delete backup.completedArticlesByKey;
     delete backup.generatedArticlesByKey;
     delete backup.articleTutorThreadsByKey;
@@ -169,7 +163,6 @@ describe('storage import', () => {
     expect(parsed.followedTopics).toEqual({});
     expect(parsed.noteUpdatedAtByKey).toEqual({});
     expect(parsed.aiChatMessages).toEqual([]);
-    expect(parsed.news.items).toEqual([]);
   });
 
   it('removes legacy novel-summary state while keeping current literature articles', () => {
@@ -213,7 +206,7 @@ describe('storage import', () => {
     expect(parsed.notes['article:literature-classic-novels-american-classics-the-great-gatsby-the-great-gatsby-chapter-1']).toBe('Keep the green light symbol in view.');
   });
 
-  it('round-trips saved items and news through local storage', () => {
+  it('round-trips saved items through local storage', () => {
     const state = createInitialState();
     state.savedItems = {
       'library:lesson-stoic-control': {
@@ -221,21 +214,11 @@ describe('storage import', () => {
         updatedAt: '2026-06-08T12:00:00.000Z',
       },
     };
-    state.news.items = [
-      {
-        id: 'story-1',
-        topicKey: 'fed-rates',
-        title: 'Fed holds rates',
-        status: 'fresh',
-        updatedAt: '2026-06-08T12:00:00.000Z',
-      },
-    ];
 
     saveState(state);
     const loaded = loadState();
 
     expect(loaded.savedItems['library:lesson-stoic-control']).toBeTruthy();
-    expect(loaded.news.items[0].id).toBe('story-1');
   });
 
   it('round-trips article-keyed state through import and local storage', () => {

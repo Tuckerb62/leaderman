@@ -1,5 +1,4 @@
 import { createInitialState } from './seedData.js';
-import { createInitialNewsState, mergeNewsState } from './newsStorage.js';
 import { trimAiChatMessages, trimReflections, trimSessions } from './stateLimits.js';
 
 function latestTimestamp(...values) {
@@ -133,7 +132,6 @@ export function buildSyncSnapshot(state, syncedAt = new Date().toISOString()) {
     savedItems: state.savedItems || {},
     dismissedItems: state.dismissedItems || {},
     itemActivity: state.itemActivity || {},
-    news: state.news || createInitialNewsState(),
     settings: syncSettingsFromState(state.settings),
   };
 }
@@ -169,7 +167,6 @@ export function mergeSyncSnapshot(localState, remoteSnapshot) {
     savedItems: mergeUpdatedMap(localState.savedItems, remoteSnapshot.savedItems),
     dismissedItems: mergeUpdatedMap(localState.dismissedItems, remoteSnapshot.dismissedItems),
     itemActivity: mergeUpdatedMap(localState.itemActivity, remoteSnapshot.itemActivity),
-    news: mergeNewsState(localState.news || createInitialNewsState(), remoteSnapshot.news || createInitialNewsState()),
     settings: {
       ...localState.settings,
       ...syncSettingsFromState(remoteSnapshot.settings || {}),

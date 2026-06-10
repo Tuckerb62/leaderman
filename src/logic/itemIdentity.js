@@ -25,16 +25,6 @@ export function canonicalLessonItem(lesson) {
   };
 }
 
-export function canonicalNewsItem(newsItem) {
-  return {
-    key: canonicalItemKey('news', newsItem.id),
-    domain: 'news',
-    itemId: newsItem.id,
-    newsId: newsItem.id,
-    title: newsItem.title,
-  };
-}
-
 export function canonicalArticleItem(article) {
   const slug = article.slug || parseCanonicalItemKey(article.key).itemId;
   const key = article.key || canonicalItemKey('article', slug);

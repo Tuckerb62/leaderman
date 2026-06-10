@@ -3,7 +3,6 @@ import {
   canonicalArticleItem,
   canonicalItemKey,
   canonicalLessonDomain,
-  canonicalNewsItem,
   canonicalLessonItem,
   parseCanonicalItemKey,
 } from './itemIdentity.js';
@@ -34,19 +33,6 @@ describe('item identity helpers', () => {
 
     expect(canonicalLessonDomain(lesson)).toBe('library');
     expect(canonicalItemKey('library', lesson.id)).toBe('library:lesson-stoic-control');
-  });
-
-  it('builds news items with stable canonical keys', () => {
-    const newsItem = {
-      id: 'news-romania-election',
-      title: 'Election shock',
-    };
-
-    expect(canonicalNewsItem(newsItem)).toMatchObject({
-      key: 'news:news-romania-election',
-      domain: 'news',
-      itemId: 'news-romania-election',
-    });
   });
 
   it('builds article items with stable canonical keys', () => {
