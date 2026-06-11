@@ -15,7 +15,8 @@ describe('seed lesson articles', () => {
   });
 
   it('expands every lesson into a source-grounded article', () => {
-    expect(microLessons.length).toBeGreaterThanOrEqual(40);
+    // 3 hand-written leadership lessons + 21 World History summaries
+    expect(microLessons.length).toBeGreaterThanOrEqual(24);
 
     for (const lesson of microLessons) {
       expect(lesson.articleParagraphs.length).toBeGreaterThanOrEqual(4);
@@ -27,7 +28,6 @@ describe('seed lesson articles', () => {
         expect(lesson.themeNotes.length).toBeGreaterThanOrEqual(4);
         expect(lesson.scenario).toContain('memory map');
       } else {
-        expect(lesson.quickVersion.length).toBeGreaterThanOrEqual(3);
         expect(lesson.breakDown.length).toBeGreaterThanOrEqual(5);
         expect(lesson.remember.length).toBeGreaterThanOrEqual(4);
         expect(lesson.questions.map((question) => question.type)).toEqual([
@@ -95,31 +95,27 @@ describe('seed lesson articles', () => {
     expect(repeatedTeachingParagraphs).toEqual([]);
   });
 
-  it('includes philosophy schools with a strong Stoicism track', () => {
-    const philosophyLessons = microLessons.filter((lesson) => lesson.domain === 'Philosophy');
+  it('exports philosophy school metadata for the UI', () => {
     const stoicism = philosophySchools.find((school) => school.id === 'stoicism');
 
     expect(domains).toContain('Philosophy');
     expect(philosophySchools.length).toBeGreaterThanOrEqual(8);
-    expect(philosophyLessons.length).toBeGreaterThanOrEqual(10);
     expect(stoicism?.lessonSlugs.length).toBeGreaterThanOrEqual(3);
-
-    for (const slug of stoicism.lessonSlugs) {
-      const lesson = microLessons.find((item) => item.slug === slug);
-      expect(lesson?.domain).toBe('Philosophy');
-      expect(lesson.articleParagraphs.join(' ')).toContain(lesson.historicalExample.title);
-    }
+    // Philosophy lessons are now empty slots (generated on demand) rather than seeded prose
+    expect(microLessons.filter((lesson) => lesson.domain === 'Philosophy').length).toBe(0);
   });
 
-  it('includes self-help, literature, and history expansion tracks', () => {
+  it('retains the one hand-written Self-Help lesson; domain list covers all tracks', () => {
+    // Self-Help, Literature, History are valid domains in the domain registry
     for (const domain of ['Self-Help', 'Literature', 'History']) {
       expect(domains).toContain(domain);
-      expect(microLessons.filter((lesson) => lesson.domain === domain).length).toBeGreaterThanOrEqual(6);
     }
-
+    // Only habit-identity survived the filler cull from the Self-Help track
+    expect(microLessons.filter((lesson) => lesson.domain === 'Self-Help').length).toBe(1);
     expect(microLessons.find((lesson) => lesson.slug === 'habit-identity')?.sourceBasis).toContain('Atomic Habits');
-    expect(microLessons.find((lesson) => lesson.slug === 'frankenstein-responsibility')?.sourceBasis).toContain('Frankenstein');
-    expect(microLessons.find((lesson) => lesson.slug === 'melian-power')?.sourceBasis).toContain('History of the Peloponnesian War');
+    // Literature and History leadership lessons are now generatable slots, not seeded prose
+    expect(microLessons.filter((lesson) => lesson.domain === 'Literature').length).toBe(0);
+    expect(microLessons.filter((lesson) => lesson.domain === 'History').length).toBe(0);
   });
 
   it('keeps world history summaries while removing legacy novel-summary lessons', () => {

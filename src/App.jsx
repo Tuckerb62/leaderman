@@ -3262,6 +3262,7 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
   const [settings, setSettings] = useState(() => loadAiSettings());
   const [question, setQuestion] = useState('');
   const [isAsking, setIsAsking] = useState(false);
+  const [streamingText, setStreamingText] = useState(null);
   const [notice, setNotice] = useState('');
   const [bubblePosition, setBubblePosition] = useState(() => loadBubblePosition());
   const drag = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0 });
@@ -3333,6 +3334,7 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
     onSaveMessages(nextMessages);
     setQuestion('');
     setIsAsking(true);
+    setStreamingText(null);
     setNotice('');
 
     try {
@@ -3344,6 +3346,7 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
         question: cleanQuestion,
         lesson,
         includeLessonContext: true,
+        onDelta: (delta) => setStreamingText((prev) => (prev || '') + delta),
       });
       onSaveMessages([
         ...nextMessages,
@@ -3365,6 +3368,7 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
         },
       ]);
     } finally {
+      setStreamingText(null);
       setIsAsking(false);
     }
   }
@@ -3420,7 +3424,13 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
               <p>{message.content}</p>
             </article>
           ))}
-          {isAsking && <p className="ai-thinking">Thinking...</p>}
+          {streamingText !== null && (
+            <article className="ai-message assistant">
+              <span>Tutor</span>
+              <p>{streamingText}</p>
+            </article>
+          )}
+          {isAsking && streamingText === null && <p className="ai-thinking">Thinking...</p>}
         </div>
 
         {messages.length === 0 && (

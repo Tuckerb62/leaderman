@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CANON_MODEL,
   buildDraftPrompt,
-  buildFixPrompt,
-  buildOptimizePrompt,
+  buildRevisePrompt,
   buildVerifyPrompt,
   clearPipelineCheckpoint,
   loadPipelineCheckpoint,
@@ -65,15 +64,18 @@ describe('lesson pipeline prompts', () => {
     expect(prompt).toContain('"unverified"');
   });
 
-  it('fixes by applying corrections and hedging or removing unverified claims', () => {
-    const prompt = buildFixPrompt({ title: 'T', pages: ['p'] }, { corrected: [], unverified: ['x'] });
+  it('revises by both applying corrections and finishing the writing in one pass', () => {
+    const prompt = buildRevisePrompt({ title: 'T', pages: ['p'] }, { corrected: [{ claim: 'c' }], unverified: ['x'] });
+    // Fix rule-set is preserved.
+    expect(prompt).toContain('Apply every correction');
     expect(prompt).toContain('accounts differ');
     expect(prompt).toContain('Prefer removal');
-  });
-
-  it('optimizes without allowing new factual claims', () => {
-    const prompt = buildOptimizePrompt({ title: 'T', pages: ['p'] });
+    // Optimize rule-set is preserved.
+    expect(prompt).toContain('Improve the writing only');
     expect(prompt).toContain('may NOT introduce any new factual claims');
+    // Both inputs are carried.
+    expect(prompt).toContain('Fact-check results:');
+    expect(prompt).toContain('"unverified":["x"]');
   });
 });
 
@@ -95,18 +97,18 @@ describe('lesson shape validation', () => {
 });
 
 describe('pipeline run', () => {
-  it('runs draft, verify, fix, optimize with the pinned canon model and web search on research steps', async () => {
+  it('runs draft, verify, revise with the pinned canon model and web search on research steps', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(okResponse(lessonJson))
       .mockResolvedValueOnce(okResponse(JSON.stringify({ confirmed: ['a'], corrected: [{ claim: 'x', problem: 'y', correction: 'z' }], unverified: [] })))
-      .mockResolvedValueOnce(okResponse(lessonJson))
       .mockResolvedValueOnce(okResponse(lessonJson));
     globalThis.fetch = fetchMock;
 
     const stages = [];
     const result = await runLessonPipeline({ apiKey: 'sk-test', slot, onProgress: (stage) => stages.push(stage) });
 
-    expect(stages).toEqual(['draft', 'verify', 'fix', 'optimize']);
+    expect(stages).toEqual(['draft', 'verify', 'revise']);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.model).toBe(CANON_MODEL);
     expect(result.lesson.pages).toHaveLength(2);
     expect(result.verificationNotes.corrected).toHaveLength(1);
@@ -118,7 +120,7 @@ describe('pipeline run', () => {
     expect(bodies[2].tools).toBeUndefined();
   });
 
-  it('skips the fix call when verification found nothing to fix', async () => {
+  it('uses low reasoning effort for verify and the model default for draft and revise', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(okResponse(lessonJson))
       .mockResolvedValueOnce(okResponse(JSON.stringify({ confirmed: ['a'], corrected: [], unverified: [] })))
@@ -127,7 +129,10 @@ describe('pipeline run', () => {
 
     await runLessonPipeline({ apiKey: 'sk-test', slot });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const bodies = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
+    expect(bodies[0].reasoning).toBeUndefined();
+    expect(bodies[1].reasoning).toEqual({ effort: 'low' });
+    expect(bodies[2].reasoning).toBeUndefined();
   });
 
   it('resumes from the checkpoint after a failed step instead of re-running paid steps', async () => {
@@ -147,11 +152,34 @@ describe('pipeline run', () => {
     const stages = [];
     const result = await runLessonPipeline({ apiKey: 'sk-test', slot, onProgress: (stage) => stages.push(stage) });
 
-    expect(stages).toEqual(['verify', 'fix', 'optimize']);
+    expect(stages).toEqual(['verify', 'revise']);
     expect(resumeFetch).toHaveBeenCalledTimes(2);
     expect(result.lesson.title).toBe('The Bronze Age Collapse');
 
     clearPipelineCheckpoint(slot.slotId);
     expect(loadPipelineCheckpoint(slot.slotId)).toBeNull();
+  });
+
+  it('finishes a stale checkpoint that has old fix/optimize keys but no revise step', async () => {
+    // Simulate a checkpoint written by the old four-step pipeline.
+    const draft = validateLessonShape(parseLessonJson(lessonJson));
+    const verify = { confirmed: ['a'], corrected: [], unverified: [] };
+    globalThis.localStorage.setItem(
+      `curiosity.lessonPipeline.v1.${slot.slotId}`,
+      JSON.stringify({ slotId: slot.slotId, steps: { draft, verify, fix: draft, optimize: draft } }),
+    );
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(lessonJson));
+    globalThis.fetch = fetchMock;
+
+    const stages = [];
+    const result = await runLessonPipeline({ apiKey: 'sk-test', slot, onProgress: (stage) => stages.push(stage) });
+
+    // Only the new revise step runs; draft and verify are reused from the checkpoint.
+    expect(stages).toEqual(['revise']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.lesson.title).toBe('The Bronze Age Collapse');
+
+    clearPipelineCheckpoint(slot.slotId);
   });
 });

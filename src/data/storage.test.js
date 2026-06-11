@@ -16,19 +16,19 @@ describe('storage import', () => {
     const backup = createInitialState();
     const parsed = parseImportedState(JSON.stringify(backup));
     expect(parsed.schemaVersion).toBe(2);
-    expect(parsed.lessons.length).toBeGreaterThan(40);
+    expect(parsed.lessons.length).toBeGreaterThanOrEqual(24);
     expect(parsed.sources.length).toBeGreaterThan(25);
   });
 
   it('keeps current seeded curriculum when importing older backups', () => {
     const backup = createInitialState();
-    backup.lessons = backup.lessons.filter((lesson) => lesson.domain !== 'Philosophy');
-    backup.sources = backup.sources.filter((source) => source.domain !== 'Philosophy');
+    backup.lessons = backup.lessons.filter((lesson) => lesson.domain !== 'World History');
+    backup.sources = backup.sources.filter((source) => !source.id.startsWith('src-history-'));
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
-    expect(parsed.lessons.some((lesson) => lesson.slug === 'stoic-control')).toBe(true);
-    expect(parsed.sources.some((source) => source.id === 'src-stoicism')).toBe(true);
+    expect(parsed.lessons.some((lesson) => lesson.slug === 'history-roman-empire')).toBe(true);
+    expect(parsed.sources.some((source) => source.id === 'src-history-roman-empire')).toBe(true);
   });
 
   it('rejects unrelated JSON', () => {
@@ -39,7 +39,7 @@ describe('storage import', () => {
     const backup = createInitialState();
     backup.sessions = Array.from({ length: 12 }, (_, index) => ({
       id: `session-${index}`,
-      lessonIds: ['lesson-stoic-control'],
+      lessonIds: ['lesson-hidden-rule'],
     }));
 
     const parsed = parseImportedState(JSON.stringify(backup));
@@ -64,8 +64,8 @@ describe('storage import', () => {
   it('keeps reading bookmarks when importing a backup', () => {
     const backup = createInitialState();
     backup.readingProgress = {
-      'lesson-stoic-control': {
-        lessonId: 'lesson-stoic-control',
+      'lesson-hidden-rule': {
+        lessonId: 'lesson-hidden-rule',
         chapterIndex: 2,
         completedChapters: [0, 1],
         updatedAt: '2026-06-07T12:00:00.000Z',
@@ -74,29 +74,29 @@ describe('storage import', () => {
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
-    expect(parsed.readingProgress['lesson-stoic-control']).toMatchObject(backup.readingProgress['lesson-stoic-control']);
+    expect(parsed.readingProgress['lesson-hidden-rule']).toMatchObject(backup.readingProgress['lesson-hidden-rule']);
   });
 
   it('keeps note timestamps when importing a backup', () => {
     const backup = createInitialState();
     backup.notes = {
-      'lesson-stoic-control': 'Keep the distinction between control and influence tight.',
+      'lesson-hidden-rule': 'Silence is not the same as agreement.',
     };
     backup.noteUpdatedAtByKey = {
-      'lesson-stoic-control': '2026-06-09T12:00:00.000Z',
+      'lesson-hidden-rule': '2026-06-09T12:00:00.000Z',
     };
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
-    expect(parsed.notes['lesson-stoic-control']).toBe(backup.notes['lesson-stoic-control']);
-    expect(parsed.noteUpdatedAtByKey['lesson-stoic-control']).toBe('2026-06-09T12:00:00.000Z');
+    expect(parsed.notes['lesson-hidden-rule']).toBe(backup.notes['lesson-hidden-rule']);
+    expect(parsed.noteUpdatedAtByKey['lesson-hidden-rule']).toBe('2026-06-09T12:00:00.000Z');
   });
 
   it('keeps locally generated lesson expansions when importing a backup', () => {
     const backup = createInitialState();
     backup.lessonExpansions = {
-      'lesson:lesson-stoic-control': {
-        lessonId: 'lesson-stoic-control',
+      'lesson:lesson-hidden-rule': {
+        lessonId: 'lesson-hidden-rule',
         markdown: '## Deeper Read\nA privately generated expansion.',
         structured: {
           sections: [
@@ -116,7 +116,7 @@ describe('storage import', () => {
 
     const parsed = parseImportedState(JSON.stringify(backup));
 
-    expect(parsed.lessonExpansions['lesson:lesson-stoic-control']).toMatchObject(backup.lessonExpansions['lesson:lesson-stoic-control']);
+    expect(parsed.lessonExpansions['lesson:lesson-hidden-rule']).toMatchObject(backup.lessonExpansions['lesson:lesson-hidden-rule']);
   });
 
   it('migrates legacy AI chat into app state when no synced copy exists yet', () => {
@@ -209,8 +209,8 @@ describe('storage import', () => {
   it('round-trips saved items through local storage', () => {
     const state = createInitialState();
     state.savedItems = {
-      'library:lesson-stoic-control': {
-        itemKey: 'library:lesson-stoic-control',
+      'library:lesson-hidden-rule': {
+        itemKey: 'library:lesson-hidden-rule',
         updatedAt: '2026-06-08T12:00:00.000Z',
       },
     };
@@ -218,7 +218,7 @@ describe('storage import', () => {
     saveState(state);
     const loaded = loadState();
 
-    expect(loaded.savedItems['library:lesson-stoic-control']).toBeTruthy();
+    expect(loaded.savedItems['library:lesson-hidden-rule']).toBeTruthy();
   });
 
   it('round-trips article-keyed state through import and local storage', () => {

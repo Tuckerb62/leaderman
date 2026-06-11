@@ -13,9 +13,10 @@ describe('selectors', () => {
 
   it('prevents more than two same-domain cards in a row', () => {
     const state = createInitialState();
+    // Give the first 12 lessons a different domain so there are enough to interleave
     state.lessons = state.lessons.map((lesson, index) => ({
       ...lesson,
-      domain: index < 6 ? 'Judgment' : lesson.domain,
+      domain: index < 12 ? 'Judgment' : lesson.domain,
     }));
 
     const queue = feedQueue(state, 12);

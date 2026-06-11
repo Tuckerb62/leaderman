@@ -2,7 +2,7 @@ export const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
 
 export const DEFAULT_AI_SETTINGS = {
   endpoint: OPENAI_RESPONSES_ENDPOINT,
-  model: 'gpt-5.4',
+  model: 'gpt-5.4-mini',
   persistKey: true,
 };
 
@@ -648,13 +648,90 @@ export function extractResponseText(payload) {
   return text || 'The API returned a response, but no readable text was found.';
 }
 
-export async function askOpenAI({ apiKey, endpoint, model, messages, question, lesson, includeLessonContext }) {
+export function isEventStreamResponse(response) {
+  const contentType = response?.headers?.get?.('content-type') || '';
+  return contentType.includes('text/event-stream') && Boolean(response?.body) && typeof response.body.getReader === 'function';
+}
+
+// Parse one SSE event block (the text between two blank lines) into its decoded
+// JSON frame. Returns null for events we can't use, or { done: true } for the
+// terminal [DONE] sentinel. Whole-event parsing means a frame whose data line is
+// split across network reads is never parsed half-formed: the caller only hands
+// us a block once it has seen the closing blank line.
+export function parseSseEvent(rawEvent) {
+  const dataLines = [];
+  for (const line of rawEvent.split('\n')) {
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).replace(/^ /, ''));
+    }
+  }
+  if (dataLines.length === 0) return null;
+  const data = dataLines.join('\n').trim();
+  if (!data || data === '[DONE]') return { done: true };
+  try {
+    return { frame: JSON.parse(data) };
+  } catch {
+    return null;
+  }
+}
+
+// Read an OpenAI Responses SSE stream, accumulating response.output_text.delta
+// frames into the final text and reporting each delta through onDelta. Bytes are
+// buffered across reads and only split into events on blank-line boundaries, so a
+// delta whose JSON is torn mid-token across two network reads is reassembled
+// before parsing. Throws on error/failed frames; otherwise returns the full text.
+export async function streamOpenAiResponse(response, onDelta = () => {}) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  let completed = null;
+
+  const drain = () => {
+    let boundary;
+    while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const parsed = parseSseEvent(rawEvent);
+      if (!parsed || parsed.done || !parsed.frame) continue;
+      const frame = parsed.frame;
+      if (frame.type === 'response.output_text.delta') {
+        if (typeof frame.delta === 'string' && frame.delta) {
+          text += frame.delta;
+          onDelta(frame.delta);
+        }
+      } else if (frame.type === 'response.completed') {
+        completed = frame.response || null;
+      } else if (frame.type === 'error' || frame.type === 'response.failed') {
+        const message = frame.message || frame.error?.message || frame.response?.error?.message
+          || 'The streaming response failed.';
+        throw new Error(message);
+      }
+    }
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (value) buffer += decoder.decode(value, { stream: true });
+    drain();
+  }
+  buffer += decoder.decode();
+  drain();
+
+  if (text.trim()) return text.trim();
+  if (completed) return extractResponseText(completed);
+  return 'The API returned a response, but no readable text was found.';
+}
+
+export async function askOpenAI({ apiKey, endpoint, model, messages, question, lesson, includeLessonContext, onDelta }) {
   const headers = {
     'Content-Type': 'application/json',
   };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
+  const wantsStream = typeof onDelta === 'function';
 
   let response;
   try {
@@ -666,17 +743,23 @@ export async function askOpenAI({ apiKey, endpoint, model, messages, question, l
         instructions: buildAiInstructions(lesson, includeLessonContext),
         input: buildResponseInput(messages, question),
         max_output_tokens: 1200,
+        ...(wantsStream ? { stream: true } : {}),
       }),
     });
   } catch {
     throw new Error('The browser could not reach the API endpoint. Check the endpoint, network, or browser CORS restrictions.');
   }
 
-  const payload = await response.json().catch(() => null);
   if (!response.ok) {
+    const payload = await response.json().catch(() => null);
     const message = payload?.error?.message || `OpenAI request failed with status ${response.status}.`;
     throw new Error(message);
   }
 
+  if (wantsStream && isEventStreamResponse(response)) {
+    return streamOpenAiResponse(response, onDelta);
+  }
+
+  const payload = await response.json().catch(() => null);
   return extractResponseText(payload);
 }

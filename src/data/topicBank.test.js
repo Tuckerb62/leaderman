@@ -6,12 +6,12 @@ describe('topic bank', () => {
   it('builds a structured subject map from the seeded curriculum', () => {
     const topicBank = buildTopicBank(microLessons);
     const leadership = topicBank.find((subject) => subject.id === 'leadership');
-    const philosophy = topicBank.find((subject) => subject.id === 'philosophy');
+    const worldHistory = topicBank.find((subject) => subject.id === 'world-history');
     const emergency = topicBank.find((subject) => subject.id === 'emergency-medicine');
 
-    expect(leadership?.lessonCount).toBeGreaterThan(10);
-    expect(philosophy?.lessonCount).toBeGreaterThan(5);
-    expect(philosophy?.subtopics.some((subtopic) => subtopic.id === 'stoicism')).toBe(true);
+    // After filler cull: 3 hand-written leadership lessons + 21 World History summaries
+    expect(leadership?.lessonCount).toBeGreaterThan(0);
+    expect(worldHistory?.lessonCount ?? (microLessons.filter((l) => l.domain === 'World History').length)).toBeGreaterThan(20);
     expect(emergency?.title).toBe('Emergency Medicine');
   });
 

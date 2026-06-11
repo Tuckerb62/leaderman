@@ -15,8 +15,11 @@ import {
   expandArticleFromMarkdown,
   askArticleTutor,
   extractResponseText,
+  isEventStreamResponse,
   looksLikeOpenAiKey,
+  parseSseEvent,
   requiresClientApiKey,
+  streamOpenAiResponse,
   validateApiKey,
 } from './aiClient.js';
 
@@ -49,10 +52,11 @@ describe('ai client helpers', () => {
     expect(instructions).toContain('Do not pad lessons with repeated copyright, fidelity, or caution boilerplate');
   });
 
-  it('offers curated model choices with the default model included', () => {
+  it('defaults the tutor to the fast model while keeping it in the picker', () => {
+    expect(DEFAULT_AI_SETTINGS.model).toBe('gpt-5.4-mini');
     expect(AI_MODEL_OPTIONS.map((option) => option.id)).toContain(DEFAULT_AI_SETTINGS.model);
-    expect(AI_MODEL_OPTIONS[0].id).toBe(DEFAULT_AI_SETTINGS.model);
-    expect(DEFAULT_AI_SETTINGS.model).toBe('gpt-5.4');
+    // The strong model stays available so users who picked it keep it.
+    expect(AI_MODEL_OPTIONS.map((option) => option.id)).toContain('gpt-5.4');
   });
 
   it('uses Curiosity as the visible AI product name', () => {
@@ -454,5 +458,115 @@ describe('ai client helpers', () => {
     expect(JSON.stringify(body.input)).toContain('Food Webs');
     expect(JSON.stringify(body.input)).toContain('Earlier question.');
     expect(JSON.stringify(body.input)).toContain('Help me remember this.');
+  });
+});
+
+// Builds a fake streaming Response whose body reader yields the given string
+// chunks as encoded bytes — chunk boundaries do not have to align with SSE
+// event boundaries, so this can model deltas torn across network reads.
+function sseResponse(chunks, { contentType = 'text/event-stream' } = {}) {
+  const encoder = new TextEncoder();
+  let index = 0;
+  return {
+    ok: true,
+    headers: { get: (name) => (name.toLowerCase() === 'content-type' ? contentType : null) },
+    body: {
+      getReader: () => ({
+        read: async () => {
+          if (index >= chunks.length) return { done: true, value: undefined };
+          const value = encoder.encode(chunks[index]);
+          index += 1;
+          return { done: false, value };
+        },
+      }),
+    },
+  };
+}
+
+describe('streaming tutor responses', () => {
+  it('detects a Responses SSE stream by content type and readable body', () => {
+    expect(isEventStreamResponse(sseResponse([]))).toBe(true);
+    expect(isEventStreamResponse({ headers: { get: () => 'application/json' }, body: {} })).toBe(false);
+    expect(isEventStreamResponse({ headers: { get: () => 'text/event-stream' } })).toBe(false);
+  });
+
+  it('parses a data frame and recognizes the [DONE] sentinel', () => {
+    expect(parseSseEvent('event: x\ndata: {"type":"response.output_text.delta","delta":"hi"}')).toEqual({
+      frame: { type: 'response.output_text.delta', delta: 'hi' },
+    });
+    expect(parseSseEvent('data: [DONE]')).toEqual({ done: true });
+    expect(parseSseEvent('event: ping')).toBeNull();
+  });
+
+  it('accumulates delta frames even when one is split mid-token across reads', async () => {
+    const response = sseResponse([
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Hel"}\n\n',
+      // The next delta's JSON is torn in half between two network reads.
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","de',
+      'lta":"lo"}\n\n',
+      'event: response.completed\ndata: {"type":"response.completed","response":{"output_text":"Hello"}}\n\n',
+    ]);
+
+    const deltas = [];
+    const text = await streamOpenAiResponse(response, (delta) => deltas.push(delta));
+
+    expect(deltas).toEqual(['Hel', 'lo']);
+    expect(text).toBe('Hello');
+  });
+
+  it('throws on an error frame in the stream', async () => {
+    const response = sseResponse([
+      'event: error\ndata: {"type":"error","message":"stream blew up"}\n\n',
+    ]);
+
+    await expect(streamOpenAiResponse(response, () => {})).rejects.toThrow('stream blew up');
+  });
+
+  it('streams through askOpenAI and reports deltas when onDelta is supplied', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse([
+      'data: {"type":"response.output_text.delta","delta":"One. "}\n\n',
+      'data: {"type":"response.output_text.delta","delta":"Two."}\n\n',
+      'data: [DONE]\n\n',
+    ]));
+    globalThis.fetch = fetchMock;
+
+    const deltas = [];
+    const answer = await askOpenAI({
+      apiKey: 'sk-test',
+      endpoint: DEFAULT_AI_SETTINGS.endpoint,
+      model: 'gpt-5.4-mini',
+      messages: [],
+      question: 'Explain pacing.',
+      lesson,
+      includeLessonContext: true,
+      onDelta: (delta) => deltas.push(delta),
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.stream).toBe(true);
+    expect(deltas).toEqual(['One. ', 'Two.']);
+    expect(answer).toBe('One. Two.');
+  });
+
+  it('falls back to JSON parsing when onDelta is given but the response is not SSE', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ output_text: 'Plain answer.' }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const answer = await askOpenAI({
+      apiKey: 'sk-test',
+      endpoint: DEFAULT_AI_SETTINGS.endpoint,
+      model: 'gpt-5.4-mini',
+      messages: [],
+      question: 'Explain pacing.',
+      lesson,
+      includeLessonContext: true,
+      onDelta: () => {},
+    });
+
+    expect(answer).toBe('Plain answer.');
   });
 });

@@ -9,8 +9,7 @@ export const CANON_MODEL = 'gpt-5.4';
 export const PIPELINE_STEPS = [
   { id: 'draft', label: 'Drafting' },
   { id: 'verify', label: 'Verifying against sources' },
-  { id: 'fix', label: 'Correcting' },
-  { id: 'optimize', label: 'Polishing' },
+  { id: 'revise', label: 'Correcting and polishing' },
 ];
 
 const CHECKPOINT_PREFIX = 'curiosity.lessonPipeline.v1.';
@@ -73,12 +72,21 @@ export function buildVerifyPrompt(draft) {
   ].join('\n');
 }
 
-export function buildFixPrompt(draft, verification) {
+// One pass that does the old fix and optimize steps together: apply the
+// fact-check corrections AND make the final editing pass. Both rule-sets are
+// kept verbatim so nothing the two separate prompts enforced is lost.
+export function buildRevisePrompt(draft, verification) {
   return [
-    'Revise this lesson draft using the fact-check results.',
+    'Revise this lesson draft in a single pass that both corrects it and finishes the writing.',
+    '',
+    'First, apply the fact-check results:',
     '- Apply every correction.',
     '- For each unverified claim: remove it, or keep it only with explicit hedging inside the prose ("accounts differ", "the attribution is uncertain"). Prefer removal when the claim is decorative.',
-    '- Change nothing else about the essay\'s structure or voice.',
+    '',
+    'Then make the final editing pass:',
+    '- Improve the writing only: clarity, concision, rhythm, concrete examples, a strong opening and ending. Cut filler ruthlessly.',
+    '- Beyond the corrections above, you may NOT introduce any new factual claims.',
+    '- You may merge, split, or rebalance pages so each reads as a natural movement of the essay.',
     '',
     SHARED_RULES,
     '',
@@ -89,21 +97,6 @@ export function buildFixPrompt(draft, verification) {
     '',
     'Fact-check results:',
     JSON.stringify(verification),
-  ].join('\n');
-}
-
-export function buildOptimizePrompt(lesson) {
-  return [
-    'Final editing pass on this lesson. Improve the writing only: clarity, concision, rhythm, concrete examples, a strong opening and ending. Cut filler ruthlessly.',
-    '- You may NOT introduce any new factual claims.',
-    '- You may merge, split, or rebalance pages so each reads as a natural movement of the essay.',
-    '',
-    SHARED_RULES,
-    '',
-    lessonJsonContract(),
-    '',
-    'Lesson:',
-    JSON.stringify(lesson),
   ].join('\n');
 }
 
@@ -143,7 +136,10 @@ export function validateLessonShape(lesson) {
   };
 }
 
-async function callCanonModel({ apiKey, input, useWebSearch = false, maxOutputTokens = 8000 }) {
+// reasoningEffort controls the Responses API `reasoning: { effort }` knob. Pass
+// 'low' for the cheap, mechanical verify pass; leave it null on draft and revise
+// so the model uses its default (higher) effort for the writing-heavy steps.
+async function callCanonModel({ apiKey, input, useWebSearch = false, maxOutputTokens = 8000, reasoningEffort = null }) {
   let response;
   try {
     response = await fetch(OPENAI_RESPONSES_ENDPOINT, {
@@ -156,6 +152,7 @@ async function callCanonModel({ apiKey, input, useWebSearch = false, maxOutputTo
         model: CANON_MODEL,
         input: [{ role: 'user', content: input }],
         ...(useWebSearch ? { tools: [{ type: 'web_search' }] } : {}),
+        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
         max_output_tokens: maxOutputTokens,
       }),
     });
@@ -198,10 +195,12 @@ export function clearPipelineCheckpoint(slotId) {
   }
 }
 
-// Runs the five-step pipeline (draft -> verify -> fix -> optimize -> validate)
-// in the browser on the generating user's key. Each completed step is
-// checkpointed to localStorage so a dropped connection resumes instead of
-// restarting (and re-paying for) earlier steps.
+// Runs the pipeline (draft -> verify -> revise -> validate) in the browser on
+// the generating user's key. The old fix and optimize steps are now one revise
+// call. Each completed step is checkpointed to localStorage so a dropped
+// connection resumes instead of restarting (and re-paying for) earlier steps.
+// Checkpoints written by older runs may carry `fix`/`optimize` keys instead of
+// `revise`; those are ignored, and revise re-runs from the saved draft/verify.
 export async function runLessonPipeline({ apiKey, slot, onProgress = () => {} }) {
   const checkpoint = loadPipelineCheckpoint(slot.slotId) || { slotId: slot.slotId, steps: {} };
   const steps = checkpoint.steps;
@@ -215,31 +214,24 @@ export async function runLessonPipeline({ apiKey, slot, onProgress = () => {} })
 
   if (!steps.verify) {
     onProgress('verify');
-    const verifyText = await callCanonModel({ apiKey, input: buildVerifyPrompt(steps.draft), useWebSearch: true });
+    const verifyText = await callCanonModel({
+      apiKey,
+      input: buildVerifyPrompt(steps.draft),
+      useWebSearch: true,
+      reasoningEffort: 'low',
+    });
     steps.verify = parseLessonJson(verifyText);
     saveCheckpoint(slot.slotId, checkpoint);
   }
 
-  if (!steps.fix) {
-    onProgress('fix');
-    const needsFix = (steps.verify.corrected?.length || 0) > 0 || (steps.verify.unverified?.length || 0) > 0;
-    if (needsFix) {
-      const fixText = await callCanonModel({ apiKey, input: buildFixPrompt(steps.draft, steps.verify) });
-      steps.fix = validateLessonShape(parseLessonJson(fixText));
-    } else {
-      steps.fix = steps.draft;
-    }
+  if (!steps.revise) {
+    onProgress('revise');
+    const reviseText = await callCanonModel({ apiKey, input: buildRevisePrompt(steps.draft, steps.verify) });
+    steps.revise = validateLessonShape(parseLessonJson(reviseText));
     saveCheckpoint(slot.slotId, checkpoint);
   }
 
-  if (!steps.optimize) {
-    onProgress('optimize');
-    const optimizeText = await callCanonModel({ apiKey, input: buildOptimizePrompt(steps.fix) });
-    steps.optimize = validateLessonShape(parseLessonJson(optimizeText));
-    saveCheckpoint(slot.slotId, checkpoint);
-  }
-
-  const lesson = steps.optimize;
+  const lesson = steps.revise;
   const verificationNotes = {
     confirmedCount: steps.verify.confirmed?.length || 0,
     corrected: steps.verify.corrected || [],

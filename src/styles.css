@@ -3200,6 +3200,154 @@ details summary {
   to { transform: rotate(360deg); }
 }
 
+/* Pipeline generation loading screen */
+
+.pipeline-screen {
+  position: fixed;
+  inset: 0;
+  left: 236px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 48px 28px;
+  animation: pipeline-fade-in 260ms ease-out;
+}
+
+@media (max-width: 980px) {
+  .pipeline-screen {
+    left: 0;
+    bottom: 62px;
+  }
+}
+
+@keyframes pipeline-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pipeline-screen-inner {
+  max-width: 36em;
+  width: 100%;
+}
+
+.pipeline-screen-kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7c7263;
+  margin: 0 0 8px;
+}
+
+.pipeline-screen-title {
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0 0 36px;
+  color: var(--ink);
+}
+
+.pipeline-stage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px;
+  display: grid;
+  gap: 18px;
+}
+
+.pipeline-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1rem;
+  line-height: 1.5;
+  transition: color 0.35s;
+}
+
+.pipeline-stage--pending {
+  color: #b5a897;
+}
+
+.pipeline-stage--active {
+  color: var(--ink);
+}
+
+.pipeline-stage--done {
+  color: var(--accent-dark);
+}
+
+.pipeline-screen--error .pipeline-stage--active {
+  color: var(--red);
+}
+
+.pipeline-stage-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.pipeline-stage-dot {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  display: block;
+}
+
+.pipeline-stage--active .pipeline-stage-label {
+  animation: pipeline-text-pulse 2.6s ease-in-out infinite;
+}
+
+.pipeline-screen--error .pipeline-stage--active .pipeline-stage-label {
+  animation: none;
+}
+
+@keyframes pipeline-text-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+.pipeline-timer {
+  font-size: 0.8rem;
+  color: #9e937f;
+  letter-spacing: 0.06em;
+  margin: 0 0 20px;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+}
+
+.pipeline-tagline {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #7c7263;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.pipeline-error {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pipeline-error-msg {
+  font-size: 0.88rem;
+  font-style: normal;
+  color: var(--red);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.pipeline-error .primary-button {
+  align-self: flex-start;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, serif;
+}
+
 .auth-links {
   display: flex;
   align-items: center;
