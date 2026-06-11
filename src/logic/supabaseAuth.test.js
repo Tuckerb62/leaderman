@@ -53,6 +53,17 @@ describe('supabase auth helpers', () => {
     expect(result.user.email).toBe('new@example.com');
   });
 
+  it('reports an existing account instead of promising a confirmation email', async () => {
+    authMock.signUp.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'existing@example.com', identities: [] }, session: null },
+      error: null,
+    });
+    const { createSupabaseAccount } = await import('./supabaseAuth.js');
+
+    await expect(createSupabaseAccount('existing@example.com', 'any-password'))
+      .rejects.toThrow('An account with this email already exists');
+  });
+
   it('signs out only the current device session', async () => {
     authMock.signOut.mockResolvedValue({ error: null });
     const { signOutSupabase } = await import('./supabaseAuth.js');

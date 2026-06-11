@@ -93,6 +93,14 @@ export async function createSupabaseAccount(email, password) {
   });
 
   if (error) throw formatSupabaseAuthError(error, 'Could not create your account.');
+
+  // Supabase signals a repeated signup (account already exists) by returning a
+  // user with an empty identities array and sending no email. Without this
+  // check the app would tell the user to wait for an email that never comes.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    throw new Error('An account with this email already exists. Use Sign in instead — and if the password is not working, it needs to be reset.');
+  }
+
   return data;
 }
 
