@@ -45,7 +45,7 @@ import { trimAiChatMessages, trimReflections, trimSessions } from './data/stateL
 import { exportState, loadState, parseImportedState, saveState } from './data/storage.js';
 import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
 import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
-import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChange, signInSupabaseWithPassword, signOutSupabase } from './logic/supabaseAuth.js';
+import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChange, sendPasswordResetEmail, signInSupabaseWithPassword, signOutSupabase, updateSupabasePassword } from './logic/supabaseAuth.js';
 import { isSupabaseConfigured } from './utils/supabase.js';
 import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, validateApiKey } from './logic/aiClient.js';
 import { parseExpansionMarkdown } from './logic/expansionMapper.js';
@@ -339,6 +339,7 @@ export default function App() {
     user: null,
     error: '',
   });
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [view, setView] = useState(() => initialView(state));
   const [librarySubjectId, setLibrarySubjectId] = useState(() => initialLibrarySubjectId(state));
   const [selectedLessonId, setSelectedLessonId] = useState(() => initialLessonId(state));
@@ -415,8 +416,11 @@ export default function App() {
       }
     }
 
-    const unsubscribe = onSupabaseAuthStateChange(({ user }) => {
+    const unsubscribe = onSupabaseAuthStateChange(({ event, user }) => {
       if (cancelled) return;
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecovery(true);
+      }
       setAuthState({
         checking: false,
         configured: true,
@@ -1057,6 +1061,10 @@ export default function App() {
     return <AuthLoadingScreen />;
   }
 
+  if (passwordRecovery && authState.user) {
+    return <PasswordRecoveryScreen onDone={() => setPasswordRecovery(false)} />;
+  }
+
   if (!authState.configured || !authState.user) {
     return (
       <AuthGate
@@ -1219,6 +1227,26 @@ function AuthGate({ authState, onAuthenticated }) {
     }
   }
 
+  async function requestPasswordReset() {
+    if (submitting) return;
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setNotice('Enter your email above first, then tap "Forgot password?" again.');
+      return;
+    }
+
+    setSubmitting(true);
+    setNotice('');
+    try {
+      await sendPasswordResetEmail(cleanEmail);
+      setNotice('Reset email sent. Open the link on this device to choose a new password. It can take a few minutes and may land in spam.');
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (!authState.configured) {
     return (
       <main className="auth-shell">
@@ -1264,15 +1292,84 @@ function AuthGate({ authState, onAuthenticated }) {
           </button>
         </form>
 
-        <button
-          className="link-button"
-          onClick={() => {
-            setMode(creating ? 'sign-in' : 'create');
-            setNotice('');
-          }}
-        >
-          {creating ? 'Already have an account? Sign in' : 'Need an account? Create one'}
-        </button>
+        <div className="auth-links">
+          <button
+            className="link-button"
+            onClick={() => {
+              setMode(creating ? 'sign-in' : 'create');
+              setNotice('');
+            }}
+          >
+            {creating ? 'Already have an account? Sign in' : 'Need an account? Create one'}
+          </button>
+          {!creating && (
+            <button className="link-button" onClick={requestPasswordReset} disabled={submitting}>
+              Forgot password?
+            </button>
+          )}
+        </div>
+        {notice && <p className="settings-notice">{notice}</p>}
+      </section>
+    </main>
+  );
+}
+
+function PasswordRecoveryScreen({ onDone }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [notice, setNotice] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitNewPassword(event) {
+    event.preventDefault();
+    if (submitting) return;
+    if (password !== confirm) {
+      setNotice('The two passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    setNotice('');
+    try {
+      await updateSupabasePassword(password);
+      onDone();
+    } catch (error) {
+      setNotice(error.message);
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <CuriosityMark className="curiosity-mark large" />
+        <p className="section-label">Curiosity</p>
+        <h1>Choose a new password</h1>
+        <p>You followed a reset link, so this device can set a new password for your account.</p>
+
+        <form className="auth-form" onSubmit={submitNewPassword}>
+          <label htmlFor="recovery-password">New password</label>
+          <input
+            id="recovery-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+            placeholder="At least 6 characters"
+          />
+          <label htmlFor="recovery-confirm">Repeat it</label>
+          <input
+            id="recovery-confirm"
+            type="password"
+            value={confirm}
+            onChange={(event) => setConfirm(event.target.value)}
+            autoComplete="new-password"
+            placeholder="Same password again"
+          />
+          <button className="primary-button" type="submit" disabled={!password || !confirm || submitting}>
+            {submitting ? 'Saving...' : 'Save new password'}
+          </button>
+        </form>
         {notice && <p className="settings-notice">{notice}</p>}
       </section>
     </main>
@@ -2517,6 +2614,9 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
   const [syncNotice, setSyncNotice] = useState('');
   const [isSyncSubmitting, setIsSyncSubmitting] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState(state.settings?.profile?.username || '');
+  const [passwordDraft, setPasswordDraft] = useState('');
+  const [passwordNotice, setPasswordNotice] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [settings, setSettings] = useState(() => loadAiSettings());
   const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
   const [aiNotice, setAiNotice] = useState('');
@@ -2577,6 +2677,22 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
     setAiNotice('API key cleared.');
   }
 
+  async function changePassword() {
+    const cleanPassword = passwordDraft.trim();
+    if (!cleanPassword || isChangingPassword) return;
+    setIsChangingPassword(true);
+    setPasswordNotice('');
+    try {
+      await updateSupabasePassword(cleanPassword);
+      setPasswordDraft('');
+      setPasswordNotice('Password changed. Use it the next time you sign in.');
+    } catch (error) {
+      setPasswordNotice(error.message);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
+
   async function signOutCloudSync() {
     if (isSyncSubmitting) return;
     setIsSyncSubmitting(true);
@@ -2625,6 +2741,37 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
               </button>
             </div>
             <p className="field-help">Your username is part of your synced profile, so it follows your signed-in devices.</p>
+          </div>
+        </article>
+
+        <article className="account-card">
+          <div className="panel-head">
+            <div>
+              <p className="section-label">Password</p>
+              <h2>Change your password</h2>
+            </div>
+          </div>
+
+          <div className="ai-field">
+            <label htmlFor="account-new-password">New password</label>
+            <input
+              id="account-new-password"
+              type="password"
+              value={passwordDraft}
+              onChange={(event) => setPasswordDraft(event.target.value)}
+              autoComplete="new-password"
+              placeholder="At least 6 characters"
+            />
+            <div className="ai-settings-actions">
+              <button
+                className="secondary-button"
+                onClick={changePassword}
+                disabled={!passwordDraft.trim() || isChangingPassword || !syncStatus.authenticated}
+              >
+                {isChangingPassword ? 'Saving...' : 'Change password'}
+              </button>
+            </div>
+            {passwordNotice && <p className="settings-notice">{passwordNotice}</p>}
           </div>
         </article>
 

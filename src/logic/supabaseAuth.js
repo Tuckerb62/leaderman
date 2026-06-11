@@ -104,6 +104,34 @@ export async function createSupabaseAccount(email, password) {
   return data;
 }
 
+export async function sendPasswordResetEmail(email) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase auth is not configured.');
+
+  const cleanEmail = email.trim();
+  if (!cleanEmail) throw new Error('Enter your email first.');
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+    redirectTo: authRedirectUrl(),
+  });
+
+  if (error) throw formatSupabaseAuthError(error, 'Could not send the reset email.');
+}
+
+export async function updateSupabasePassword(newPassword) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase auth is not configured.');
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Use a password with at least 6 characters.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (error) throw formatSupabaseAuthError(error, 'Could not update the password.');
+  return data;
+}
+
 export async function signOutSupabase() {
   if (!isSupabaseConfigured()) return;
 

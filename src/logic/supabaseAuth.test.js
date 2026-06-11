@@ -4,6 +4,8 @@ const authMock = {
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
   signOut: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
+  updateUser: vi.fn(),
 };
 
 vi.mock('../utils/supabase.js', () => ({
@@ -16,6 +18,8 @@ describe('supabase auth helpers', () => {
     authMock.signInWithPassword.mockReset();
     authMock.signUp.mockReset();
     authMock.signOut.mockReset();
+    authMock.resetPasswordForEmail.mockReset();
+    authMock.updateUser.mockReset();
   });
 
   it('signs in with email and password', async () => {
@@ -62,6 +66,40 @@ describe('supabase auth helpers', () => {
 
     await expect(createSupabaseAccount('existing@example.com', 'any-password'))
       .rejects.toThrow('An account with this email already exists');
+  });
+
+  it('sends a password reset email with a redirect back to the app', async () => {
+    authMock.resetPasswordForEmail.mockResolvedValue({ error: null });
+    const { sendPasswordResetEmail } = await import('./supabaseAuth.js');
+
+    await sendPasswordResetEmail(' user@example.com ');
+
+    expect(authMock.resetPasswordForEmail).toHaveBeenCalledWith('user@example.com', {
+      redirectTo: expect.any(String),
+    });
+  });
+
+  it('refuses to send a reset email without an address', async () => {
+    const { sendPasswordResetEmail } = await import('./supabaseAuth.js');
+
+    await expect(sendPasswordResetEmail('  ')).rejects.toThrow('Enter your email first.');
+    expect(authMock.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it('updates the password for the signed-in user', async () => {
+    authMock.updateUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    const { updateSupabasePassword } = await import('./supabaseAuth.js');
+
+    await updateSupabasePassword('new-password-123');
+
+    expect(authMock.updateUser).toHaveBeenCalledWith({ password: 'new-password-123' });
+  });
+
+  it('rejects passwords under six characters before calling Supabase', async () => {
+    const { updateSupabasePassword } = await import('./supabaseAuth.js');
+
+    await expect(updateSupabasePassword('tiny')).rejects.toThrow('at least 6 characters');
+    expect(authMock.updateUser).not.toHaveBeenCalled();
   });
 
   it('signs out only the current device session', async () => {
