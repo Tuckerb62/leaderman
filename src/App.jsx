@@ -8,6 +8,7 @@ import {
   Cloud,
   Download,
   FileUp,
+  HelpCircle,
   Layers,
   Library,
   LineChart,
@@ -2137,6 +2138,47 @@ function ArticleDetailView({
     </section>
   );
 }
+
+// Path label for a literature book, dropping the subject (first segment) and the
+// book title (last segment), plus the redundant "chapter-by-chapter" grouping node.
+function literatureBookPathLabel(article) {
+  const path = article.hierarchyPath.slice(1, -1).filter(Boolean);
+  if (path[0]?.toLowerCase().includes('chapter-by-chapter')) {
+    return path.slice(1).join(': ');
+  }
+  return path.join(': ');
+}
+
+// Chapter title with its leading "Book Title: " prefix removed for the in-book list.
+function literatureChapterLabel(article, bookRawTitle) {
+  let label = String(article.title || '');
+  if (bookRawTitle && label.startsWith(`${bookRawTitle}: `)) {
+    label = label.slice(bookRawTitle.length + 2);
+  }
+  return humanizeLiteratureLabel(label.trim());
+}
+
+// Group a flat list of literature chapter articles into their parent books,
+// preserving first-seen (source) order for both books and chapters.
+function groupLiteratureBooks(articleList) {
+  const map = new Map();
+  for (const article of articleList) {
+    if (article.articleType !== 'literature') continue;
+    const bookKey = article.hierarchyPath.join('|');
+    const bookRawTitle = article.hierarchyPath.at(-1) || article.title;
+    const group = map.get(bookKey) || {
+      bookKey,
+      bookRawTitle,
+      bookTitle: humanizeLiteratureLabel(bookRawTitle),
+      pathLabel: literatureBookPathLabel(article),
+      chapters: [],
+    };
+    group.chapters.push(article);
+    map.set(bookKey, group);
+  }
+  return [...map.values()];
+}
+
 function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTopic, librarySubjectId, setLibrarySubjectId, sharedLessons }) {
   const treePanelRef = useRef(null);
   const [query, setQuery] = useState('');
@@ -2145,6 +2187,7 @@ function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTo
   const [topicId, setTopicId] = useState('all');
   const [subtopicId, setSubtopicId] = useState('all');
   const [subsubtopicId, setSubsubtopicId] = useState('all');
+  const [expandedBooks, setExpandedBooks] = useState(() => new Set());
   const selectedSubject = articleHierarchy.find((subject) => subject.id === subjectId) || articleHierarchy[0];
   const selectedTopic = selectedSubject?.topics.find((topic) => topic.id === topicId) || null;
   const selectedSubtopic = selectedTopic?.subtopics.find((subtopic) => subtopic.id === subtopicId) || null;
@@ -2167,11 +2210,25 @@ function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTo
       ? getTopicProgress(selectedSubject.id, selectedTopic.id, state.completedArticlesByKey || {})
       : subjectProgress;
   const completedArticlesByKey = state.completedArticlesByKey || {};
+  const standardArticles = visibleArticles.filter((article) => article.articleType !== 'literature');
+  const literatureBooks = groupLiteratureBooks(visibleArticles);
+  // A search expands every book so matching chapters are visible without extra taps.
+  const expandAllBooks = Boolean(query.trim());
+
+  function toggleBook(bookKey) {
+    setExpandedBooks((current) => {
+      const next = new Set(current);
+      if (next.has(bookKey)) next.delete(bookKey);
+      else next.add(bookKey);
+      return next;
+    });
+  }
 
   useEffect(() => {
     setTopicId('all');
     setSubtopicId('all');
     setSubsubtopicId('all');
+    setExpandedBooks(new Set());
   }, [subjectId]);
 
   useEffect(() => {
@@ -2398,7 +2455,7 @@ function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTo
               </button>
             );
           })}
-          {visibleArticles.map((article) => {
+          {standardArticles.map((article) => {
             const completed = Boolean(state.completedArticlesByKey?.[article.key]?.completed);
             const saved = Boolean(state.savedItems?.[article.key]);
             return (
@@ -2412,14 +2469,65 @@ function LibraryView({ state, selectedArticle, openCanonicalItem, toggleFollowTo
               })}
             >
               <div className="library-row-copy">
-                <strong>{article.articleType === 'literature' ? humanizeLiteratureLabel(article.title) : article.title}</strong>
+                <strong>{article.title}</strong>
                 <p>{article.summary}</p>
                 <small>{articlePathLabel(article)}</small>
               </div>
               <span className="library-row-meta">
-                {completed ? 'Done' : saved ? 'Saved' : article.articleType === 'literature' ? 'Reader' : 'Article'}
+                {completed ? 'Done' : saved ? 'Saved' : 'Article'}
               </span>
             </button>
+            );
+          })}
+          {literatureBooks.map((book) => {
+            const total = book.chapters.length;
+            const completedCount = book.chapters.filter((chapter) => Boolean(completedArticlesByKey?.[chapter.key]?.completed)).length;
+            const fullyRead = total > 0 && completedCount === total;
+            const expanded = expandAllBooks || expandedBooks.has(book.bookKey);
+            return (
+              <div key={book.bookKey} className="library-book-group">
+                <button
+                  className={expanded ? 'library-row book-row expanded' : 'library-row book-row'}
+                  aria-expanded={expanded}
+                  onClick={() => toggleBook(book.bookKey)}
+                >
+                  <div className="library-row-copy">
+                    <strong>{book.bookTitle}</strong>
+                    <p>{completedCount} of {total} {total === 1 ? 'chapter' : 'chapters'} read</p>
+                    {book.pathLabel && <small>{book.pathLabel}</small>}
+                  </div>
+                  <span className="library-row-meta book-row-meta">
+                    <ChevronRight size={16} className={expanded ? 'book-row-chevron open' : 'book-row-chevron'} />
+                    {fullyRead ? 'Done' : `${total} ch`}
+                  </span>
+                </button>
+                {expanded && (
+                  <div className="library-chapter-list" aria-label={`${book.bookTitle} chapters`}>
+                    {book.chapters.map((chapter) => {
+                      const completed = Boolean(completedArticlesByKey?.[chapter.key]?.completed);
+                      const saved = Boolean(state.savedItems?.[chapter.key]);
+                      return (
+                        <button
+                          key={chapter.key}
+                          className={selectedArticle?.key === chapter.key ? 'library-row chapter-subrow active' : 'library-row chapter-subrow'}
+                          onClick={() => openCanonicalItem(chapter.key, {
+                            subjectIds: [chapter.subjectId],
+                            topicIds: [chapter.subjectId, chapter.topicId, chapter.subtopicId, chapter.subsubtopicId].filter(Boolean),
+                            domain: 'article',
+                          })}
+                        >
+                          <div className="library-row-copy">
+                            <strong>{literatureChapterLabel(chapter, book.bookRawTitle)}</strong>
+                          </div>
+                          <span className="library-row-meta">
+                            {completed ? 'Done' : saved ? 'Saved' : 'Reader'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -2610,6 +2718,112 @@ function InterestNodeList({ nodes, followedTopics, toggleFollowTopic, depth = 0 
   );
 }
 
+// A plain-language, step-by-step walkthrough for non-technical readers: what an
+// API key is, and exactly how to get one from OpenAI and paste it in.
+function ApiKeyGuide({ id }) {
+  return (
+    <div id={id} className="api-key-guide" role="region" aria-label="How to get an OpenAI API key">
+      <div className="api-key-guide-intro">
+        <h3>What is an API key, in plain words?</h3>
+        <p>
+          The lessons in this app can be written and tutored by OpenAI&apos;s AI (the same
+          company behind ChatGPT). To do that, the app needs permission to use your OpenAI
+          account. An <strong>API key</strong> is just that permission: a long secret password —
+          it looks like <code>sk-proj-…</code> — that you paste in once. The app sends your
+          requests straight to OpenAI using it. Think of it like a key card for a door: it
+          unlocks the service, it&apos;s tied to you, and you can cancel it any time.
+        </p>
+        <p className="api-key-guide-note">
+          You pay OpenAI directly for what you use (usually a few cents). This app never sees
+          your card, and your key stays only in this browser.
+        </p>
+      </div>
+
+      <ol className="api-key-steps">
+        <li>
+          <span className="api-step-num">1</span>
+          <div className="api-step-body">
+            <strong>Create a free OpenAI account.</strong>
+            <p>Go to the OpenAI platform and sign up (or log in if you already have one).</p>
+            <a className="api-step-link" href="https://platform.openai.com/signup" target="_blank" rel="noreferrer">
+              Open platform.openai.com <ChevronRight size={14} />
+            </a>
+          </div>
+        </li>
+
+        <li>
+          <span className="api-step-num">2</span>
+          <div className="api-step-body">
+            <strong>Add a little credit (billing).</strong>
+            <p>
+              API usage is pay-as-you-go and separate from any ChatGPT subscription, so you need
+              a payment method. Add a small amount — $5 goes a very long way for reading lessons.
+            </p>
+            <a className="api-step-link" href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" rel="noreferrer">
+              Open the billing page <ChevronRight size={14} />
+            </a>
+          </div>
+        </li>
+
+        <li>
+          <span className="api-step-num">3</span>
+          <div className="api-step-body">
+            <strong>Go to the API keys page.</strong>
+            <p>This is where your secret keys live. It&apos;s under your profile menu, &ldquo;API keys&rdquo;.</p>
+            <a className="api-step-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">
+              Open the API keys page <ChevronRight size={14} />
+            </a>
+          </div>
+        </li>
+
+        <li>
+          <span className="api-step-num">4</span>
+          <div className="api-step-body">
+            <strong>Click &ldquo;Create new secret key&rdquo;.</strong>
+            <p>Give it any name you like (for example &ldquo;Curiosity app&rdquo;) and confirm.</p>
+            <div className="api-step-visual" aria-hidden="true">
+              <span className="api-mock-button">+ Create new secret key</span>
+            </div>
+          </div>
+        </li>
+
+        <li>
+          <span className="api-step-num">5</span>
+          <div className="api-step-body">
+            <strong>Copy the key right away.</strong>
+            <p>
+              OpenAI shows the full key <em>only once</em>. Press <strong>Copy</strong>. If you
+              lose it, no harm done — just delete it and make a new one.
+            </p>
+            <div className="api-step-visual" aria-hidden="true">
+              <span className="api-mock-key">sk-proj-a1b2c3••••••••••••••••</span>
+              <span className="api-mock-copy">Copy</span>
+            </div>
+          </div>
+        </li>
+
+        <li>
+          <span className="api-step-num">6</span>
+          <div className="api-step-body">
+            <strong>Paste it in the box below and save.</strong>
+            <p>
+              Paste the key into the field just under this guide, then press
+              <strong> Check and save key</strong>. The app makes one tiny test call to confirm
+              it works before storing it. That&apos;s it — you&apos;re ready to read and generate.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <p className="api-key-guide-footer">
+        Keep your key private — anyone who has it can spend on your account. You can revoke a key
+        any time on the <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">API keys page</a>,
+        and it stops working instantly.
+      </p>
+    </div>
+  );
+}
+
 function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProfileUsername }) {
   const [syncNotice, setSyncNotice] = useState('');
   const [isSyncSubmitting, setIsSyncSubmitting] = useState(false);
@@ -2621,6 +2835,7 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
   const [draftKey, setDraftKey] = useState(() => loadAiSettings().apiKey);
   const [aiNotice, setAiNotice] = useState('');
   const [isSavingKey, setIsSavingKey] = useState(false);
+  const [showKeyHelp, setShowKeyHelp] = useState(false);
   const [useCustomModel, setUseCustomModel] = useState(() => !AI_MODEL_OPTIONS.some((option) => option.id === settings.model));
   const selectedModelOption = AI_MODEL_OPTIONS.find((option) => option.id === settings.model);
   const modelSelectValue = !useCustomModel && selectedModelOption ? selectedModelOption.id : 'custom';
@@ -2919,7 +3134,20 @@ function AccountView({ state, syncStatus, isSyncing, toggleFollowTopic, saveProf
         </div>
 
         <div className="ai-field">
-          <label htmlFor="account-ai-key">OpenAI API key</label>
+          <div className="ai-field-label-row">
+            <label htmlFor="account-ai-key">OpenAI API key</label>
+            <button
+              type="button"
+              className="key-help-toggle"
+              aria-expanded={showKeyHelp}
+              aria-controls="account-ai-key-help"
+              onClick={() => setShowKeyHelp((current) => !current)}
+            >
+              <HelpCircle size={15} />
+              {showKeyHelp ? 'Hide guide' : 'New to this? Read the guide'}
+            </button>
+          </div>
+          {showKeyHelp && <ApiKeyGuide id="account-ai-key-help" />}
           <input
             id="account-ai-key"
             type="password"
