@@ -26,6 +26,9 @@ function addTopicWeight(map, topicIds = [], amount = 0) {
   }
 }
 
+const BASE_FOLLOW_SCORE = 30;
+const PERSISTENT_FOLLOW_SCORE = 110;
+
 function buildTopicSignals(state) {
   const followed = {};
   const saved = {};
@@ -363,6 +366,7 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
       const activity = state.itemActivity?.[item.key];
       const openCount = activity?.openCount || 0;
       const followedScore = (item.topicIds || []).reduce((sum, topicId) => sum + (topicSignals.followed[topicId] || 0), 0);
+      const persistentFollowScore = followedScore * PERSISTENT_FOLLOW_SCORE;
       const savedTopicScore = (item.topicIds || []).reduce((sum, topicId) => sum + (topicSignals.saved[topicId] || 0), 0);
       const topicClickScore = (item.topicIds || []).reduce((sum, topicId) => sum + (topicSignals.opened[topicId] || 0), 0);
       const saved = Boolean(state.savedItems?.[item.key]);
@@ -377,7 +381,8 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
       const score = (saved ? 140 : 0)
         + openCount * 24
         + topicClickScore * 10
-        + followedScore * 30
+        + followedScore * BASE_FOLLOW_SCORE
+        + persistentFollowScore
         + savedTopicScore * 16
         + stableHash(`${item.key}-${now.slice(0, 10)}`) / 1000;
       const randomScore = stableHash(`random:${now.slice(0, 10)}:${item.key}`);
@@ -406,8 +411,9 @@ export function buildFeedItems(state, { limit = 40, now = new Date().toISOString
     .sort((left, right) => right.unexploredScore - left.unexploredScore);
   const allRanked = [...scored].sort((left, right) => right.score - left.score);
 
-  const randomTarget = Math.max(1, Math.round(limit * 0.25));
-  const unexploredTarget = Math.max(1, Math.round(limit * 0.1));
+  const hasFollowSignals = Object.keys(topicSignals.followed || {}).length > 0;
+  const randomTarget = Math.max(1, Math.round(limit * (hasFollowSignals ? 0.14 : 0.25)));
+  const unexploredTarget = Math.max(1, Math.round(limit * (hasFollowSignals ? 0.06 : 0.1)));
   const personalizedTarget = Math.max(1, limit - randomTarget - unexploredTarget);
   const feedMix = [];
   const seen = new Set();
