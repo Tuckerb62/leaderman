@@ -247,19 +247,69 @@ function isHistoryLesson(lesson) {
   return lesson?.summaryKind === 'History' || lesson?.domain === 'World History' || lesson?.domain === 'History';
 }
 
+function buildNovelChapterRetellingPrompt(lesson, chapter) {
+  const bookTitle = lesson?.title || 'Unknown book';
+  const chapterTitle = chapter?.title || 'Unknown chapter';
+  const sourceMaterial =
+    chapter?.sourceOrSummary || chapter?.summary || chapter?.retellingParagraphs?.join('\n\n') || 'Not written yet.';
+
+  return [
+    'You are a best selling author of novels and are currently writing for Curiosity, a calm nightly reading app.',
+    '',
+    'Target: full Curiosity chapter retelling of books',
+    'Mode: fiction chapter reading companion',
+    'Goal: turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
+    '',
+    '<input>',
+    `Book: ${bookTitle}`,
+    `Chapter: ${chapterTitle}`,
+    'Spoiler boundary: only this chapter',
+    `Source material: ${sourceMaterial}`,
+    '</input>',
+    '',
+    'Before writing, silently identify:',
+    '- the chapter\'s opening situation;',
+    '- the major scene turns;',
+    '- the main pressure or emotional movement;',
+    '- the choice, action, or consequence that gives the chapter shape;',
+    '- where the chapter ends, so nothing beyond it is revealed.',
+    '',
+    'Write the retelling as continuous narrative prose, scene by scene.',
+    '',
+    'Style rules:',
+    '- Make it feel like a readable short story, not a summary sheet.',
+    '- Preserve continuity, mood, pressure, choices, consequences, and emotional movement.',
+    '- Use vivid but plain prose.',
+    '- Keep the reader oriented without explaining literary themes.',
+    '- Do not use headings inside the retelling except the required markdown heading.',
+    '- Do not include character lists, setting notes, themes, analysis, quizzes, “keep in mind,” “things to remember,” or study-guide blocks.',
+    '- Do not say phrases like “this chapter shows,” “the author uses,” “the theme is,” or “the reader learns.”',
+    '- Do not include events, motives, revelations, or consequences from later chapters.',
+    '- Do not invent scenes, dialogue, backstory, symbolism, or facts not present in the provided chapter material.',
+    '- For copyrighted works, do not quote, closely paraphrase, or imitate the original author’s sentence style. Retell in fresh prose as a companion, not a substitute for the book.',
+    '',
+    'Length:',
+    '- Target 900–1200 words total.',
+    '- Do not pad. If the chapter is simple, stay closer to 900 words.',
+    '- If the chapter is dense or scene-heavy, use the full range.',
+    '',
+    'Output exactly this markdown structure and nothing else:',
+    '',
+    '## Short Story Retelling',
+    '',
+    '[continuous narrative prose here]',
+  ].join('\n');
+}
+
 function buildExpansionTaskProfile(lesson, chapter) {
   if (isNovelReadingLesson(lesson) && chapter) {
     return {
-      target: 'chapter retelling',
-      mode: 'Fiction chapter reading companion',
-      goal: 'Retell the selected chapter as a readable, spoiler-bounded story that helps the user enjoy the book without turning it into schoolwork.',
-      instructions: [
-        'Retell the selected chapter as a readable, spoiler-bounded story with scene movement, character pressure, emotional turns, and unresolved tension.',
-        'Use the supplied chapter as the hard boundary. Do not reveal later plot events, endings, twists, deaths, betrayals, or resolutions.',
-        'Do not turn the chapter into a quiz, worksheet, literary exam, or generic theme summary.',
-        'Keep Reader Guide and Keep In Mind gentle: they should orient the reader, not test the reader.',
-      ],
-      sections: '## Story Retelling\n## What Changed\n## Why It Matters\n## Reader Guide\n## Keep In Mind',
+      target: 'full Curiosity chapter retelling of books',
+      mode: 'fiction chapter reading companion',
+      goal: 'turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
+      instructions: [],
+      sections: '## Short Story Retelling',
+      prompt: buildNovelChapterRetellingPrompt(lesson, chapter),
     };
   }
 
@@ -267,14 +317,16 @@ function buildExpansionTaskProfile(lesson, chapter) {
     return {
       target: 'novel reading companion',
       mode: 'Novel reading companion',
-      goal: 'Help the reader enjoy and follow the book through a clear, vivid guide without adding quizzes or study pressure.',
-      instructions: [
-        'Help the reader enjoy and follow the book by clarifying the premise, major people, tensions, mood, and things worth noticing.',
-        'Do not write quiz questions, exam prompts, or homework-style tasks.',
-        'Keep spoilers appropriate to the supplied overview. If the context is thin, stay general rather than inventing details.',
-        'Use Keep In Mind for light reader orientation, not memorization drills.',
-      ],
-      sections: '## Story Overview\n## Main Characters\n## Main Tensions\n## Why It Matters\n## Keep In Mind',
+      goal: 'Turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
+      prompt: buildNovelChapterRetellingPrompt(lesson, {
+        title: 'Book overview',
+        sourceOrSummary: [
+          ...(lesson.articleParagraphs || []),
+          lesson.quickVersion || lesson.summary || lesson.summaryBullets?.join('\n\n') || '',
+        ]
+          .filter(Boolean)
+          .join('\n\n') || 'Not written yet.',
+      }),
     };
   }
 
@@ -324,6 +376,10 @@ function buildExpansionTaskProfile(lesson, chapter) {
 
 export function buildExpansionPrompt({ lesson, chapter = null }) {
   const profile = buildExpansionTaskProfile(lesson, chapter);
+  if (profile.prompt) {
+    return profile.prompt;
+  }
+
   const novelReadingMode = isNovelReadingLesson(lesson);
   const currentText = chapter
     ? [
