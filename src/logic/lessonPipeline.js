@@ -12,6 +12,8 @@ export const PIPELINE_STEPS = [
   { id: 'revise', label: 'Correcting and polishing' },
 ];
 
+const NOVEL_SLOT_SUMMARY_KIND = 'Novel';
+
 const CHECKPOINT_PREFIX = 'curiosity.lessonPipeline.v1.';
 
 const PAGE_WORD_LIMIT = 1100;
@@ -41,17 +43,66 @@ function lessonJsonContract() {
 
 export function buildDraftPrompt(slot) {
   return [
-    'Write a lesson for Curiosity, a calm nightly reading app. The lesson is a flowing essay the reader experiences as a short book chapter.',
+    "You are an expert academic author, lecturer and Curiosity's lesson writer. Curiosity is a calm nightly reading app. Write a lesson that feels like a short book chapter: clear, concrete, reflective, practical, and memorable without sounding like a textbook.",
     '',
-    `Topic: ${slot.title}`,
+    '<lesson_input>',
+    `Title: ${slot.title}`,
     `Subject area: ${slot.subject}${slot.topic ? ` — ${slot.topic}` : ''}`,
     `Editorial brief: ${slot.brief}`,
+    `Shelf profile: ${slot.profile || slot.shelfProfile || 'general'}`,
+    '</lesson_input>',
     '',
-    'Choose the depth the topic deserves: a focused idea gets one page, a war gets several. Use web search to ground names, dates, and events before asserting them.',
+    'Before writing, silently decide:',
+    '- the lesson\'s central question or tension;',
+    '- the safest factual scope based on the input;',
+    '- whether the topic deserves 1, 2, or more pages;',
+    '- which concrete example, modern application, and boundary case genuinely fit.',
     '',
-    SHARED_RULES,
+    'Core rules:',
+    '- Omission beats invention. Never fabricate quotes, citations, dates, statistics, study findings, named events, or precise claims.',
+    '- Use only well-established knowledge or facts supplied in the input. If confidence is limited, say so naturally in the prose or omit the claim. If there are conflicting views or theories, state this.',
+    '- Do not pad. Stop when the lesson feels complete.',
+    '- Prefer scenes, mechanisms, decisions, and examples over abstract summary.',
+    '- Weave counterpoints, uncertainty, and boundary cases into the prose. Do not label them as "counterpoint," "edge case," or "uncertainty."',
+    '- No headings, section labels, bullet summaries, quiz questions, or meta commentary inside the lesson.',
+    '- Use plain English with a calm evening tone. Write like a good book chapter, not a lecture note.',
     '',
-    lessonJsonContract(),
+    'Lesson requirements:',
+    '- Open with a specific image, situation, problem, or tension rather than a generic definition.',
+    '- Include one concrete modern application or analogy when it genuinely clarifies the topic.',
+    '- Include one boundary case: a situation where the main idea becomes harder, weaker, or changes meaning.',
+    '- End with one practical takeaway sentence.',
+    '',
+    'Subject-specific rules:',
+    '- History / World History: include actors, incentives, constraints, turning points, and one grounded "what might have gone differently" line.',
+    '- Philosophy: include the core question, two competing positions, one serious objection, and one practical decision rule.',
+    '- Leadership / Communication / Ethics / Systems: include one workplace, family, or public-life scenario; one common mistake pattern; and one practical line the reader could try next.',
+    '- Literature: preserve narrative movement, scene feeling, and emotional arc when useful.',
+    '- Science / Medical: explain mechanisms first, be precise, and avoid overstating uncertain claims.',
+    '',
+    'Length:',
+    'Use 1-6 pages. Match length to scope:',
+    '- narrow or simple topic: 1 page;',
+    '- moderate topic: 2-3 pages;',
+    '- broad or foundational topic: 3-6 pages.',
+    '',
+    'Aim for 750-1250 words per full page, but never add words just to hit a range. If a topic is truly narrow then ignore the word recommendation.',
+    '',
+    'Output:',
+    'Return exactly one JSON object with exactly these fields:',
+    '{',
+    '  "title": string,',
+    '  "openingLine": string,',
+    '  "pages": string[]',
+    '}',
+    '',
+    'Rules for the JSON:',
+    '- "openingLine" must exactly match the first sentence of pages[0].',
+    '- "pages" must contain 1-6 strings.',
+    '- Each page must be flowing markdown prose made of paragraphs only.',
+    '- No markdown fence.',
+    '- No commentary outside the JSON.',
+    '',
   ].join('\n');
 }
 
@@ -76,6 +127,12 @@ export function buildVerifyPrompt(draft) {
 // fact-check corrections AND make the final editing pass. Both rule-sets are
 // kept verbatim so nothing the two separate prompts enforced is lost.
 export function buildRevisePrompt(draft, verification) {
+  const fallbackVerification = verification || {
+    confirmed: [],
+    corrected: [],
+    unverified: ['Fact-checking was not run for this run. Do not add new claims, only tighten the existing draft.'],
+  };
+
   return [
     'Revise this lesson draft in a single pass that both corrects it and finishes the writing.',
     '',
@@ -96,7 +153,7 @@ export function buildRevisePrompt(draft, verification) {
     JSON.stringify(draft),
     '',
     'Fact-check results:',
-    JSON.stringify(verification),
+    JSON.stringify(fallbackVerification),
   ].join('\n');
 }
 
@@ -167,6 +224,10 @@ async function callCanonModel({ apiKey, input, useWebSearch = false, maxOutputTo
   return extractResponseText(payload);
 }
 
+function isNovelSlot(slot) {
+  return slot?.summaryKind === NOVEL_SLOT_SUMMARY_KIND;
+}
+
 function checkpointKey(slotId) {
   return `${CHECKPOINT_PREFIX}${slotId}`;
 }
@@ -212,7 +273,7 @@ export async function runLessonPipeline({ apiKey, slot, onProgress = () => {} })
     saveCheckpoint(slot.slotId, checkpoint);
   }
 
-  if (!steps.verify) {
+  if (!steps.verify && !isNovelSlot(slot)) {
     onProgress('verify');
     const verifyText = await callCanonModel({
       apiKey,
@@ -221,6 +282,15 @@ export async function runLessonPipeline({ apiKey, slot, onProgress = () => {} })
       reasoningEffort: 'low',
     });
     steps.verify = parseLessonJson(verifyText);
+    saveCheckpoint(slot.slotId, checkpoint);
+  }
+
+  if (isNovelSlot(slot) && !steps.verify) {
+    steps.verify = {
+      confirmed: [],
+      corrected: [],
+      unverified: [],
+    };
     saveCheckpoint(slot.slotId, checkpoint);
   }
 
