@@ -50,7 +50,6 @@ import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChan
 import { isSupabaseConfigured } from './utils/supabase.js';
 import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, validateApiKey } from './logic/aiClient.js';
 import { buildFeedItems } from './logic/feedAggregation.js';
-import { getStableBookPalette, splitIntoBookPages, splitFeedPreview } from './logic/feedBookUtils.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
 import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './logic/reviewScheduler.js';
@@ -1399,47 +1398,7 @@ function Metric({ label, value }) {
   );
 }
 
-function getFeedItemFullText(item, sharedLessons = {}, generatedArticlesByKey = {}, lessonExpansions = {}) {
-  if (!item) return '';
-
-  if (item.domain === 'article') {
-    const article = item.article;
-    if (!article) return '';
-    const generatedArticle = generatedArticlesByKey[item.key];
-    if (generatedArticle?.articleMarkdown) return String(generatedArticle.articleMarkdown).trim();
-    return String(article.bodyMarkdown || article.articleMarkdown || article.body || article.content || '').trim();
-  }
-
-  if (item.domain === 'generated') {
-    const generated = sharedLessons[item.itemId] || sharedLessons[item.key];
-    const pages = Array.isArray(generated?.pages) ? generated.pages : [];
-    return pages
-      .map((page) => String(page || '').trim())
-      .filter(Boolean)
-      .join('\n\n');
-  }
-
-  if (item.lesson) {
-    const lessonExpansionKey = expansionKeyFor(item.lesson);
-    if (lessonExpansions?.[lessonExpansionKey]?.markdown) {
-      return String(lessonExpansions[lessonExpansionKey].markdown).trim();
-    }
-    if (Array.isArray(item.lesson.articleParagraphs) && item.lesson.articleParagraphs.length > 0) {
-      return item.lesson.articleParagraphs
-        .map((paragraph) => String(paragraph || '').trim())
-        .filter(Boolean)
-        .join('\n\n');
-    }
-    if (item.lesson.articleMarkdown) return String(item.lesson.articleMarkdown).trim();
-    if (item.lesson.body) return String(item.lesson.body).trim();
-    if (item.lesson.content) return String(item.lesson.content).trim();
-    if (item.lesson.openingLine) return String(item.lesson.openingLine).trim();
-  }
-
-  return '';
-}
-
-function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedArticle, saveLessonExpansion, openCanonicalItem, toggleSavedItem, dismissItem, rememberFeedItem, sharedLessons }) {
+function FeedView({ state, completeLesson, setArticleCompletion, openCanonicalItem, toggleSavedItem, dismissItem, rememberFeedItem, sharedLessons }) {
   const [ratedCards, setRatedCards] = useState({});
   const generatedLessons = useMemo(() => Object.values(sharedLessons || {}), [sharedLessons]);
   const feedIds = useMemo(() => buildFeedItems(state, { limit: 100, generatedLessons }).map((item) => item.key), [state, generatedLessons]);
@@ -1485,49 +1444,6 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
     };
   }, [feedItems, rememberFeedItem]);
 
-  async function requestFullTextForItem(item) {
-    if (!item) return '';
-    const cachedText = getFeedItemFullText(item, sharedLessons, state.generatedArticlesByKey || {}, state.lessonExpansions || {});
-    if (cachedText) return cachedText;
-
-    if (item.domain === 'generated' || item.domain === 'article') {
-      if (item.domain === 'generated') return '';
-      if (!item.article) return '';
-
-      const target = await resolveExpansionAiTarget();
-      const generatedArticle = await expandArticleFromMarkdown({
-        ...target,
-        article: item.article,
-      });
-      saveGeneratedArticle(item.key, {
-        ...generatedArticle,
-        model: target.model,
-        source: 'article-ai-expansion',
-      });
-      return String(generatedArticle.articleMarkdown || '').trim();
-    }
-
-    if (item.lesson) {
-      const target = await resolveExpansionAiTarget();
-      const markdown = await expandLearningContent({
-        ...target,
-        lesson: item.lesson,
-      });
-      const lessonExpansionKey = expansionKeyFor(item.lesson);
-      saveLessonExpansion(lessonExpansionKey, {
-        lessonId: item.lesson.id,
-        chapterId: null,
-        markdown,
-        novelRetellingFormat: isNovelReadingLesson(item.lesson) ? NOVEL_RETELLING_FORMAT_VERSION : undefined,
-        model: target.model,
-        source: 'feed-card-expansion',
-      });
-      return String(markdown || '').trim();
-    }
-
-    return '';
-  }
-
   return (
     <section className="feed-view">
       <div className="feed-stack" ref={feedStackRef}>
@@ -1564,9 +1480,7 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
                 [item.key]: { status: 'skip', label: 'Dismissed', compact: true },
               }));
             }}
-            onRequestFullText={() => requestFullTextForItem(item)}
             onOpenFull={() => openCanonicalItem(item.key, { subjectIds: item.subjectIds || [], topicIds: item.topicIds || [], domain: item.domain })}
-            fullText={getFeedItemFullText(item, sharedLessons, state.generatedArticlesByKey || {}, state.lessonExpansions || {})}
           />
         ))}
       </div>
@@ -1574,70 +1488,14 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
   );
 }
 
-  function FeedCard({ item, rated, onComplete, onSkip, onOpenFull, onRequestFullText, fullText = '' }) {
+function FeedCard({ item, review, rated, onComplete, onSkip, onOpenFull }) {
   const lesson = item.lesson;
-  const openingLine = item.domain === 'library' ? lesson?.coreIdea || '' : item.summary || '';
-  const category = item.subjectTitle || item.subject || item.domain || 'Reading';
-  const contextLine = item.pathLabel || (Array.isArray(item.hierarchyPath) ? item.hierarchyPath.join(' · ') : '') || '';
-  const summaryText = splitFeedPreview(openingLine || item.title, 190);
+  const openingLine = item.domain === 'library' ? lesson.coreIdea : item.summary;
+  const finished = item.domain === 'library' ? Boolean(review?.completed) : Boolean(item.completed);
   const gesture = useRef({ startX: 0, startY: 0 });
-  const turnTimeoutRef = useRef(null);
-  const [isBookOpen, setIsBookOpen] = useState(false);
-  const [bookPages, setBookPages] = useState(() => splitIntoBookPages(fullText));
-  const [pageIndex, setPageIndex] = useState(0);
-  const [isTurningPage, setIsTurningPage] = useState(false);
-  const [isGeneratingFullLesson, setIsGeneratingFullLesson] = useState(false);
-  const [generateDots, setGenerateDots] = useState(0);
-  const [isReadyPulse, setIsReadyPulse] = useState(false);
-  const [requestError, setRequestError] = useState('');
-  const palette = useMemo(() => getStableBookPalette(item.key || item.id || item.title || ''), [item.key, item.id, item.title]);
-
-  const pages = useMemo(() => [summaryText, ...bookPages], [bookPages, summaryText]);
-  const isSummaryPage = pageIndex === 0;
-  const isLastBookPage = pageIndex >= pages.length - 1;
-  const currentPageText = pages[pageIndex] || '';
-  const showReadyBadge = isReadyPulse && isBookOpen && pageIndex === 1;
-  const continueLabel = isSummaryPage
-    ? (isGeneratingFullLesson ? `Generating${'.'.repeat(generateDots)}` : 'Continue reading')
-    : isLastBookPage
-      ? 'Read full lesson'
-      : 'Next page';
-
-  useEffect(() => {
-    const nextPages = splitIntoBookPages(fullText);
-    setBookPages(nextPages);
-    if (!isBookOpen) {
-      setPageIndex(0);
-    }
-    if (nextPages.length > 0) {
-      setRequestError('');
-    }
-    setIsReadyPulse(false);
-    setIsGeneratingFullLesson(false);
-  }, [fullText, isBookOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (turnTimeoutRef.current) {
-        window.clearTimeout(turnTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isGeneratingFullLesson) return undefined;
-
-    const interval = window.setInterval(() => {
-      setGenerateDots((count) => (count + 1) % 4);
-    }, 280);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [isGeneratingFullLesson]);
 
   function isInteractiveTarget(target) {
-    return Boolean(target?.closest?.('button, textarea, input, select, a, label, summary, details, .read-page, .page-actions, .page-scroll, .page-text'));
+    return target.closest('button, textarea, input, select, a, label, summary, details');
   }
 
   function moveToNextCard(card) {
@@ -1645,103 +1503,6 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
     if (nextCard) {
       window.setTimeout(() => nextCard.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
     }
-  }
-
-  useEffect(() => {
-    if (!isReadyPulse) return undefined;
-
-    const timeout = window.setTimeout(() => {
-      setIsReadyPulse(false);
-    }, 1100);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [isReadyPulse]);
-
-  function turnToPage(nextPage, sourcePages = pages, onDone = null) {
-    if (isTurningPage || nextPage === pageIndex) return;
-    if (nextPage < 0 || nextPage >= sourcePages.length) return;
-
-    if (turnTimeoutRef.current) {
-      window.clearTimeout(turnTimeoutRef.current);
-    }
-    setIsTurningPage(true);
-    turnTimeoutRef.current = window.setTimeout(() => {
-      setPageIndex(nextPage);
-      setIsTurningPage(false);
-      if (typeof onDone === 'function') {
-        onDone();
-      }
-      turnTimeoutRef.current = null;
-    }, 180);
-  }
-
-  function handleContinueReading(event) {
-    event.stopPropagation();
-
-    if (isTurningPage) return;
-
-    if (isSummaryPage) {
-      if (bookPages.length > 0) {
-        setIsReadyPulse(false);
-        turnToPage(1);
-      } else {
-        if (!onRequestFullText || isGeneratingFullLesson) return;
-        setIsGeneratingFullLesson(true);
-        setGenerateDots(1);
-        setRequestError('');
-        (async () => {
-          try {
-            const nextText = await onRequestFullText();
-            const nextPages = splitIntoBookPages(nextText);
-            setBookPages(nextPages);
-            if (nextPages.length > 0) {
-              turnToPage(1, [summaryText, ...nextPages], () => {
-                setIsReadyPulse(true);
-              });
-            } else {
-              onOpenFull();
-              setPageIndex(0);
-            }
-          } catch (error) {
-            setRequestError(error?.message || 'Unable to load full text for this lesson.');
-          } finally {
-            setIsGeneratingFullLesson(false);
-            setGenerateDots(0);
-          }
-        })();
-      }
-      return;
-    }
-
-    if (!isLastBookPage) {
-      turnToPage(pageIndex + 1);
-      return;
-    }
-
-    onOpenFull();
-  }
-
-  function handleCloseBook(event) {
-    event.stopPropagation();
-    setIsBookOpen(false);
-    setPageIndex(0);
-    setIsGeneratingFullLesson(false);
-    setIsReadyPulse(false);
-    setRequestError('');
-  }
-
-  function renderParagraphs(text) {
-    const safe = String(text || '').trim();
-    if (!safe) {
-      return <p className="page-empty">No preview available for this page yet.</p>;
-    }
-    return safe
-      .split(/\n\s*\n/)
-      .map((paragraph) => paragraph.trim())
-      .filter(Boolean)
-      .map((paragraph, index) => <p key={`${pageIndex}-${index}`}>{paragraph}</p>);
   }
 
   function handleGestureStart(event) {
@@ -1775,9 +1536,7 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
     }
 
     if (distance < 12) {
-      if (!isBookOpen) {
-        setIsBookOpen(true);
-      }
+      onOpenFull();
     }
   }
 
@@ -1794,12 +1553,7 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (isBookOpen) {
-        setIsBookOpen(false);
-        setPageIndex(0);
-        return;
-      }
-      setIsBookOpen(true);
+      onOpenFull();
     }
   }
 
@@ -1816,68 +1570,18 @@ function FeedView({ state, completeLesson, setArticleCompletion, saveGeneratedAr
 
   return (
     <article
-      className={`feed-card book-feed-card ${isBookOpen ? 'is-open' : ''} ${isTurningPage ? 'is-turning' : ''}`}
+      className="feed-card"
       data-feed-id={item.key}
       tabIndex={0}
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}
       onKeyDown={handleGestureKeyDown}
       aria-label={item.title}
-      style={{
-        '--book-cover-top': palette[0],
-        '--book-cover-mid': palette[1],
-        '--book-cover-shadow': palette[2],
-        '--book-cover-line': palette[3],
-      }}
     >
-      <div className="book-shell">
-        <div className="book-base">
-          <div className="book-page-block" />
-          <div className="read-page">
-            <div className={`page-turn-layer ${isTurningPage ? 'play' : ''}`} aria-hidden />
-            <div className="page-scroll">
-              <div className="page-head">
-                <small className="page-source">{category}</small>
-                <div className="page-title-row">
-                  <p className="page-title">{isSummaryPage ? 'Summary' : `Reading page ${pageIndex}`}</p>
-                  {showReadyBadge && (
-                    <span className="page-ready-pill" role="status" aria-live="polite">
-                      Ready
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="page-text">{renderParagraphs(currentPageText)}</div>
-            </div>
-            <div className="page-actions">
-              <button className="secondary-button" type="button" onClick={handleCloseBook}>Close</button>
-              <button
-                className={`secondary-button ${isSummaryPage && isGeneratingFullLesson ? 'is-loading' : ''}`}
-                type="button"
-                onClick={handleContinueReading}
-                disabled={isTurningPage || (isSummaryPage && isGeneratingFullLesson)}
-                aria-busy={isSummaryPage && isGeneratingFullLesson ? 'true' : undefined}
-              >
-                {continueLabel}
-              </button>
-            </div>
-            {requestError && (
-              <p className="page-error" role="status" aria-live="polite">
-                {requestError}
-              </p>
-            )}
-          </div>
-          <div className="sliding-cover">
-            <div className="cover-face">
-              <p className="cover-domain">{category}</p>
-              <h2>{item.title}</h2>
-              {contextLine && <small className="cover-subtitle">{contextLine}</small>}
-              <p className="cover-summary">{summaryText}</p>
-              <p className="cover-open-hint">Tap to open</p>
-              <div className="cover-frame" />
-            </div>
-          </div>
-        </div>
+      <div className="feed-card-content">
+        <h2>{item.title}</h2>
+        <p className="core-idea">{openingLine}</p>
+        {(rated || finished) && <p className="feed-state">{rated?.label || 'Finished'}</p>}
       </div>
     </article>
   );
