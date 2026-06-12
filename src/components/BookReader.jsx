@@ -11,7 +11,7 @@ const FONT_SCALE_MIN = 0.85;
 const FONT_SCALE_MAX = 1.3;
 const FONT_SCALE_STEP = 0.075;
 
-function renderMarkdownInline(text = '') {
+export function renderMarkdownInline(text = '') {
   const source = String(text);
   const pattern = /\*\*(.+?)\*\*/g;
   const nodes = [];

@@ -54,7 +54,7 @@ import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
 import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './logic/reviewScheduler.js';
 import { fetchSyncHealth, fetchSyncSnapshot, pushSyncSnapshot } from './logic/syncClient.js';
-import { BookReader, MarkdownBlock } from './components/BookReader.jsx';
+import { BookReader, MarkdownBlock, renderMarkdownInline } from './components/BookReader.jsx';
 import { GeneratedLessonView } from './components/GeneratedLessonView.jsx';
 import { buildArticlePages, buildLessonPages } from './logic/lessonPages.js';
 import { slotById, slotsForSubject } from './data/lessonSlots.js';
@@ -1593,7 +1593,7 @@ function InfoList({ title, items }) {
       <h3>{title}</h3>
       <ul className="summary-list">
         {items.map((item) => (
-          <li key={item}>{item}</li>
+          <li key={item}>{renderMarkdownInline(item)}</li>
         ))}
       </ul>
     </div>
@@ -1609,7 +1609,7 @@ function QuestionList({ questions }) {
         {questions.map((question) => (
           <div key={`${question.type}-${question.prompt}`} className="question-row">
             <span>{question.type}</span>
-            <p>{question.prompt}</p>
+            <p>{renderMarkdownInline(question.prompt)}</p>
           </div>
         ))}
       </div>
@@ -1762,7 +1762,7 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
               <CompactSeedDetails title={novelReadingMode ? 'Compact chapter version' : 'Original section seed'}>
                 <div className="article-body">
                   {chapterParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
+                    <p key={paragraph}>{renderMarkdownInline(paragraph)}</p>
                   ))}
                 </div>
                 <div className="two-column">
@@ -1781,7 +1781,7 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
             <>
               <div className="article-body">
                 {chapterParagraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
+                  <p key={paragraph}>{renderMarkdownInline(paragraph)}</p>
                 ))}
               </div>
               <div className="two-column">
@@ -3378,13 +3378,13 @@ function FloatingAiPanel({ lesson, messages, onSaveMessages, onClearMessages }) 
           {messages.map((message) => (
             <article key={message.id} className={message.role === 'user' ? 'ai-message user' : 'ai-message assistant'}>
               <span>{message.role === 'user' ? 'You' : 'Tutor'}</span>
-              <p>{message.content}</p>
+              <p>{renderMarkdownInline(message.content)}</p>
             </article>
           ))}
           {streamingText !== null && (
             <article className="ai-message assistant">
               <span>Tutor</span>
-              <p>{streamingText}</p>
+              <p>{renderMarkdownInline(streamingText)}</p>
             </article>
           )}
           {isAsking && streamingText === null && <p className="ai-thinking">Thinking...</p>}
@@ -3423,7 +3423,7 @@ function InfoBlock({ title, text }) {
   return (
     <div className="info-block">
       <span>{title}</span>
-      <p>{text}</p>
+      <p>{renderMarkdownInline(text)}</p>
     </div>
   );
 }
