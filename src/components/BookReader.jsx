@@ -11,6 +11,28 @@ const FONT_SCALE_MIN = 0.85;
 const FONT_SCALE_MAX = 1.3;
 const FONT_SCALE_STEP = 0.075;
 
+function renderMarkdownInline(text = '') {
+  const source = String(text);
+  const pattern = /\*\*(.+?)\*\*/g;
+  const nodes = [];
+  let cursor = 0;
+  let match;
+  let index = 0;
+
+  while ((match = pattern.exec(source)) !== null) {
+    if (match.index > cursor) {
+      nodes.push(source.slice(cursor, match.index));
+    }
+    nodes.push(<strong key={`bold-${index}`}>{match[1]}</strong>);
+    index += 1;
+    cursor = pattern.lastIndex;
+  }
+
+  if (!nodes.length) return source;
+  if (cursor < source.length) nodes.push(source.slice(cursor));
+  return nodes;
+}
+
 export function MarkdownBlock({ markdown = '' }) {
   const blocks = [];
   let listItems = [];
@@ -49,16 +71,16 @@ export function MarkdownBlock({ markdown = '' }) {
       {blocks.map((block, index) => {
         if (block.type === 'heading') {
           const Tag = block.level === 1 ? 'h2' : block.level === 2 ? 'h3' : 'h4';
-          return <Tag key={`${block.type}-${index}`}>{block.text}</Tag>;
+          return <Tag key={`${block.type}-${index}`}>{renderMarkdownInline(block.text)}</Tag>;
         }
         if (block.type === 'list') {
           return (
             <ul key={`${block.type}-${index}`}>
-              {block.items.map((item) => <li key={item}>{item}</li>)}
+              {block.items.map((item) => <li key={item}>{renderMarkdownInline(item)}</li>)}
             </ul>
           );
         }
-        return <p key={`${block.type}-${index}`}>{block.text}</p>;
+        return <p key={`${block.type}-${index}`}>{renderMarkdownInline(block.text)}</p>;
       })}
     </div>
   );
