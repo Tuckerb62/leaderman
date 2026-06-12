@@ -1,5 +1,3 @@
-import { normalizeNovelOutputMarkdown } from './expansionMapper.js';
-
 export const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
 
 export const DEFAULT_AI_SETTINGS = {
@@ -576,10 +574,6 @@ function normalizeGeneratedArticle(text, fallbackTitle = 'Generated article', ar
     articleMarkdown = text;
   } else {
     articleMarkdown = parsed.articleMarkdown || '';
-  }
-
-  if (article?.articleType === 'literature') {
-    articleMarkdown = normalizeNovelOutputMarkdown(articleMarkdown);
   }
 
   if (!parsed || typeof parsed !== 'object') {

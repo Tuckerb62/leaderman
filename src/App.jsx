@@ -49,7 +49,6 @@ import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
 import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChange, sendPasswordResetEmail, signInSupabaseWithPassword, signOutSupabase, updateSupabasePassword } from './logic/supabaseAuth.js';
 import { isSupabaseConfigured } from './utils/supabase.js';
 import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, validateApiKey } from './logic/aiClient.js';
-import { normalizeNovelOutputMarkdown, parseExpansionMarkdown } from './logic/expansionMapper.js';
 import { buildFeedItems } from './logic/feedAggregation.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
@@ -238,32 +237,6 @@ function isNovelReadingLesson(lesson) {
 }
 
 const NOVEL_RETELLING_FORMAT_VERSION = 3;
-
-function stripMarkdownSections(markdown = '', headingNames = []) {
-  return headingNames.reduce((nextMarkdown, headingName) => {
-    const escapedHeading = headingName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const sectionPattern = new RegExp(
-      `(^|\\n)#{1,3}\\s+${escapedHeading}s?\\s*\\n[\\s\\S]*?(?=\\n#{1,3}\\s+|$)`,
-      'gi',
-    );
-    return nextMarkdown.replace(sectionPattern, '\n').trim();
-  }, markdown || '');
-}
-
-function parseExpansionModeFor(lesson, chapter, expansion = null) {
-  const hasLegacyNovelFormat = Boolean(expansion?.novelRetellingFormat);
-  const novelRoute = isNovelReadingLesson(lesson) && !!chapter;
-  if (!novelRoute && !hasLegacyNovelFormat) return 'default';
-
-  return 'novel';
-}
-
-function readingModeExpansionMarkdown(markdown, lesson) {
-  if (!isNovelReadingLesson(lesson)) return markdown;
-  return stripMarkdownSections(markdown, ['Question'])
-    .replace(/(^|\n)(#{1,3}\s+)Break Down\s*$/gim, '$1$2Reader Guide')
-    .replace(/(^|\n)(#{1,3}\s+)Remember\s*$/gim, '$1$2Keep In Mind');
-}
 
 function guideTitleFor(lesson) {
   return isNovelReadingLesson(lesson) ? 'Reader Guide' : 'Break Down';
@@ -1644,44 +1617,8 @@ function QuestionList({ questions }) {
   );
 }
 
-function ExpansionSection({ section }) {
-  if (!section?.raw) return null;
-
-  if (section.kind === 'questions') {
-    return <QuestionList questions={section.questions || []} />;
-  }
-
-  if (section.kind === 'list' && section.items?.length) {
-    return <InfoList title={section.heading} items={section.items} />;
-  }
-
-  if (section.kind === 'prose' && section.paragraphs?.length) {
-    return (
-      <div className="lesson-section">
-        <h3>{section.heading}</h3>
-        <div className="article-body">
-          {section.paragraphs.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return <InfoBlock title={section.heading} text={section.text || section.raw} />;
-}
-
-function GeneratedExpansion({ expansion, lesson, title, chapter }) {
+function GeneratedExpansion({ expansion, lesson, title }) {
   if (!expansion?.markdown) return null;
-  const markdown = readingModeExpansionMarkdown(expansion.markdown, lesson);
-  if (!markdown) return null;
-  const structured = parseExpansionMarkdown(markdown, {
-    mode: parseExpansionModeFor(
-      lesson,
-      chapter || (expansion?.chapterId ? { chapterId: expansion.chapterId } : null),
-      expansion,
-    ),
-  });
 
   return (
     <div className="generated-expansion">
@@ -1690,9 +1627,7 @@ function GeneratedExpansion({ expansion, lesson, title, chapter }) {
         <small>{expansion.model ? `Generated with ${expansion.model}` : 'Generated privately'}</small>
       </div>
       <div className="generated-expansion-body">
-        {structured.sections.map((section) => (
-          <ExpansionSection key={`${section.key}-${section.raw.slice(0, 32)}`} section={section} />
-        ))}
+        <MarkdownBlock markdown={expansion.markdown} />
       </div>
     </div>
   );
@@ -1739,13 +1674,11 @@ function ExpansionButton({ lesson, chapter = null, expansionKey, onSaveExpansion
         lesson,
         chapter,
       });
-      const safeMarkdown = readingModeExpansionMarkdown(markdown, lesson);
-      const parseMode = parseExpansionModeFor(lesson, chapter);
+
       onSaveExpansion(expansionKey, {
         lessonId: lesson.id,
         chapterId: chapter?.chapterId || chapter?.id || null,
-        markdown: safeMarkdown,
-        structured: parseExpansionMarkdown(safeMarkdown, { mode: parseMode }),
+        markdown,
         novelRetellingFormat: isNovelReadingLesson(lesson) && chapter ? NOVEL_RETELLING_FORMAT_VERSION : undefined,
         model: target.model,
         source: 'ai-expansion',
@@ -2081,15 +2014,7 @@ function ArticleDetailView({
   const [expansionError, setExpansionError] = useState('');
   const isLiterature = selectedArticle?.articleType === 'literature';
   const selectedGeneratedArticle = selectedArticle ? state.generatedArticlesByKey?.[selectedArticle.key] : null;
-  const generated = useMemo(
-    () => (selectedArticle && selectedGeneratedArticle && isLiterature
-      ? {
-          ...selectedGeneratedArticle,
-          articleMarkdown: normalizeNovelOutputMarkdown(selectedGeneratedArticle.articleMarkdown),
-        }
-      : selectedGeneratedArticle),
-    [selectedArticle, selectedGeneratedArticle, isLiterature],
-  );
+  const generated = useMemo(() => selectedGeneratedArticle, [selectedGeneratedArticle]);
   const pages = useMemo(
     () => (selectedArticle ? buildArticlePages(selectedArticle, generated) : []),
     [selectedArticle, generated],
@@ -2117,14 +2042,8 @@ function ArticleDetailView({
         ...target,
         article: selectedArticle,
       });
-      const normalizedGeneratedArticle = isLiterature
-        ? {
-            ...generatedArticle,
-            articleMarkdown: normalizeNovelOutputMarkdown(generatedArticle.articleMarkdown),
-          }
-        : generatedArticle;
       saveGeneratedArticle(selectedArticle.key, {
-        ...normalizedGeneratedArticle,
+        ...generatedArticle,
         model: target.model,
         source: 'article-ai-expansion',
       });
