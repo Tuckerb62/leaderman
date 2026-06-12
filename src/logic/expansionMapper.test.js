@@ -50,7 +50,23 @@ The useful move is to separate signal from reaction.
     ]);
   });
 
-  it('maps novel reading companion Markdown without quiz sections', () => {
+  it('maps novel output with missing headings into a single fallback story section in novel mode', () => {
+    const parsed = parseExpansionMarkdown(
+      `The candlelight made the room feel smaller than the trouble inside it.
+
+He did not know exactly what would change, only that he had to keep walking.`,
+      { mode: 'novel' },
+    );
+
+    expect(parsed.sections).toHaveLength(1);
+    expect(parsed.sections[0].key).toBe('shortStoryRetelling');
+    expect(parsed.sections[0].paragraphs).toEqual([
+      'The candlelight made the room feel smaller than the trouble inside it.',
+      'He did not know exactly what would change, only that he had to keep walking.',
+    ]);
+  });
+
+  it('maps novel reading companion markdown in strict novel mode into one retelling section', () => {
     const parsed = parseExpansionMarkdown(`
 ## Story Retelling
 The chapter opens in a room where everyone seems to know the rules except the protagonist.
@@ -70,18 +86,22 @@ The chapter turns social pressure into the real danger.
 ## Keep In Mind
 - Visibility becomes opportunity and danger.
 - The hidden rules matter.
-`);
+`, { mode: 'novel' });
 
-    expect(parsed.byKey.storyRetelling.paragraphs).toHaveLength(2);
-    expect(parsed.byKey.whatChanged.text).toBe('He begins by trying not to be noticed and ends with new attention on him.');
-    expect(parsed.byKey.readerGuide.items).toEqual([
-      'Watch who controls the room.',
-      'Notice when politeness becomes pressure.',
-    ]);
-    expect(parsed.byKey.keepInMind.items).toEqual([
-      'Visibility becomes opportunity and danger.',
-      'The hidden rules matter.',
-    ]);
+    expect(parsed.sections).toHaveLength(1);
+    expect(parsed.sections[0].key).toBe('shortStoryRetelling');
+    expect(parsed.sections[0].paragraphs).toHaveLength(5);
+    expect(parsed.sections[0].paragraphs[0]).toContain(
+      'The chapter opens in a room where everyone seems to know the rules except the protagonist.',
+    );
+    expect(parsed.sections[0].paragraphs[1]).toContain(
+      'By the end, a small honest answer has made him visible.',
+    );
+    expect(parsed.sections[0].paragraphs[2]).toContain('## What Changed');
+    expect(parsed.sections[0].paragraphs[2]).toContain('begins by trying not to be noticed');
+    expect(parsed.sections[0].paragraphs[3]).toContain('## Why It Matters');
+    expect(parsed.sections[0].paragraphs[3]).toContain('social pressure');
+    expect(parsed.sections[0].paragraphs[4]).toContain('## Keep In Mind');
     expect(parsed.byKey.questions).toBeUndefined();
   });
 

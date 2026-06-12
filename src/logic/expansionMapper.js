@@ -5,6 +5,7 @@ const KNOWN_KEYS = new Map([
   ['deeper read', 'deeperRead'],
   ['historical read', 'historicalRead'],
   ['historical narrative', 'historicalNarrative'],
+  ['short story retelling', 'shortStoryRetelling'],
   ['story retelling', 'storyRetelling'],
   ['story overview', 'storyOverview'],
   ['main characters', 'mainCharacters'],
@@ -32,9 +33,12 @@ const PROSE_KEYS = new Set([
   'deeperRead',
   'historicalRead',
   'historicalNarrative',
+  'shortStoryRetelling',
   'storyRetelling',
   'storyOverview',
 ]);
+
+const NOVEL_SUPPORTED_KEYS = new Set(['shortStoryRetelling', 'storyRetelling']);
 
 function normalizeHeading(heading = '') {
   return heading
@@ -128,7 +132,29 @@ function parseSection({ heading, content }) {
   };
 }
 
-export function parseExpansionMarkdown(markdown = '') {
+function normalizeMarkdownForNovel(sections = []) {
+  if (sections.length === 0) {
+    return '';
+  }
+
+  const contentPieces = sections
+    .filter((section) => section.key !== 'questions')
+    .map((section) => {
+      const hasCore = NOVEL_SUPPORTED_KEYS.has(section.key);
+      if (hasCore) return section.raw.trim();
+
+      const heading = section.heading && section.heading.trim();
+      const shouldKeepHeading = heading && heading !== 'Expanded Draft';
+      return shouldKeepHeading ? `${heading}\n${section.raw.trim()}` : section.raw.trim();
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  return contentPieces || '';
+}
+
+export function parseExpansionMarkdown(markdown = '', options = {}) {
+  const mode = options?.mode || 'default';
   const sections = [];
   let current = null;
 
@@ -157,6 +183,28 @@ export function parseExpansionMarkdown(markdown = '') {
   }
 
   if (current) sections.push(parseSection(current));
+
+  if (mode === 'novel') {
+    const mergedMarkdown = normalizeMarkdownForNovel(sections);
+    if (!mergedMarkdown) {
+      return {
+        sections: [],
+        byKey: {},
+      };
+    }
+
+    const shortStorySection = parseSection({
+      heading: 'Short Story Retelling',
+      content: mergedMarkdown,
+    });
+
+    return {
+      sections: [shortStorySection],
+      byKey: {
+        [shortStorySection.key]: shortStorySection,
+      },
+    };
+  }
 
   return {
     sections,

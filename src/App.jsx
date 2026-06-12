@@ -237,6 +237,8 @@ function isNovelReadingLesson(lesson) {
   return lesson?.summaryKind === 'Novel';
 }
 
+const NOVEL_RETELLING_FORMAT_VERSION = 3;
+
 function stripMarkdownSections(markdown = '', headingNames = []) {
   return headingNames.reduce((nextMarkdown, headingName) => {
     const escapedHeading = headingName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -246,6 +248,18 @@ function stripMarkdownSections(markdown = '', headingNames = []) {
     );
     return nextMarkdown.replace(sectionPattern, '\n').trim();
   }, markdown || '');
+}
+
+function parseExpansionModeFor(lesson, chapter, expansion = null) {
+  const novelRoute = isNovelReadingLesson(lesson) && !!chapter;
+  if (!novelRoute) return 'default';
+
+  const marker = expansion?.novelRetellingFormat;
+  if (marker == null || marker < NOVEL_RETELLING_FORMAT_VERSION) {
+    return 'novel';
+  }
+
+  return 'novel';
 }
 
 function readingModeExpansionMarkdown(markdown, lesson) {
@@ -1665,7 +1679,9 @@ function GeneratedExpansion({ expansion, lesson, title }) {
   if (!expansion?.markdown) return null;
   const markdown = readingModeExpansionMarkdown(expansion.markdown, lesson);
   if (!markdown) return null;
-  const structured = parseExpansionMarkdown(markdown);
+  const structured = parseExpansionMarkdown(markdown, {
+    mode: parseExpansionModeFor(lesson, expansion?.chapterId ? { chapterId: expansion.chapterId } : null, expansion),
+  });
 
   return (
     <div className="generated-expansion">
@@ -1724,11 +1740,13 @@ function ExpansionButton({ lesson, chapter = null, expansionKey, onSaveExpansion
         chapter,
       });
       const safeMarkdown = readingModeExpansionMarkdown(markdown, lesson);
+      const parseMode = parseExpansionModeFor(lesson, chapter);
       onSaveExpansion(expansionKey, {
         lessonId: lesson.id,
         chapterId: chapter?.chapterId || chapter?.id || null,
         markdown: safeMarkdown,
-        structured: parseExpansionMarkdown(safeMarkdown),
+        structured: parseExpansionMarkdown(safeMarkdown, { mode: parseMode }),
+        novelRetellingFormat: isNovelReadingLesson(lesson) && chapter ? NOVEL_RETELLING_FORMAT_VERSION : undefined,
         model: target.model,
         source: 'ai-expansion',
       });

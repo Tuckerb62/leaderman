@@ -180,15 +180,14 @@ describe('ai client helpers', () => {
     expect(overview).toContain('one practical decision rule');
     expect(overview).toContain('# History Rules');
     expect(overview).toContain('Preserve contingency, incentives, tradeoffs');
-    expect(overview).toContain('# Question Rules');
-    expect(overview).toContain('Nonfiction questions should usually include recall, scenario/application, judgment/tradeoff, and reflection');
+    expect(overview).toContain('When a Questions section is requested, questions should test recall, application, judgment, interpretation, or reflection');
     expect(overview).toContain('Do not add questions to fiction or novel reading outputs unless the user explicitly asks for them');
     expect(overview).not.toContain('Fiction questions should usually include plot');
     expect(overview).toContain('Do not explain app gestures, swipes, or UI mechanics inside learning content');
     expect(overview).toBe(EXPANSION_OVERVIEW_PROMPT);
   });
 
-  it('builds novel chapter expansion prompts without study questions', () => {
+  it('routes novel chapter expansions to the novel context input and keeps legacy study-guide blocks out of prompt context', () => {
     const prompt = buildExpansionPrompt({
       lesson: {
         ...lesson,
@@ -201,98 +200,72 @@ describe('ai client helpers', () => {
       },
     });
 
-    expect(prompt).toContain('# Expansion Request');
-    expect(prompt).toContain('Target: full Curiosity chapter retelling');
-    expect(prompt).toContain('# Task Profile');
-    expect(prompt).toContain('Mode: Fiction chapter reading companion');
-    expect(prompt).toContain('Retell the selected chapter as a readable, spoiler-bounded story');
-    expect(prompt).toContain('Do not turn the chapter into a quiz');
-    expect(prompt).toContain('# Topic Context');
-    expect(prompt).toContain('# Current Draft Context');
-    expect(prompt).toContain('A thin chapter note.');
-    expect(prompt).toContain('Lesson title: Control What Is Yours');
-    expect(prompt).toContain('# Required Markdown Sections');
-    expect(prompt).toContain('## Story Retelling');
-    expect(prompt).toContain('## What Changed');
-    expect(prompt).toContain('## Why It Matters');
-    expect(prompt).toContain('## Reader Guide');
-    expect(prompt).toContain('## Keep In Mind');
-    expect(prompt).not.toContain('## Break Down');
-    expect(prompt).not.toContain('## Remember');
-    expect(prompt).not.toContain('## Questions');
-    expect(prompt).not.toContain('Current questions');
-    expect(prompt).not.toContain('Do not pad with repeated copyright');
+    expect(prompt).toContain('Route marker: novel chapter retelling');
+    expect(prompt).toContain('Book: Control What Is Yours');
+    expect(prompt).toContain('Chapter: Chapter 4');
+    expect(prompt).toContain('Source material: A thin chapter note.');
+    expect(prompt).not.toContain('What Changed');
+    expect(prompt).not.toContain('Why It Matters');
+    expect(prompt).not.toContain('Reader Guide');
+    expect(prompt).not.toContain('Keep In Mind');
   });
 
-  it('builds novel book expansion prompts as reader companions', () => {
-    const prompt = buildExpansionPrompt({
-      lesson: {
-        ...lesson,
-        summaryKind: 'Novel',
-        summaryBullets: ['An empire creates pressure.'],
-        themeNotes: ['Power and trust.'],
-        articleParagraphs: ['A short overview.'],
-      },
-      chapter: null,
-    });
-
-    expect(prompt).toContain('Mode: Novel reading companion');
-    expect(prompt).toContain('Help the reader enjoy and follow the book');
-    expect(prompt).toContain('## Story Overview');
-    expect(prompt).toContain('## Main Characters');
-    expect(prompt).toContain('## Main Tensions');
-    expect(prompt).toContain('## Keep In Mind');
-    expect(prompt).not.toContain('## Questions');
-    expect(prompt).not.toContain('## Break Down');
-  });
-
-  it('builds history expansion prompts around actors, constraints, and consequences', () => {
-    const prompt = buildExpansionPrompt({
-      lesson: {
-        ...lesson,
-        domain: 'World History',
-        summaryKind: 'History',
-        summaryBullets: ['A regime faces pressure.'],
-        timeline: ['A crisis begins.'],
-        themeNotes: ['Legitimacy under strain.'],
-        articleParagraphs: ['A thin history note.'],
-      },
-      chapter: {
-        title: 'Section 2',
-        summary: 'A short event note.',
-        questions: [{ type: 'Recall', prompt: 'What changed?' }],
-      },
-    });
-
-    expect(prompt).toContain('Mode: History study section');
-    expect(prompt).toContain('Explain actors, motives, constraints, incentives, turning points, and consequences');
-    expect(prompt).toContain('## Break Down');
-    expect(prompt).toContain('## Questions');
-    expect(prompt).toContain('Current questions');
-  });
-
-  it('builds nonfiction expansion prompts around practice and transfer', () => {
+  it('routes non-novel items to the nonfiction lesson context input', () => {
     const prompt = buildExpansionPrompt({
       lesson: {
         ...lesson,
         summaryKind: undefined,
         contentType: 'lesson',
-        quickVersion: ['Separate control from noise.'],
+        reviewPrompt: 'Practice practical judgment in small moments.',
         articleParagraphs: ['A short lesson.'],
-        breakDown: ['Name the pressure.'],
-        remember: ['Your judgment is yours.'],
       },
       chapter: null,
     });
 
-    expect(prompt).toContain('Mode: Nonfiction micro-lesson');
-    expect(prompt).toContain('Teach the real-world problem, core idea, concrete example, practice move, mistake to avoid, and transfer questions');
-    expect(prompt).toContain('## Quick Version');
-    expect(prompt).toContain('## Deeper Read');
-    expect(prompt).toContain('## Questions');
+    expect(prompt).toContain('Route marker: lesson expansion');
+    expect(prompt).toContain('<lesson_input>');
+    expect(prompt).toContain('Title: Control What Is Yours');
+    expect(prompt).toContain('Subject area: Philosophy');
+    expect(prompt).toContain('Editorial brief: Practice practical judgment in small moments.');
+    expect(prompt).toContain('Shelf profile: lesson');
+    expect(prompt).toContain('Source material: A short lesson.');
   });
 
-  it('sends expansion requests with the dedicated prompt and larger output budget', async () => {
+  it('sends novel route requests with two-part expansion payloads', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: 'Expanded chapter.' }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const result = await expandLearningContent({
+      apiKey: '',
+      endpoint: '/api/openai-responses',
+      model: 'gpt-5-mini',
+      lesson: {
+        ...lesson,
+        summaryKind: 'Novel',
+        articleParagraphs: ['A short overview.'],
+      },
+      chapter: {
+        title: 'Chapter 4',
+        sourceOrSummary: 'A thin chapter note.',
+      },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(result).toBe('Expanded chapter.');
+    expect(body.instructions).toContain('You are a best selling author of novels');
+    expect(body.instructions).toContain('Target: full Curiosity chapter retelling of books');
+    expect(body.instructions).toContain('## Short Story Retelling');
+    expect(body.input[0].content).toContain('Route marker: novel chapter retelling');
+    expect(body.input[0].content).toContain('Book: Control What Is Yours');
+    expect(body.input[0].content).toContain('Chapter: Chapter 4');
+    expect(body.input[0].content).toContain('Source material: A thin chapter note.');
+    expect(body.max_output_tokens).toBe(3600);
+  });
+
+  it('sends nonfiction requests with the lesson JSON instruction contract', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ output_text: 'Expanded lesson.' }),
@@ -303,18 +276,25 @@ describe('ai client helpers', () => {
       apiKey: '',
       endpoint: '/api/openai-responses',
       model: 'gpt-5-mini',
-      lesson,
+      lesson: {
+        ...lesson,
+        summaryKind: undefined,
+        contentType: 'lesson',
+        quickVersion: ['Separate control from noise.'],
+        articleParagraphs: ['A short lesson.'],
+        breakDown: ['Name the pressure.'],
+      },
       chapter: null,
     });
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(result).toBe('Expanded lesson.');
-    expect(body.instructions).toContain('Curiosity AI expansion engine');
-    expect(body.instructions).toContain('Do not pad with repeated copyright');
-    expect(body.instructions).toBe(EXPANSION_OVERVIEW_PROMPT);
-    expect(body.input[0].content).toContain('Target: full Curiosity lesson');
-    expect(body.input[0].content).not.toContain('Do not pad with repeated copyright');
-    expect(body.max_output_tokens).toBeGreaterThan(2500);
+    expect(body.instructions).toContain('You are an expert academic author, lecturer and Curiosity’s lesson writer.');
+    expect(body.instructions).toContain('Return exactly one JSON object with exactly these fields');
+    expect(body.input[0].content).toContain('Route marker: lesson expansion');
+    expect(body.input[0].content).toContain('Source material:');
+    expect(body.input[0].content).not.toContain('Curiosity AI expansion engine');
+    expect(body.max_output_tokens).toBe(3600);
   });
 
   it('builds article AI instructions with domain, image, and medical factuality rules', () => {

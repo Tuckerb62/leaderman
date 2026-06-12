@@ -146,23 +146,19 @@ export function buildResponseInput(messages, question) {
   ];
 }
 
-function compactList(items = []) {
-  return items.filter(Boolean).map((item) => `- ${item}`).join('\n');
-}
-
 export const EXPANSION_OVERVIEW_PROMPT = [
   '# Identity',
   'You are the Curiosity AI expansion engine.',
   '',
   '# Purpose',
-  'Turn thin local-first learning content into deeper microlearning content that is genuinely useful, specific, memorable, and easy to study.',
+  'Turn thin local-first learning content into deeper microlearning content that is genuinely useful, specific, and memorable.',
   '',
   '# What To Do',
   '- Expand the supplied topic, lesson, summary, or chapter context into a fuller learning draft.',
   '- Preserve the user-provided topic and source basis.',
   '- Teach with concrete examples, scenarios, nuance, tradeoffs, and practice language.',
   '- Keep microlearning structure for lessons: short sections, clear pacing, strong memory hooks, and useful questions when the requested content is nonfiction or explicitly study-oriented.',
-  '- Keep fiction and novel outputs in reading mode: retell the story clearly and vividly without adding quiz questions unless the user explicitly asks for them.',
+  '- Keep fiction and novel outputs in reading mode: no study-guide labels, no heading-heavy scaffolding, and no quiz questions unless the user explicitly asks for them.',
   '- Treat the existing draft as raw material, not a script to pad. Rewrite weak, repetitive, or generic phrasing into stronger teaching.',
   '- Return only the requested Markdown draft. Do not add meta commentary about being an AI.',
   '',
@@ -205,20 +201,8 @@ export const EXPANSION_OVERVIEW_PROMPT = [
   '',
   '# Fiction And Chapter Rules',
   '- For fiction, write compressed story retellings, not book-report summaries.',
-  '- Include setting, characters, tension, motivation, key events in order, emotional turn, consequence, and unresolved tension.',
-  '- Make the retelling feel like a short story: scenes should move, choices should matter, and the ending should leave the chapter’s open question visible.',
-  '- What Changed should explain the real shift by the end: knowledge, relationship, danger, power, identity, trust, or choice.',
-  '- Why It Matters should connect the chapter to emerging themes and conflicts without spoiling later events.',
-  '- Reader Guide should orient the reader gently: where the chapter starts, central tension, what the character wants, what complicates the goal, what changes, and what to watch next.',
-  '- Keep In Mind should contain 3-5 reader hooks: main event, character shift, relationship change, symbol/theme/conflict, or a likely future pressure.',
   '- Do not add questions to fiction or novel reading outputs unless the user explicitly asks for them.',
   '- Stay inside the supplied spoiler boundary. Do not reveal later plot events.',
-  '',
-  '# Question Rules',
-  '- Nonfiction questions should usually include recall, scenario/application, judgment/tradeoff, and reflection.',
-  '- Do not add questions to fiction or novel reading outputs unless the user explicitly asks for them.',
-  '- Questions should not merely ask the learner to repeat the heading or title.',
-  '- Write questions that reveal whether the learner can transfer the idea to a real situation.',
   '',
   '# Factuality And Source Rules',
   '- Do not invent direct quotes, citations, dates, study findings, book claims, or historical facts.',
@@ -243,189 +227,185 @@ function isNovelReadingLesson(lesson) {
   return lesson?.summaryKind === 'Novel';
 }
 
-function isHistoryLesson(lesson) {
-  return lesson?.summaryKind === 'History' || lesson?.domain === 'World History' || lesson?.domain === 'History';
-}
+const NONFICTION_EXPANSION_INSTRUCTIONS = [
+  'You are an expert academic author, lecturer and Curiosity’s lesson writer. Curiosity is a calm nightly reading app. Write a lesson that feels like a short book chapter: clear, concrete, reflective, practical, and memorable without sounding like a textbook.',
+  '',
+  '<lesson_input>',
+  'Title: ${slot.title}',
+  'Subject area: ${slot.subject}${slot.topic ? " — ${slot.topic}" : ""}',
+  'Editorial brief: ${slot.brief}',
+  'Shelf profile: ${slot.profile}',
+  '</lesson_input>',
+  '',
+  'Before writing, silently decide:',
+  "- the lesson’s central question or tension;",
+  '- the safest factual scope based on the input;',
+  '- whether the topic deserves 1, 2, or more pages;',
+  '- which concrete example, modern application, and boundary case genuinely fit.',
+  '',
+  'Core rules:',
+  '- Omission beats invention. Never fabricate quotes, citations, dates, statistics, study findings, named events, or precise claims.',
+  '- Use only well-established knowledge or facts supplied in the input. If confidence is limited, say so naturally in the prose or omit the claim. if there are conflicting views or theories state this.',
+  '- Do not pad. Stop when the lesson feels complete.',
+  '- Prefer scenes, mechanisms, decisions, and examples over abstract summary.',
+  '- Weave counterpoints, uncertainty, and boundary cases into the prose. Do not label them as “counterpoint,” “edge case,” or “uncertainty.”',
+  '- No headings, section labels, bullet summaries, quiz questions, or meta commentary inside the lesson.',
+  '- Use plain English with a calm evening tone. Write like a good book chapter, not a lecture note.',
+  '',
+  'Lesson requirements:',
+  '- Open with a specific image, situation, problem, or tension rather than a generic definition.',
+  '- Include one concrete modern application or analogy when it genuinely clarifies the topic.',
+  '- Include one boundary case: a situation where the main idea becomes harder, weaker, or changes meaning.',
+  '- End with one practical takeaway sentence.',
+  '',
+  'Subject-specific rules:',
+  '- History / World History: include actors, incentives, constraints, turning points, and one grounded “what might have gone differently” line.',
+  '- Philosophy: include the core question, two competing positions, one serious objection, and one practical decision rule.',
+  '- Leadership / Communication / Ethics / Systems: include one workplace, family, or public-life scenario; one common mistake pattern; and one practical line the reader could try next.',
+  '- Literature: preserve narrative movement, scene feeling, and emotional arc when useful.',
+  '- Science / Medical: explain mechanisms first, be precise, and avoid overstating uncertain claims.',
+  '',
+  'Length:',
+  'Use 1–6 pages. Match length to scope:',
+  '- narrow or simple topic: 1 page;',
+  '- moderate topic: 2–3 pages;',
+  '- broad or foundational topic: 3–6 pages.',
+  '',
+  'Aim for 750-1250 words per full page, but never add words just to hit a range. If a topic is truly narrow then ignor the word recomendation',
+  '',
+  'Output:',
+  'Return exactly one JSON object with exactly these fields:',
+  '{',
+  '  \"title\": string,',
+  '  \"openingLine\": string,',
+  '  \"pages\": string[]',
+  '}',
+  '',
+  'Rules for the JSON:',
+  '- \"openingLine\" must exactly match the first sentence of pages[0].',
+  '- \"pages\" must contain 1–6 strings.',
+  '- Each page must be flowing markdown prose made of paragraphs only.',
+  '- No markdown fence.',
+  '- No commentary outside the JSON.',
+].join('\n');
 
-function buildNovelChapterRetellingPrompt(lesson, chapter) {
-  const bookTitle = lesson?.title || 'Unknown book';
-  const chapterTitle = chapter?.title || 'Unknown chapter';
-  const sourceMaterial =
-    chapter?.sourceOrSummary || chapter?.summary || chapter?.retellingParagraphs?.join('\n\n') || 'Not written yet.';
+const NOVEL_CHAPTER_RETELLING_INSTRUCTIONS = [
+  'You are a best selling author of novels and are currently writing for Curiosity, a calm nightly reading app.',
+  '',
+  'Target: full Curiosity chapter retelling of books',
+  'Mode: fiction chapter reading companion',
+  'Goal: turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
+  '',
+  '<input>',
+  'Book: ${book.title}',
+  'Chapter: ${chapter.title}',
+  'Spoiler boundary: only this chapter',
+  'Source material: ${chapter.sourceOrSummary}',
+  '</input>',
+  '',
+  'Before writing, silently identify:',
+  '- the chapter’s opening situation;',
+  '- the major scene turns;',
+  '- the main pressure or emotional movement;',
+  '- the choice, action, or consequence that gives the chapter shape;',
+  '- where the chapter ends, so nothing beyond it is revealed.',
+  '',
+  'Write the retelling as continuous narrative prose, scene by scene.',
+  '',
+  'Style rules:',
+  '- Make it feel like a readable short story, not a summary sheet.',
+  '- Preserve continuity, mood, pressure, choices, consequences, and emotional movement.',
+  '- Use vivid but plain prose.',
+  '- Keep the reader oriented without explaining literary themes.',
+  '- Do not use headings inside the retelling except the required markdown heading.',
+  '- Do not include character lists, setting notes, themes, analysis, quizzes, “keep in mind,” “things to remember,” or study-guide blocks.',
+  '- Do not say phrases like “this chapter shows,” “the author uses,” “the theme is,” or “the reader learns.”',
+  '- Do not include events, motives, revelations, or consequences from later chapters.',
+  '- Do not invent scenes, dialogue, backstory, symbolism, or facts not present in the provided chapter material.',
+  '- For copyrighted works, do not quote, closely paraphrase, or imitate the original author’s sentence style. Retell in fresh prose as a companion, not a substitute for the book.',
+  '',
+  'Length:',
+  '- Target 900–1200 words total.',
+  '- Do not pad. If the chapter is simple, stay closer to 900 words.',
+  '- If the chapter is dense or scene-heavy, use the full range.',
+  '',
+  'Output exactly this markdown structure and nothing else:',
+  '',
+  '## Short Story Retelling',
+  '',
+  '[continuous narrative prose here]',
+].join('\n');
+
+function buildNonFictionExpansionContextInput({ lesson, chapter }) {
+  const lessonTitle = lesson?.title || 'Unknown lesson';
+  const lessonSubject = lesson?.subject || lesson?.domain || 'Unknown subject';
+  const lessonTopic = lesson?.topic || lesson?.subTopic || '';
+  const lessonBrief = lesson?.brief || lesson?.reviewPrompt || lesson?.coreIdea || lesson?.practiceRep || 'No brief provided.';
+  const lessonProfile = lesson?.summaryKind || lesson?.contentType || lesson?.domain || 'General';
+  const sourceMaterial = [
+    ...(lesson?.articleParagraphs || []),
+    chapter?.sourceOrSummary || chapter?.summary || lesson?.quickVersion?.join('\n\n') || '',
+    lesson?.summary || lesson?.summaryBullets?.join('\n\n') || '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   return [
-    'You are a best selling author of novels and are currently writing for Curiosity, a calm nightly reading app.',
-    '',
-    'Target: full Curiosity chapter retelling of books',
-    'Mode: fiction chapter reading companion',
-    'Goal: turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
-    '',
-    '<input>',
-    `Book: ${bookTitle}`,
-    `Chapter: ${chapterTitle}`,
+    'Route marker: lesson expansion',
+    '<lesson_input>',
+    `Title: ${lessonTitle}`,
+    `Subject area: ${lessonSubject}${lessonTopic ? ` — ${lessonTopic}` : ''}`,
+    `Editorial brief: ${lessonBrief}`,
+    `Shelf profile: ${lessonProfile}`,
+    `Source material: ${sourceMaterial || 'No source material available.'}`,
+    chapter ? `Chapter: ${chapter.title || 'Unknown chapter'}` : '',
+    '</lesson_input>',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function buildNovelChapterContextInput({ lesson, chapter }) {
+  const sourceMaterial = chapter
+    ? chapter.sourceOrSummary || chapter.summary || chapter.retellingParagraphs?.join('\n\n') || 'Not written yet.'
+    : [
+        ...(lesson.articleParagraphs || []),
+        lesson.quickVersion || lesson.summary || lesson.summaryBullets?.join('\n\n') || '',
+      ]
+        .filter(Boolean)
+        .join('\n\n') || 'Not written yet.';
+
+  return [
+    'Route marker: novel chapter retelling',
+    `Book: ${lesson?.title || 'Unknown book'}`,
+    `Chapter: ${chapter?.title || 'Book overview'}`,
     'Spoiler boundary: only this chapter',
     `Source material: ${sourceMaterial}`,
-    '</input>',
-    '',
-    'Before writing, silently identify:',
-    '- the chapter\'s opening situation;',
-    '- the major scene turns;',
-    '- the main pressure or emotional movement;',
-    '- the choice, action, or consequence that gives the chapter shape;',
-    '- where the chapter ends, so nothing beyond it is revealed.',
-    '',
-    'Write the retelling as continuous narrative prose, scene by scene.',
-    '',
-    'Style rules:',
-    '- Make it feel like a readable short story, not a summary sheet.',
-    '- Preserve continuity, mood, pressure, choices, consequences, and emotional movement.',
-    '- Use vivid but plain prose.',
-    '- Keep the reader oriented without explaining literary themes.',
-    '- Do not use headings inside the retelling except the required markdown heading.',
-    '- Do not include character lists, setting notes, themes, analysis, quizzes, “keep in mind,” “things to remember,” or study-guide blocks.',
-    '- Do not say phrases like “this chapter shows,” “the author uses,” “the theme is,” or “the reader learns.”',
-    '- Do not include events, motives, revelations, or consequences from later chapters.',
-    '- Do not invent scenes, dialogue, backstory, symbolism, or facts not present in the provided chapter material.',
-    '- For copyrighted works, do not quote, closely paraphrase, or imitate the original author’s sentence style. Retell in fresh prose as a companion, not a substitute for the book.',
-    '',
-    'Length:',
-    '- Target 900–1200 words total.',
-    '- Do not pad. If the chapter is simple, stay closer to 900 words.',
-    '- If the chapter is dense or scene-heavy, use the full range.',
-    '',
-    'Output exactly this markdown structure and nothing else:',
-    '',
-    '## Short Story Retelling',
-    '',
-    '[continuous narrative prose here]',
   ].join('\n');
 }
 
-function buildExpansionTaskProfile(lesson, chapter) {
-  if (isNovelReadingLesson(lesson) && chapter) {
+function buildExpansionPromptPayload({ lesson, chapter = null }) {
+  const isNovelChapter = isNovelReadingLesson(lesson) && chapter;
+  if (isNovelChapter) {
     return {
-      target: 'full Curiosity chapter retelling of books',
-      mode: 'fiction chapter reading companion',
-      goal: 'turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
-      instructions: [],
-      sections: '## Short Story Retelling',
-      prompt: buildNovelChapterRetellingPrompt(lesson, chapter),
-    };
-  }
-
-  if (isNovelReadingLesson(lesson)) {
-    return {
-      target: 'novel reading companion',
-      mode: 'Novel reading companion',
-      goal: 'Turn one novel chapter into a short-story-style retelling that helps the reader experience the chapter clearly without turning it into a study guide.',
-      prompt: buildNovelChapterRetellingPrompt(lesson, {
-        title: 'Book overview',
-        sourceOrSummary: [
-          ...(lesson.articleParagraphs || []),
-          lesson.quickVersion || lesson.summary || lesson.summaryBullets?.join('\n\n') || '',
-        ]
-          .filter(Boolean)
-          .join('\n\n') || 'Not written yet.',
-      }),
-    };
-  }
-
-  if (isHistoryLesson(lesson) && chapter) {
-    return {
-      target: 'history study section',
-      mode: 'History study section',
-      goal: 'Turn a thin historical section into a concrete explanation of what happened, why people acted, and what changed.',
-      instructions: [
-        'Explain actors, motives, constraints, incentives, turning points, and consequences.',
-        'Preserve contingency: show what was uncertain, pressured, misunderstood, or strategically constrained.',
-        'Do not flatten the event into a generic moral or leadership slogan.',
-        'Questions should test recall, cause-and-effect, judgment, and modern transfer.',
-      ],
-      sections: '## Historical Narrative\n## What Changed\n## Why It Matters\n## Break Down\n## Remember\n## Questions',
-    };
-  }
-
-  if (isHistoryLesson(lesson)) {
-    return {
-      target: 'history study guide',
-      mode: 'History study guide',
-      goal: 'Expand the historical overview into a useful map of events, actors, incentives, consequences, and common misunderstandings.',
-      instructions: [
-        'Explain what happened, who mattered, what each side wanted, what constraints shaped action, and why the outcome mattered.',
-        'Use the timeline and theme notes as anchors, but avoid copying them as filler.',
-        'Include common misunderstandings and why they are tempting.',
-        'Questions should test recall, cause-and-effect, judgment, and modern transfer.',
-      ],
-      sections: '## Quick Version\n## Historical Read\n## Break Down\n## Remember\n## Questions',
+      instructions: NOVEL_CHAPTER_RETELLING_INSTRUCTIONS,
+      contextInput: buildNovelChapterContextInput({ lesson, chapter }),
     };
   }
 
   return {
-    target: 'lesson',
-    mode: 'Nonfiction micro-lesson',
-    goal: 'Expand the lesson into a practical microlearning draft that teaches a real decision habit.',
-    instructions: [
-      'Teach the real-world problem, core idea, concrete example, practice move, mistake to avoid, and transfer questions.',
-      'Make the Deeper Read specific enough that a learner could use the idea in a real meeting, conflict, decision, or personal habit.',
-      'Questions should include recall, scenario/application, judgment/tradeoff, and reflection.',
-      'Avoid generic coaching language and repeated safety/fidelity boilerplate.',
-    ],
-    sections: '## Quick Version\n## Deeper Read\n## Break Down\n## Remember\n## Questions',
+    instructions: NONFICTION_EXPANSION_INSTRUCTIONS,
+    contextInput: buildNonFictionExpansionContextInput({ lesson, chapter }),
   };
 }
 
 export function buildExpansionPrompt({ lesson, chapter = null }) {
-  const profile = buildExpansionTaskProfile(lesson, chapter);
-  if (profile.prompt) {
-    return profile.prompt;
-  }
-
-  const novelReadingMode = isNovelReadingLesson(lesson);
-  const currentText = chapter
-    ? [
-        `Chapter title: ${chapter.title}`,
-        `Current chapter text: ${chapter.summary || chapter.retellingParagraphs?.join('\n\n') || 'Not written yet.'}`,
-        `What changed: ${chapter.whatChanged || 'Not written yet.'}`,
-        `Why it matters: ${chapter.whyItMatters || 'Not written yet.'}`,
-        `${novelReadingMode ? 'Current reader guide' : 'Current breakdown'}:\n${compactList(chapter.breakDown || [])}`,
-        `${novelReadingMode ? 'Current keep in mind' : 'Current remember'}:\n${compactList(chapter.remember || chapter.keyPoints || [])}`,
-        novelReadingMode ? '' : `Current questions:\n${compactList((chapter.questions || []).map((question) => `${question.type}: ${question.prompt}`))}`,
-      ].join('\n')
-    : [
-        `Current quick version:\n${compactList(lesson.quickVersion || lesson.summaryBullets || [])}`,
-        `Current article:\n${(lesson.articleParagraphs || []).join('\n\n')}`,
-        `${novelReadingMode ? 'Current reader guide' : 'Current breakdown'}:\n${compactList(lesson.breakDown || [])}`,
-        `${novelReadingMode ? 'Current keep in mind' : 'Current remember'}:\n${compactList(lesson.remember || lesson.themeNotes || [])}`,
-      ].join('\n\n');
-
-  return [
-    '# Expansion Request',
-    `Target: full Curiosity ${profile.target}`,
-    '',
-    '# Task Profile',
-    `Mode: ${profile.mode}`,
-    `Goal: ${profile.goal}`,
-    '',
-    '# Task-Specific Instructions',
-    compactList(profile.instructions),
-    '',
-    '# Required Markdown Sections',
-    profile.sections,
-    '',
-    '# Topic Context',
-    `Lesson title: ${lesson.title}`,
-    `Domain: ${lesson.domain}`,
-    `Type: ${lesson.summaryKind || lesson.contentType || 'Lesson'}`,
-    `Core idea: ${lesson.coreIdea}`,
-    `Source basis: ${lesson.sourceBasis?.join(', ') || 'Not listed'}`,
-    chapter?.spoilerBoundary ? `Spoiler boundary: ${chapter.spoilerBoundary}` : '',
-    '',
-    '# Current Draft Context',
-    currentText,
-  ].filter(Boolean).join('\n');
+  return buildExpansionPromptPayload({ lesson, chapter }).contextInput;
 }
 
 export async function expandLearningContent({ apiKey, endpoint, model, lesson, chapter }) {
+  const promptPayload = buildExpansionPromptPayload({ lesson, chapter });
+
   const headers = {
     'Content-Type': 'application/json',
   };
@@ -440,11 +420,11 @@ export async function expandLearningContent({ apiKey, endpoint, model, lesson, c
       headers,
       body: JSON.stringify({
         model: model || DEFAULT_AI_SETTINGS.model,
-        instructions: EXPANSION_OVERVIEW_PROMPT,
+        instructions: promptPayload.instructions,
         input: [
           {
             role: 'user',
-            content: buildExpansionPrompt({ lesson, chapter }),
+            content: promptPayload.contextInput,
           },
         ],
         max_output_tokens: 3600,
