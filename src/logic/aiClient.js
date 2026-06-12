@@ -405,6 +405,7 @@ export function buildExpansionPrompt({ lesson, chapter = null }) {
 
 export async function expandLearningContent({ apiKey, endpoint, model, lesson, chapter }) {
   const promptPayload = buildExpansionPromptPayload({ lesson, chapter });
+  const isNovelChapter = isNovelReadingLesson(lesson) && !!chapter;
 
   const headers = {
     'Content-Type': 'application/json',
@@ -440,7 +441,9 @@ export async function expandLearningContent({ apiKey, endpoint, model, lesson, c
     throw new Error(message);
   }
 
-  return extractResponseText(payload);
+  const responseText = extractResponseText(payload);
+  if (isNovelChapter) return responseText;
+  return normalizeNonFictionExpansionResponse(responseText);
 }
 
 function articleModeInstruction(article = {}) {
@@ -555,6 +558,30 @@ function stripJsonFence(text = '') {
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
+}
+
+function normalizeNonFictionExpansionResponse(text = '') {
+  const parsedText = stripJsonFence(text);
+  let parsed = null;
+  try {
+    parsed = JSON.parse(parsedText);
+  } catch {
+    parsed = null;
+  }
+
+  if (parsed && typeof parsed === 'object' && Array.isArray(parsed.pages)) {
+    return parsed.pages
+      .filter((page) => typeof page === 'string')
+      .map((page) => page.trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  if (parsed && typeof parsed === 'object' && typeof parsed.articleMarkdown === 'string' && parsed.articleMarkdown.trim()) {
+    return parsed.articleMarkdown.trim();
+  }
+
+  return text.trim() || 'No readable text was returned.';
 }
 
 function reliableImageCard(card = {}) {
