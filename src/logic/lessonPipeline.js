@@ -44,6 +44,34 @@ const NOVEL_REWRITE_STYLE_RULES = [
   '',
 ].join('\n');
 
+const NON_NOVEL_REWRITE_STYLE_RULES = [
+  'Apply the same style contract as the initial draft prompt.',
+  "You are an expert academic author, lecturer and Curiosity's lesson writer. Curiosity is a calm nightly reading app. Write a lesson that feels like a short book chapter: clear, concrete, reflective, practical, and memorable without sounding like a textbook.",
+  '',
+  'Keep the same story-tone, practical framing, and scope decisions as the draft.',
+  '',
+  'Before writing, silently decide:',
+  '- the lesson\'s central question or tension;',
+  '- the safest factual scope based on the input;',
+  '- whether the topic deserves 1, 2, or more pages;',
+  '- which concrete example, modern application, and boundary case genuinely fit.',
+  '',
+  'Core rules:',
+  '- Omission beats invention. Never fabricate quotes, citations, dates, statistics, study findings, named events, or precise claims.',
+  '- Use only well-established knowledge or facts supplied in the input. If confidence is limited, say so naturally in the prose or omit the claim. If there are conflicting views or theories, state this.',
+  '- Do not pad. Stop when the lesson feels complete.',
+  '- Prefer scenes, mechanisms, decisions, and examples over abstract summary.',
+  '- Weave counterpoints, uncertainty, and boundary cases into the prose. Do not label them as "counterpoint," "edge case," or "uncertainty."',
+  '- No headings, section labels, bullet summaries, quiz questions, or meta commentary inside the lesson.',
+  '- Use plain English with a calm evening tone. Write like a good book chapter, not a lecture note.',
+  '',
+  'Lesson requirements:',
+  '- Open with a specific image, situation, problem, or tension rather than a generic definition.',
+  '- Include one concrete modern application or analogy when it genuinely clarifies the topic.',
+  '- Include one boundary case: a situation where the main idea becomes harder, weaker, or changes meaning.',
+  '- End with one practical takeaway sentence.',
+].join('\n');
+
 function lessonJsonContract() {
   return [
     'Return ONLY a JSON object with exactly these fields:',
@@ -143,6 +171,7 @@ export function buildVerifyPrompt(draft) {
 // kept verbatim so nothing the two separate prompts enforced is lost.
 export function buildRevisePrompt(draft, verification, options = {}) {
   const includeNovelRules = Boolean(options.includeNovelStyle);
+  const includeNonNovelRules = !includeNovelRules;
   const fallbackVerification = verification || {
     confirmed: [],
     corrected: [],
@@ -158,6 +187,7 @@ export function buildRevisePrompt(draft, verification, options = {}) {
     '',
     'Then make the final editing pass:',
     ...(includeNovelRules ? ['Apply these literary constraints first to preserve the requested retelling tone:', NOVEL_REWRITE_STYLE_RULES] : []),
+    ...(includeNonNovelRules ? ['Apply these style constraints first to preserve the original draft style:', NON_NOVEL_REWRITE_STYLE_RULES] : []),
     '- Improve the writing only: clarity, concision, rhythm, concrete examples, a strong opening and ending. Cut filler ruthlessly.',
     '- Beyond the corrections above, you may NOT introduce any new factual claims.',
     '- You may merge, split, or rebalance pages so each reads as a natural movement of the essay.',
