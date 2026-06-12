@@ -38,7 +38,96 @@ const PROSE_KEYS = new Set([
   'storyOverview',
 ]);
 
-const NOVEL_SUPPORTED_KEYS = new Set(['shortStoryRetelling', 'storyRetelling']);
+const NOVEL_ALLOWED_SECTION_KEYS = new Set(['shortStoryRetelling', 'storyRetelling']);
+
+const NOVEL_LEGACY_SECTION_LABELS = new Set([
+  'what changed',
+  'why it matters',
+  'reader guide',
+  'keep in mind',
+  'main characters',
+  'main tensions',
+  'story retelling',
+  'short story retelling',
+  'chapter 1 guide',
+  'chapter guide',
+  "huck's point of view",
+  'huckleberry finn point of view',
+  'what happened in this chapter',
+  'what happens in this chapter',
+  'why this chapter matters',
+  'what this chapter gives',
+  'what matters now',
+  'what this chapter means',
+  'common reading trap',
+  'in one sentence',
+  'key things to notice',
+  'what is this chapter doing',
+  'what this chapter does',
+  'what this chapter is doing',
+  'what this chapter means',
+]);
+
+function normalizeLegacyNovelSectionLabel(line = '') {
+  return line
+    .replace(/^\s*[-*+]\s*/, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/^#{1,3}\s+/, '')
+    .replace(/^[>\s]*\+?\s*/, '')
+    .replace(/[`‘’“”]/g, '')
+    .replace(/[\*_`~]/g, '')
+    .replace(/^"|"$|^'|'$/g, '')
+    .replace(/\s*[:：]\s*$/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function isNovelLegacySectionLabel(line = '') {
+  const normalized = normalizeLegacyNovelSectionLabel(line);
+  if (!normalized) return false;
+
+  if (normalized.length > 140) return false;
+  if (normalized.split(/\s+/).length > 10) return false;
+
+  if (NOVEL_LEGACY_SECTION_LABELS.has(normalized)) return true;
+  if (/^chapter\s+\d+\b.*\bguide\b/.test(normalized)) return true;
+  if (/^chapter\s+\d+/.test(normalized) && normalized.includes('guide')) return true;
+  if (/^what .* chapter matters$/.test(normalized)) return true;
+  if (/^why .* chapter matters$/.test(normalized)) return true;
+  if (/^what .* chapter (happened|happens|happening|gives|does|is doing|matters|means)/.test(normalized)) return true;
+  if (/^how .* chapter/.test(normalized)) return true;
+  if (/^the chapter is not?/.test(normalized)) return true;
+  if (/^common reading trap$/.test(normalized)) return true;
+  if (/^in one sentence$/.test(normalized)) return true;
+
+  return false;
+}
+
+export function normalizeNovelOutputMarkdown(markdown = '') {
+  const parsed = parseExpansionMarkdown(markdown, { mode: 'novel' });
+  const section = parsed.sections?.[0];
+  if (!section) return '';
+
+  const body = (section.paragraphs?.length
+    ? section.paragraphs.join('\n\n')
+    : (section.text || section.raw || '').trim())
+    .trim();
+
+  if (!body) return '';
+  const heading = NOVEL_ALLOWED_SECTION_KEYS.has(section.key)
+    ? section.heading
+    : 'Short Story Retelling';
+  return `## ${heading}\n\n${body}`;
+}
+
+function stripLegacyNovelSectionLabels(text = '') {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => !isNovelLegacySectionLabel(line))
+    .join('\n')
+    .trim();
+}
 
 function normalizeHeading(heading = '') {
   return heading
@@ -137,20 +226,18 @@ function normalizeMarkdownForNovel(sections = []) {
     return '';
   }
 
-  const contentPieces = sections
-    .filter((section) => section.key !== 'questions')
-    .map((section) => {
-      const hasCore = NOVEL_SUPPORTED_KEYS.has(section.key);
-      if (hasCore) return section.raw.trim();
+  const primaryNovelSections = sections.filter((section) =>
+    NOVEL_ALLOWED_SECTION_KEYS.has(section.key),
+  );
+  const selectedSections = primaryNovelSections.length > 0 ? primaryNovelSections : sections;
 
-      const heading = section.heading && section.heading.trim();
-      const shouldKeepHeading = heading && heading !== 'Expanded Draft';
-      return shouldKeepHeading ? `${heading}\n${section.raw.trim()}` : section.raw.trim();
-    })
+  const contentPieces = selectedSections
+    .filter((section) => section.key !== 'questions')
+    .map((section) => section.raw.trim())
     .filter(Boolean)
     .join('\n\n');
 
-  return contentPieces || '';
+  return stripLegacyNovelSectionLabels(contentPieces);
 }
 
 export function parseExpansionMarkdown(markdown = '', options = {}) {

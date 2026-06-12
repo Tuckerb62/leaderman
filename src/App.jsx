@@ -49,7 +49,7 @@ import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
 import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChange, sendPasswordResetEmail, signInSupabaseWithPassword, signOutSupabase, updateSupabasePassword } from './logic/supabaseAuth.js';
 import { isSupabaseConfigured } from './utils/supabase.js';
 import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, validateApiKey } from './logic/aiClient.js';
-import { parseExpansionMarkdown } from './logic/expansionMapper.js';
+import { normalizeNovelOutputMarkdown, parseExpansionMarkdown } from './logic/expansionMapper.js';
 import { buildFeedItems } from './logic/feedAggregation.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
@@ -251,13 +251,9 @@ function stripMarkdownSections(markdown = '', headingNames = []) {
 }
 
 function parseExpansionModeFor(lesson, chapter, expansion = null) {
+  const hasLegacyNovelFormat = Boolean(expansion?.novelRetellingFormat);
   const novelRoute = isNovelReadingLesson(lesson) && !!chapter;
-  if (!novelRoute) return 'default';
-
-  const marker = expansion?.novelRetellingFormat;
-  if (marker == null || marker < NOVEL_RETELLING_FORMAT_VERSION) {
-    return 'novel';
-  }
+  if (!novelRoute && !hasLegacyNovelFormat) return 'default';
 
   return 'novel';
 }
@@ -1675,12 +1671,16 @@ function ExpansionSection({ section }) {
   return <InfoBlock title={section.heading} text={section.text || section.raw} />;
 }
 
-function GeneratedExpansion({ expansion, lesson, title }) {
+function GeneratedExpansion({ expansion, lesson, title, chapter }) {
   if (!expansion?.markdown) return null;
   const markdown = readingModeExpansionMarkdown(expansion.markdown, lesson);
   if (!markdown) return null;
   const structured = parseExpansionMarkdown(markdown, {
-    mode: parseExpansionModeFor(lesson, expansion?.chapterId ? { chapterId: expansion.chapterId } : null, expansion),
+    mode: parseExpansionModeFor(
+      lesson,
+      chapter || (expansion?.chapterId ? { chapterId: expansion.chapterId } : null),
+      expansion,
+    ),
   });
 
   return (
@@ -1820,7 +1820,12 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
         <article className="chapter-card">
           {chapterExpansion ? (
             <>
-              <GeneratedExpansion expansion={chapterExpansion} lesson={lesson} title={novelReadingMode ? 'Full chapter retelling' : 'Full study section'} />
+              <GeneratedExpansion
+                expansion={chapterExpansion}
+                lesson={lesson}
+                chapter={currentChapter}
+                title={novelReadingMode ? 'Full chapter retelling' : 'Full study section'}
+              />
               <CompactSeedDetails title={novelReadingMode ? 'Compact chapter version' : 'Original section seed'}>
                 <div className="article-body">
                   {chapterParagraphs.map((paragraph) => (
@@ -2074,7 +2079,17 @@ function ArticleDetailView({
 }) {
   const [isExpandingArticle, setIsExpandingArticle] = useState(false);
   const [expansionError, setExpansionError] = useState('');
-  const generated = selectedArticle ? state.generatedArticlesByKey?.[selectedArticle.key] : null;
+  const isLiterature = selectedArticle?.articleType === 'literature';
+  const selectedGeneratedArticle = selectedArticle ? state.generatedArticlesByKey?.[selectedArticle.key] : null;
+  const generated = useMemo(
+    () => (selectedArticle && selectedGeneratedArticle && isLiterature
+      ? {
+          ...selectedGeneratedArticle,
+          articleMarkdown: normalizeNovelOutputMarkdown(selectedGeneratedArticle.articleMarkdown),
+        }
+      : selectedGeneratedArticle),
+    [selectedArticle, selectedGeneratedArticle, isLiterature],
+  );
   const pages = useMemo(
     () => (selectedArticle ? buildArticlePages(selectedArticle, generated) : []),
     [selectedArticle, generated],
@@ -2090,7 +2105,6 @@ function ArticleDetailView({
 
   const completed = Boolean(state.completedArticlesByKey?.[selectedArticle.key]?.completed);
   const saved = Boolean(state.savedItems?.[selectedArticle.key]);
-  const isLiterature = selectedArticle.articleType === 'literature';
   const savedPosition = state.readingProgress?.[selectedArticle.key]?.pageIndex || 0;
 
   async function runArticleExpansion() {
@@ -2103,8 +2117,14 @@ function ArticleDetailView({
         ...target,
         article: selectedArticle,
       });
+      const normalizedGeneratedArticle = isLiterature
+        ? {
+            ...generatedArticle,
+            articleMarkdown: normalizeNovelOutputMarkdown(generatedArticle.articleMarkdown),
+          }
+        : generatedArticle;
       saveGeneratedArticle(selectedArticle.key, {
-        ...generatedArticle,
+        ...normalizedGeneratedArticle,
         model: target.model,
         source: 'article-ai-expansion',
       });

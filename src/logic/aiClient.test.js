@@ -394,14 +394,17 @@ describe('ai client helpers', () => {
     });
   });
 
-  it('uses literature reader-guide instructions for literature articles', () => {
+  it('uses literature chapter retelling instructions for literature articles', () => {
     const instructions = buildArticleAiInstructions({
       subject: 'Literature',
       articleType: 'literature',
     });
 
-    expect(instructions).toContain('reader-friendly chapter guide');
-    expect(instructions).toContain('Do not create a worksheet, quiz, scenario, or decision UI');
+    expect(instructions).toContain('You are a best selling author of novels');
+    expect(instructions).toContain('Target: full Curiosity chapter retelling of books');
+    expect(instructions).toContain('## Short Story Retelling');
+    expect(instructions).toContain('Output exactly this markdown structure and nothing else:');
+    expect(instructions).not.toContain('reader-friendly chapter guide');
   });
 
   it('sends article tutor requests scoped to the current article and history', async () => {

@@ -1,3 +1,5 @@
+import { normalizeNovelOutputMarkdown } from './expansionMapper.js';
+
 export const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
 
 export const DEFAULT_AI_SETTINGS = {
@@ -444,14 +446,6 @@ export async function expandLearningContent({ apiKey, endpoint, model, lesson, c
 }
 
 function articleModeInstruction(article = {}) {
-  if (article.articleType === 'literature') {
-    return [
-      'This is a Literature article. Produce a reader-friendly chapter guide.',
-      'Do not create a worksheet, quiz, scenario, or decision UI.',
-      'Stay within the supplied chapter/book boundary and do not reveal later events.',
-    ].join('\n');
-  }
-
   if (article.subject === 'Emergency Medicine & Critical Care') {
     return [
       'This is educational medical microlearning only, not patient-specific medical advice and not a substitute for local protocols, supervision, or formal training.',
@@ -468,6 +462,15 @@ function articleModeInstruction(article = {}) {
 }
 
 export function buildArticleAiInstructions(article = {}) {
+  if (article.articleType === 'literature') {
+    return [
+      '# Identity',
+      'You are the Curiosity AI article expansion engine.',
+      '',
+      NOVEL_CHAPTER_RETELLING_INSTRUCTIONS,
+    ].join('\n');
+  }
+
   return [
     '# Identity',
     'You are the Curiosity AI article expansion engine.',
@@ -511,8 +514,11 @@ export function buildArticleTutorInstructions(article = {}) {
 }
 
 export function buildArticleExpansionInput(article = {}) {
+  const isLiterature = article.articleType === 'literature';
   return {
-    task: article.subject === 'Science'
+    task: isLiterature
+      ? 'Retell this literature chapter in a continuous short-story style as a reading companion.'
+      : article.subject === 'Science'
       ? 'Expand this markdown article. Science summaries may be rough or generic; do not block generation because of that.'
       : 'Expand this markdown article into the structured JSON output.',
     article: {
@@ -557,7 +563,7 @@ function reliableImageCard(card = {}) {
   return Boolean(card.sourceName && card.pageUrl && card.imageUrl && card.attribution && card.license);
 }
 
-function normalizeGeneratedArticle(text, fallbackTitle = 'Generated article') {
+function normalizeGeneratedArticle(text, fallbackTitle = 'Generated article', article = null) {
   let parsed = null;
   try {
     parsed = JSON.parse(stripJsonFence(text));
@@ -565,10 +571,21 @@ function normalizeGeneratedArticle(text, fallbackTitle = 'Generated article') {
     parsed = null;
   }
 
+  let articleMarkdown = '';
+  if (!parsed || typeof parsed !== 'object') {
+    articleMarkdown = text;
+  } else {
+    articleMarkdown = parsed.articleMarkdown || '';
+  }
+
+  if (article?.articleType === 'literature') {
+    articleMarkdown = normalizeNovelOutputMarkdown(articleMarkdown);
+  }
+
   if (!parsed || typeof parsed !== 'object') {
     return {
       title: fallbackTitle,
-      articleMarkdown: text,
+      articleMarkdown,
       imageCards: [],
       imageQueries: [],
       practicalTakeaway: '',
@@ -577,7 +594,7 @@ function normalizeGeneratedArticle(text, fallbackTitle = 'Generated article') {
 
   return {
     title: parsed.title || fallbackTitle,
-    articleMarkdown: parsed.articleMarkdown || '',
+    articleMarkdown,
     imageCards: Array.isArray(parsed.imageCards) ? parsed.imageCards.filter(reliableImageCard) : [],
     imageQueries: Array.isArray(parsed.imageQueries)
       ? parsed.imageQueries.filter((query) => typeof query === 'string' && query.trim()).map((query) => query.trim())
@@ -616,7 +633,11 @@ export async function expandArticleFromMarkdown({ apiKey, endpoint, model, artic
     throw new Error(message);
   }
 
-  return normalizeGeneratedArticle(extractResponseText(payload), article?.title || 'Generated article');
+  return normalizeGeneratedArticle(
+    extractResponseText(payload),
+    article?.title || 'Generated article',
+    article,
+  );
 }
 
 export const generateArticleLesson = expandArticleFromMarkdown;
