@@ -61,6 +61,7 @@ import { slotById, slotsForSubject } from './data/lessonSlots.js';
 import { fetchGeneratedLessons, loadGeneratedLessonsCache } from './logic/generatedLessons.js';
 import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
 import { markStudied, sessionMinutes } from './logic/studyProgress.js';
+import { getBookCover } from './lib/bookCover.js';
 
 
 const navItems = [
@@ -1492,6 +1493,14 @@ function FeedCard({ item, review, rated, onComplete, onSkip, onOpenFull }) {
   const lesson = item.lesson;
   const openingLine = item.domain === 'library' ? lesson.coreIdea : item.summary;
   const finished = item.domain === 'library' ? Boolean(review?.completed) : Boolean(item.completed);
+  const imprint = item.subjectTitle || item.subject || '';
+  const cover = useMemo(() => getBookCover(item.key || item.title || ''), [item.key, item.title]);
+  const coverStyle = {
+    '--book-cover-top': cover.top,
+    '--book-cover-mid': cover.mid,
+    '--book-cover-bottom': cover.bottom,
+    '--book-cover-line': cover.line,
+  };
   const gesture = useRef({ startX: 0, startY: 0 });
 
   function isInteractiveTarget(target) {
@@ -1570,16 +1579,19 @@ function FeedCard({ item, review, rated, onComplete, onSkip, onOpenFull }) {
 
   return (
     <article
-      className="feed-card"
+      className="feed-card book-card"
       data-feed-id={item.key}
+      style={coverStyle}
       tabIndex={0}
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}
       onKeyDown={handleGestureKeyDown}
       aria-label={item.title}
     >
-      <div className="feed-card-content">
-        <h2>{item.title}</h2>
+      <span className="book-frame" aria-hidden="true" />
+      <div className="feed-card-content book-cover-face">
+        {imprint && <p className="book-imprint">{imprint}</p>}
+        <h2 className="book-title">{item.title}</h2>
         <p className="core-idea">{openingLine}</p>
         {(rated || finished) && <p className="feed-state">{rated?.label || 'Finished'}</p>}
       </div>
