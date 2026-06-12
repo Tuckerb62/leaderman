@@ -525,6 +525,60 @@ select:focus {
   box-shadow: inset 0 0 0 2px rgba(247, 240, 228, 0.32);
 }
 
+/* Book-cover treatment: each feed item reads like the cover of a book. Deep
+   per-book colors (set inline via --book-cover-*) keep cream text well above AA
+   contrast; tapping still opens the full reader. */
+.feed-card.book-card {
+  background:
+    radial-gradient(120% 80% at 78% 18%, rgba(247, 240, 228, 0.08), transparent 60%),
+    linear-gradient(
+      168deg,
+      var(--book-cover-top, #2f2218) 0%,
+      var(--book-cover-mid, #4a3725) 52%,
+      var(--book-cover-bottom, #171009) 100%
+    );
+}
+
+.book-frame {
+  position: absolute;
+  inset: clamp(26px, 5vh, 54px) clamp(20px, 5vw, 70px);
+  z-index: 1;
+  border: 1px solid var(--book-cover-line, #c7a86a);
+  opacity: 0.32;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.book-cover-face {
+  display: grid;
+  gap: 4px;
+}
+
+.book-imprint {
+  margin: 0 0 6px;
+  color: #e6d2a2;
+  font-size: clamp(0.72rem, 1.5vw, 0.86rem);
+  font-weight: 760;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.feed-card.book-card h2.book-title {
+  max-width: 16ch;
+  margin-top: 10px;
+  color: var(--ink-light);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, serif;
+  font-weight: 650;
+  font-size: clamp(2rem, 5.6vw, 4.4rem);
+  line-height: 1.04;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+.feed-card.book-card .core-idea {
+  color: rgba(247, 240, 228, 0.85);
+}
+
 .feed-card.rated-line {
   align-content: end;
   background: linear-gradient(165deg, #13110d 0%, #1a1813 100%);
