@@ -29,6 +29,21 @@ const SHARED_RULES = [
   '- Plain English over textbook voice. Write like a good book chapter.',
 ].join('\n');
 
+const NOVEL_REWRITE_STYLE_RULES = [
+  'Style rules:',
+  '- Make it feel like a readable short story, not a summary sheet.',
+  '- Preserve continuity, mood, pressure, choices, consequences, and emotional movement.',
+  '- Use vivid but plain prose.',
+  '- Keep the reader oriented without explaining literary themes.',
+  '- Do not use headings inside the retelling except the required markdown heading.',
+  '- Do not include character lists, setting notes, themes, analysis, quizzes, “keep in mind,” “things to remember,” or study-guide blocks.',
+  '- Do not say phrases like “this chapter shows,” “the author uses,” “the theme is,” or “the reader learns.”',
+  '- Do not include events, motives, revelations, or consequences from later chapters.',
+  '- Do not invent scenes, dialogue, backstory, symbolism, or facts not present in the provided chapter material.',
+  '- For copyrighted works, do not quote, closely paraphrase, or imitate the original author’s sentence style. Retell in fresh prose as a companion, not a substitute for the book.',
+  '',
+].join('\n');
+
 function lessonJsonContract() {
   return [
     'Return ONLY a JSON object with exactly these fields:',
@@ -126,7 +141,8 @@ export function buildVerifyPrompt(draft) {
 // One pass that does the old fix and optimize steps together: apply the
 // fact-check corrections AND make the final editing pass. Both rule-sets are
 // kept verbatim so nothing the two separate prompts enforced is lost.
-export function buildRevisePrompt(draft, verification) {
+export function buildRevisePrompt(draft, verification, options = {}) {
+  const includeNovelRules = Boolean(options.includeNovelStyle);
   const fallbackVerification = verification || {
     confirmed: [],
     corrected: [],
@@ -141,6 +157,7 @@ export function buildRevisePrompt(draft, verification) {
     '- For each unverified claim: remove it, or keep it only with explicit hedging inside the prose ("accounts differ", "the attribution is uncertain"). Prefer removal when the claim is decorative.',
     '',
     'Then make the final editing pass:',
+    ...(includeNovelRules ? ['Apply these literary constraints first to preserve the requested retelling tone:', NOVEL_REWRITE_STYLE_RULES] : []),
     '- Improve the writing only: clarity, concision, rhythm, concrete examples, a strong opening and ending. Cut filler ruthlessly.',
     '- Beyond the corrections above, you may NOT introduce any new factual claims.',
     '- You may merge, split, or rebalance pages so each reads as a natural movement of the essay.',
@@ -296,7 +313,12 @@ export async function runLessonPipeline({ apiKey, slot, onProgress = () => {} })
 
   if (!steps.revise) {
     onProgress('revise');
-    const reviseText = await callCanonModel({ apiKey, input: buildRevisePrompt(steps.draft, steps.verify) });
+    const reviseText = await callCanonModel({
+      apiKey,
+      input: buildRevisePrompt(steps.draft, steps.verify, {
+        includeNovelStyle: isNovelSlot(slot),
+      }),
+    });
     steps.revise = validateLessonShape(parseLessonJson(reviseText));
     saveCheckpoint(slot.slotId, checkpoint);
   }
