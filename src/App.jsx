@@ -1493,7 +1493,8 @@ function FeedCard({ item, review, rated, onComplete, onSkip, onOpenFull }) {
   const lesson = item.lesson;
   const openingLine = item.domain === 'library' ? lesson.coreIdea : item.summary;
   const finished = item.domain === 'library' ? Boolean(review?.completed) : Boolean(item.completed);
-  const imprint = item.subjectTitle || item.subject || '';
+  const imprint = item.subjectTitle || item.subject || item.domain || 'Reading';
+  const subtitle = item.pathLabel || '';
   const cover = useMemo(() => getBookCover(item.key || item.title || ''), [item.key, item.title]);
   const coverStyle = {
     '--book-cover-top': cover.top,
@@ -1581,19 +1582,21 @@ function FeedCard({ item, review, rated, onComplete, onSkip, onOpenFull }) {
     <article
       className="feed-card book-card"
       data-feed-id={item.key}
-      style={coverStyle}
       tabIndex={0}
       onPointerDown={handleGestureStart}
       onPointerUp={handleGestureEnd}
       onKeyDown={handleGestureKeyDown}
       aria-label={item.title}
     >
-      <span className="book-frame" aria-hidden="true" />
-      <div className="feed-card-content book-cover-face">
+      <div className="book-cover" style={coverStyle}>
         {imprint && <p className="book-imprint">{imprint}</p>}
-        <h2 className="book-title">{item.title}</h2>
-        <p className="core-idea">{openingLine}</p>
-        {(rated || finished) && <p className="feed-state">{rated?.label || 'Finished'}</p>}
+        <div className="book-frame">
+          <h2 className="book-title">{item.title}</h2>
+          {subtitle && <p className="book-subtitle">{subtitle}</p>}
+          <span className="book-divider" aria-hidden="true" />
+          <p className="book-summary">{openingLine}</p>
+          <p className="book-open-hint">{(rated || finished) ? (rated?.label || 'Finished') : 'Tap to open'}</p>
+        </div>
       </div>
     </article>
   );
