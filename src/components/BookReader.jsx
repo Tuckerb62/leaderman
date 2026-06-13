@@ -193,28 +193,35 @@ export function BookReader({
         {safeIndex === 0 && <h1 className="book-title">{title}</h1>}
         <MarkdownBlock markdown={Array.isArray(pages[safeIndex]) ? pages[safeIndex].join('\n\n') : String(pages[safeIndex] || '')} />
         {isLastPage && footer && <p className="book-source-note">{footer}</p>}
-        {isLastPage && (
-          completed ? (
-            <p className="book-finished"><Check size={15} /> {completeLabel}</p>
-          ) : (
-            onComplete && (
-              <button className="book-complete-button" onClick={onComplete}>
-                <Check size={15} />
-                {completeLabel}
-              </button>
-            )
-          )
-        )}
       </div>
 
       <div className="book-controls">
-        <button onClick={() => goToPage(safeIndex - 1)} disabled={safeIndex === 0} aria-label="Previous page">
-          <ChevronLeft size={17} />
+        <button
+          className="book-nav-button"
+          onClick={() => goToPage(safeIndex - 1)}
+          disabled={safeIndex === 0}
+        >
+          <ChevronLeft size={16} />
+          Back
         </button>
         <span className="book-page-indicator">{pageCount > 1 ? `${safeIndex + 1} of ${pageCount}` : ''}</span>
-        <button onClick={() => goToPage(safeIndex + 1)} disabled={isLastPage} aria-label="Next page">
-          <ChevronRight size={17} />
-        </button>
+        {isLastPage ? (
+          completed ? (
+            <span className="book-nav-button is-done"><Check size={16} /> {completeLabel}</span>
+          ) : onComplete ? (
+            <button className="book-nav-button primary" onClick={onComplete}>
+              <Check size={16} />
+              {completeLabel}
+            </button>
+          ) : (
+            <span className="book-nav-button is-ghost" aria-hidden="true" />
+          )
+        ) : (
+          <button className="book-nav-button primary" onClick={() => goToPage(safeIndex + 1)}>
+            Continue
+            <ChevronRight size={16} />
+          </button>
+        )}
       </div>
     </div>
   );
