@@ -48,7 +48,7 @@ import { buildLibraryLessonIndex, buildTopicBank } from './data/topicBank.js';
 import { buildSyncSnapshot, mergeSyncSnapshot } from './data/syncState.js';
 import { createSupabaseAccount, getSupabaseSessionState, onSupabaseAuthStateChange, sendPasswordResetEmail, signInSupabaseWithPassword, signOutSupabase, updateSupabasePassword } from './logic/supabaseAuth.js';
 import { isSupabaseConfigured } from './utils/supabase.js';
-import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandArticleFromMarkdown, expandLearningContent, validateApiKey } from './logic/aiClient.js';
+import { AI_MODEL_OPTIONS, DEFAULT_AI_SETTINGS, askArticleTutor, askOpenAI, expandLearningContent, streamExpandArticleContent, streamExpandLearningContent, validateApiKey } from './logic/aiClient.js';
 import { buildFeedItems } from './logic/feedAggregation.js';
 import { canonicalItemKey } from './logic/itemIdentity.js';
 import { resolveCanonicalItemRoute } from './logic/itemRouting.js';
@@ -56,7 +56,7 @@ import { isLessonComplete, markLessonComplete, recordQuestionAnswer } from './lo
 import { fetchSyncHealth, fetchSyncSnapshot, pushSyncSnapshot } from './logic/syncClient.js';
 import { BookReader, MarkdownBlock, renderMarkdownInline } from './components/BookReader.jsx';
 import { GeneratedLessonView } from './components/GeneratedLessonView.jsx';
-import { buildArticlePages, buildLessonPages } from './logic/lessonPages.js';
+import { markdownToBlocks, paginateBlocks } from './logic/lessonPages.js';
 import { slotById, slotsForSubject } from './data/lessonSlots.js';
 import { fetchGeneratedLessons, loadGeneratedLessonsCache } from './logic/generatedLessons.js';
 import { feedQueue, progressStats, recommendedLessons, sourceById } from './logic/selectors.js';
@@ -1906,6 +1906,12 @@ function PhilosophyView({ state, setSelectedLessonId, startSession, setView }) {
   );
 }
 
+// The first page a reader lands on: a short identifier/summary "cover" before
+// the AI writes the full reading on Continue.
+function lessonSummaryCover(lesson) {
+  return lesson?.coreIdea || lesson?.summary || lesson?.articleParagraphs?.[0] || 'Continue to begin reading this lesson.';
+}
+
 function LearnView({ state, selectedLesson, session, setContextLessonId, completeCurrentLesson, completeLesson, saveLessonNote, saveReadingProgress, savePagePosition, saveReaderSettings, saveLessonExpansion }) {
   const savedReadingProgress = state.readingProgress?.[selectedLesson.id];
   const chapterSummaries = selectedLesson.chapterSummaries || [];
@@ -1913,18 +1919,54 @@ function LearnView({ state, selectedLesson, session, setContextLessonId, complet
   const lessonExpansionKey = expansionKeyFor(selectedLesson);
   const lessonExpansion = state.lessonExpansions?.[lessonExpansionKey];
   const [currentChapterIndex, setCurrentChapterIndex] = useState(savedChapterIndex);
+  const [streamText, setStreamText] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
   const review = state.reviews?.[selectedLesson.id];
   const completed = Boolean(review?.completed);
-  const pages = useMemo(
-    () => buildLessonPages(selectedLesson, lessonExpansion),
-    [selectedLesson, lessonExpansion],
-  );
+
+  const savedMarkdown = lessonExpansion?.markdown || '';
+  const liveMarkdown = savedMarkdown || streamText;
+  const pages = useMemo(() => {
+    const cover = [lessonSummaryCover(selectedLesson)];
+    const content = liveMarkdown ? paginateBlocks(markdownToBlocks(liveMarkdown)) : [];
+    return [cover, ...content];
+  }, [selectedLesson, liveMarkdown]);
 
   useEffect(() => {
     setCurrentChapterIndex(Math.max(0, Math.min((selectedLesson.chapterSummaries || []).length - 1, state.readingProgress?.[selectedLesson.id]?.chapterIndex || 0)));
     setContextLessonId(selectedLesson.id);
+    setStreamText('');
+    setIsGenerating(false);
+    setGenError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLesson.id, setContextLessonId]);
+
+  async function handleGenerate() {
+    if (isGenerating || savedMarkdown) return;
+    setIsGenerating(true);
+    setStreamText('');
+    setGenError('');
+    try {
+      const target = await resolveExpansionAiTarget();
+      const full = await streamExpandLearningContent({
+        ...target,
+        lesson: selectedLesson,
+        chapter: null,
+        onDelta: (delta) => setStreamText((current) => current + delta),
+      });
+      saveLessonExpansion(lessonExpansionKey, {
+        lessonId: selectedLesson.id,
+        markdown: full,
+        model: target.model,
+        source: 'ai-expansion',
+      });
+    } catch (error) {
+      setGenError(error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   function selectChapter(index, markComplete = false) {
     setCurrentChapterIndex(index);
@@ -1969,15 +2011,10 @@ function LearnView({ state, selectedLesson, session, setContextLessonId, complet
         readerSettings={state.settings?.reader}
         onReaderSettings={saveReaderSettings}
         footer={[selectedLesson.sourceBasis?.join(', '), selectedLesson.fidelityNote].filter(Boolean).join(' — ')}
+        onGenerate={savedMarkdown ? null : handleGenerate}
+        isGenerating={isGenerating}
       />
-      <div className="reader-quiet-actions">
-        <ExpansionButton
-          lesson={selectedLesson}
-          expansionKey={lessonExpansionKey}
-          onSaveExpansion={saveLessonExpansion}
-          label={lessonExpansion ? 'Rewrite the expanded lesson' : 'Expand this lesson'}
-        />
-      </div>
+      {genError && <p className="error-text reader-error">{genError}</p>}
       <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
     </section>
   );
@@ -2025,15 +2062,26 @@ function ArticleDetailView({
   savePagePosition,
   saveReaderSettings,
 }) {
-  const [isExpandingArticle, setIsExpandingArticle] = useState(false);
-  const [expansionError, setExpansionError] = useState('');
+  const [streamText, setStreamText] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
   const isLiterature = selectedArticle?.articleType === 'literature';
-  const selectedGeneratedArticle = selectedArticle ? state.generatedArticlesByKey?.[selectedArticle.key] : null;
-  const generated = useMemo(() => selectedGeneratedArticle, [selectedGeneratedArticle]);
-  const pages = useMemo(
-    () => (selectedArticle ? buildArticlePages(selectedArticle, generated) : []),
-    [selectedArticle, generated],
-  );
+  const generated = selectedArticle ? state.generatedArticlesByKey?.[selectedArticle.key] : null;
+  const savedMarkdown = generated?.articleMarkdown || '';
+  const liveMarkdown = savedMarkdown || streamText;
+
+  useEffect(() => {
+    setStreamText('');
+    setIsGenerating(false);
+    setGenError('');
+  }, [selectedArticle?.key]);
+
+  const pages = useMemo(() => {
+    if (!selectedArticle) return [];
+    const cover = [selectedArticle.summary || 'Continue to begin reading this piece.'];
+    const content = liveMarkdown ? paginateBlocks(markdownToBlocks(liveMarkdown)) : [];
+    return [cover, ...content];
+  }, [selectedArticle, liveMarkdown]);
 
   if (!selectedArticle) {
     return (
@@ -2047,25 +2095,31 @@ function ArticleDetailView({
   const saved = Boolean(state.savedItems?.[selectedArticle.key]);
   const savedPosition = state.readingProgress?.[selectedArticle.key]?.pageIndex || 0;
 
-  async function runArticleExpansion() {
-    if (isExpandingArticle) return;
-    setIsExpandingArticle(true);
-    setExpansionError('');
+  async function handleGenerate() {
+    if (isGenerating || savedMarkdown) return;
+    setIsGenerating(true);
+    setStreamText('');
+    setGenError('');
     try {
       const target = await resolveExpansionAiTarget();
-      const generatedArticle = await expandArticleFromMarkdown({
+      const full = await streamExpandArticleContent({
         ...target,
         article: selectedArticle,
+        onDelta: (delta) => setStreamText((current) => current + delta),
       });
       saveGeneratedArticle(selectedArticle.key, {
-        ...generatedArticle,
+        title: selectedArticle.title,
+        articleMarkdown: full,
+        imageCards: [],
+        imageQueries: [],
+        practicalTakeaway: '',
         model: target.model,
         source: 'article-ai-expansion',
       });
     } catch (error) {
-      setExpansionError(error.message);
+      setGenError(error.message);
     } finally {
-      setIsExpandingArticle(false);
+      setIsGenerating(false);
     }
   }
 
@@ -2083,6 +2137,8 @@ function ArticleDetailView({
         readerSettings={state.settings?.reader}
         onReaderSettings={saveReaderSettings}
         footer={selectedArticle.sourceFile}
+        onGenerate={savedMarkdown ? null : handleGenerate}
+        isGenerating={isGenerating}
       />
       <div className="reader-quiet-actions">
         <button
@@ -2096,16 +2152,8 @@ function ArticleDetailView({
           {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
           {saved ? 'Saved' : 'Save'}
         </button>
-        <button
-          className="secondary-button"
-          onClick={runArticleExpansion}
-          disabled={isExpandingArticle}
-        >
-          <Sparkles size={16} />
-          {isExpandingArticle ? 'Expanding...' : generated ? 'Rewrite the expanded article' : 'Expand this article'}
-        </button>
       </div>
-      {expansionError && <p className="error-text">{expansionError}</p>}
+      {genError && <p className="error-text reader-error">{genError}</p>}
       <NoteBox note={state.notes[selectedArticle.key] || ''} onSave={(note) => saveLessonNote(selectedArticle.key, note)} />
     </section>
   );

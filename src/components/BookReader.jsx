@@ -103,14 +103,20 @@ export function BookReader({
   readerSettings,
   onReaderSettings,
   footer = null,
+  onGenerate = null,
+  isGenerating = false,
 }) {
   const settings = { ...DEFAULT_READER_SETTINGS, ...(readerSettings || {}) };
   const [pageIndex, setPageIndex] = useState(() => clampPageIndex(pages, position));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // True once the reader has asked for the next page that isn't written yet:
+  // it shows the typing indicator and auto-advances the moment that page lands.
+  const [pendingNext, setPendingNext] = useState(false);
 
   useEffect(() => {
     setPageIndex(clampPageIndex(pages, position));
     setSettingsOpen(false);
+    setPendingNext(false);
     // position is intentionally read only when the book changes: while reading,
     // the local page index leads and saved position follows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +125,8 @@ export function BookReader({
   const pageCount = pages.length;
   const safeIndex = clampPageIndex(pages, pageIndex);
   const isLastPage = safeIndex >= pageCount - 1;
+  const canGenerate = typeof onGenerate === 'function';
+  const waitingForNextPage = isLastPage && (isGenerating || pendingNext);
 
   function goToPage(nextIndex) {
     const clamped = clampPageIndex(pages, nextIndex);
@@ -127,10 +135,39 @@ export function BookReader({
     onPosition?.(clamped);
   }
 
+  // Advance / generate. On a written page, just turn it. On the last written
+  // page, kick off generation (or wait for the page still streaming in).
+  function goNext() {
+    if (safeIndex < pageCount - 1) {
+      goToPage(safeIndex + 1);
+      return;
+    }
+    if (canGenerate && !isGenerating) {
+      setPendingNext(true);
+      onGenerate();
+      return;
+    }
+    if (isGenerating) {
+      setPendingNext(true);
+    }
+  }
+
+  // When the page we were waiting on arrives, turn to it.
+  useEffect(() => {
+    if (!pendingNext) return;
+    if (safeIndex < pageCount - 1) {
+      goToPage(safeIndex + 1);
+      setPendingNext(false);
+    } else if (!isGenerating && !canGenerate) {
+      setPendingNext(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageCount, isGenerating, pendingNext]);
+
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
-      if (event.key === 'ArrowRight') goToPage(safeIndex + 1);
+      if (event.key === 'ArrowRight') goNext();
       if (event.key === 'ArrowLeft') goToPage(safeIndex - 1);
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -205,22 +242,29 @@ export function BookReader({
           Back
         </button>
         <span className="book-page-indicator">{pageCount > 1 ? `${safeIndex + 1} of ${pageCount}` : ''}</span>
-        {isLastPage ? (
-          completed ? (
-            <span className="book-nav-button is-done"><Check size={16} /> {completeLabel}</span>
-          ) : onComplete ? (
-            <button className="book-nav-button primary" onClick={onComplete}>
-              <Check size={16} />
-              {completeLabel}
-            </button>
-          ) : (
-            <span className="book-nav-button is-ghost" aria-hidden="true" />
-          )
-        ) : (
-          <button className="book-nav-button primary" onClick={() => goToPage(safeIndex + 1)}>
+        {!isLastPage ? (
+          <button className="book-nav-button primary" onClick={goNext}>
             Continue
             <ChevronRight size={16} />
           </button>
+        ) : waitingForNextPage ? (
+          <span className="book-typing" role="status" aria-label="Writing the next page">
+            <span></span><span></span><span></span>
+          </span>
+        ) : canGenerate ? (
+          <button className="book-nav-button primary" onClick={goNext}>
+            Continue reading
+            <ChevronRight size={16} />
+          </button>
+        ) : completed ? (
+          <span className="book-nav-button is-done"><Check size={16} /> {completeLabel}</span>
+        ) : onComplete ? (
+          <button className="book-nav-button primary" onClick={onComplete}>
+            <Check size={16} />
+            {completeLabel}
+          </button>
+        ) : (
+          <span className="book-nav-button is-ghost" aria-hidden="true" />
         )}
       </div>
     </div>
