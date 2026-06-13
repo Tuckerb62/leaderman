@@ -1017,6 +1017,10 @@ select:focus {
   gap: 12px;
 }
 
+.chapter-reader-main {
+  min-width: 0;
+}
+
 .chapter-list {
   display: grid;
   align-content: start;

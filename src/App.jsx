@@ -1717,7 +1717,14 @@ function ExpansionButton({ lesson, chapter = null, expansionKey, onSaveExpansion
   );
 }
 
-function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapter, onCompleteChapter, lessonExpansions, onSaveExpansion }) {
+function chapterSummaryCover(chapter, novelReadingMode) {
+  return chapter?.summary
+    || chapter?.retellingParagraphs?.[0]
+    || chapter?.retelling
+    || (novelReadingMode ? 'Continue to begin this chapter.' : 'Continue to begin this section.');
+}
+
+function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapter, onCompleteChapter, lessonExpansions, onSaveExpansion, readerSettings, onReaderSettings, savePagePosition }) {
   const currentChapter = chapters[currentIndex] || chapters[0];
   const novelReadingMode = isNovelReadingLesson(lesson);
   const completed = new Set(progress?.completedChapters || []);
@@ -1726,7 +1733,51 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
   const chapterExpansionKey = expansionKeyFor(lesson, currentChapter);
   const chapterExpansion = lessonExpansions?.[chapterExpansionKey];
   const chapterNoun = lesson.summaryKind === 'Novel' ? 'chapter retellings' : 'study sections';
-  const chapterParagraphs = currentChapter.retellingParagraphs || currentChapter.retelling || currentChapter.summary?.split(/\n\s*\n/) || [];
+
+  const [streamText, setStreamText] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
+
+  useEffect(() => {
+    setStreamText('');
+    setIsGenerating(false);
+    setGenError('');
+  }, [chapterExpansionKey]);
+
+  const savedMarkdown = chapterExpansion?.markdown || '';
+  const liveMarkdown = savedMarkdown || streamText;
+  const pages = useMemo(() => {
+    const cover = [chapterSummaryCover(currentChapter, novelReadingMode)];
+    const content = liveMarkdown ? paginateBlocks(markdownToBlocks(liveMarkdown)) : [];
+    return [cover, ...content];
+  }, [currentChapter, novelReadingMode, liveMarkdown]);
+
+  async function handleGenerate() {
+    if (isGenerating || savedMarkdown) return;
+    setIsGenerating(true);
+    setStreamText('');
+    setGenError('');
+    try {
+      const target = await resolveExpansionAiTarget();
+      const full = await streamExpandLearningContent({
+        ...target,
+        lesson,
+        chapter: currentChapter,
+        onDelta: (delta) => setStreamText((current) => current + delta),
+      });
+      onSaveExpansion(chapterExpansionKey, {
+        lessonId: lesson.id,
+        chapterId: currentChapter.chapterId || currentChapter.id || null,
+        markdown: full,
+        model: target.model,
+        source: 'ai-expansion',
+      });
+    } catch (error) {
+      setGenError(error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   return (
     <div className="chapter-reader">
@@ -1765,68 +1816,25 @@ function ChapterReader({ lesson, chapters, currentIndex, progress, onSelectChapt
           })}
         </div>
 
-        <article className="chapter-card">
-          {chapterExpansion ? (
-            <>
-              <GeneratedExpansion
-                expansion={chapterExpansion}
-                lesson={lesson}
-                chapter={currentChapter}
-                title={novelReadingMode ? 'Full chapter retelling' : 'Full study section'}
-              />
-              <CompactSeedDetails title={novelReadingMode ? 'Compact chapter version' : 'Original section seed'}>
-                <div className="article-body">
-                  {chapterParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{renderMarkdownInline(paragraph)}</p>
-                  ))}
-                </div>
-                <div className="two-column">
-                  <InfoBlock title="What changed" text={currentChapter.whatChanged} />
-                  <InfoBlock title="Why it matters" text={currentChapter.whyItMatters} />
-                </div>
-                <div className="two-column">
-                  <InfoList title={guideTitleFor(lesson)} items={currentChapter.breakDown || []} />
-                  <InfoList title={memoryTitleFor(lesson)} items={currentChapter.remember || currentChapter.keyPoints || []} />
-                </div>
-                {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
-                {!novelReadingMode && <QuestionList questions={currentChapter.questions || []} />}
-              </CompactSeedDetails>
-            </>
-          ) : (
-            <>
-              <div className="article-body">
-                {chapterParagraphs.map((paragraph) => (
-                  <p key={paragraph}>{renderMarkdownInline(paragraph)}</p>
-                ))}
-              </div>
-              <div className="two-column">
-                <InfoBlock title="What changed" text={currentChapter.whatChanged} />
-                <InfoBlock title="Why it matters" text={currentChapter.whyItMatters} />
-              </div>
-              <div className="two-column">
-                <InfoList title={guideTitleFor(lesson)} items={currentChapter.breakDown || []} />
-                <InfoList title={memoryTitleFor(lesson)} items={currentChapter.remember || currentChapter.keyPoints || []} />
-              </div>
-              {lesson.reflectionLens && <InfoBlock title="Leadership reflection" text={lesson.reflectionLens} />}
-              {!novelReadingMode && <QuestionList questions={currentChapter.questions || []} />}
-            </>
-          )}
-          <ExpansionButton
-            lesson={lesson}
-            chapter={currentChapter}
-            expansionKey={chapterExpansionKey}
-            onSaveExpansion={onSaveExpansion}
-            label={chapterExpansion ? (lesson.summaryKind === 'Novel' ? 'Regenerate full chapter' : 'Regenerate full section') : (lesson.summaryKind === 'Novel' ? 'Expand chapter' : 'Expand section')}
+        <div className="chapter-reader-main">
+          <BookReader
+            bookKey={chapterExpansionKey}
+            kicker={lesson.collectionTitle || lesson.domain || lesson.sourceBasis?.join(', ') || ''}
+            title={currentChapter.title}
+            pages={pages}
+            position={0}
+            onPosition={(pageIndex) => savePagePosition?.(`${lesson.id}:chapter:${currentIndex}`, pageIndex)}
+            completed={completed.has(currentIndex)}
+            onComplete={onCompleteChapter}
+            completeLabel={currentIndex >= chapters.length - 1 ? 'Mark read' : 'Mark read & continue'}
+            readerSettings={readerSettings}
+            onReaderSettings={onReaderSettings}
+            footer={[lesson.sourceBasis?.join(', '), lesson.fidelityNote].filter(Boolean).join(' — ')}
+            onGenerate={savedMarkdown ? null : handleGenerate}
+            isGenerating={isGenerating}
           />
-          <div className="chapter-actions">
-            <button className="secondary-button" onClick={() => onSelectChapter(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
-              Previous
-            </button>
-            <button className="success-button" onClick={onCompleteChapter}>
-              {currentIndex >= chapters.length - 1 ? 'Mark read' : 'Mark read & continue'}
-            </button>
-          </div>
-        </article>
+          {genError && <p className="error-text reader-error">{genError}</p>}
+        </div>
       </div>
     </div>
   );
@@ -1990,6 +1998,9 @@ function LearnView({ state, selectedLesson, session, setContextLessonId, complet
           onCompleteChapter={completeCurrentChapter}
           lessonExpansions={state.lessonExpansions || {}}
           onSaveExpansion={saveLessonExpansion}
+          readerSettings={state.settings?.reader}
+          onReaderSettings={saveReaderSettings}
+          savePagePosition={savePagePosition}
         />
         <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
       </section>
