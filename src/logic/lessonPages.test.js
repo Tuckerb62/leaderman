@@ -12,6 +12,11 @@ function fakeParagraph(words) {
   return Array.from({ length: words }, (_, index) => `word${index}`).join(' ');
 }
 
+// A paragraph made of short sentences so the paginator can split it mid-block.
+function fakeSentenceParagraph(sentenceCount, wordsPerSentence = 8) {
+  return Array.from({ length: sentenceCount }, () => `${fakeParagraph(wordsPerSentence)}.`).join(' ');
+}
+
 describe('lesson pagination', () => {
   it('counts words across whitespace', () => {
     expect(countWords('one  two\nthree')).toBe(3);
@@ -29,16 +34,28 @@ describe('lesson pagination', () => {
     expect(pages[0]).toHaveLength(2);
   });
 
-  it('fills pages to roughly 500-1000 words without splitting blocks', () => {
+  it('fills pages to about 600 words and keeps every page under the max', () => {
     const blocks = Array.from({ length: 10 }, () => fakeParagraph(220));
     const pages = paginateBlocks(blocks);
 
     expect(pages.length).toBeGreaterThan(1);
     for (const page of pages) {
       const words = page.reduce((total, block) => total + countWords(block), 0);
-      expect(words).toBeLessThanOrEqual(1100);
+      expect(words).toBeLessThanOrEqual(650);
     }
-    expect(pages.flat()).toEqual(blocks);
+    // No words are lost when packing.
+    expect(pages.flat().join(' ').split(/\s+/).filter(Boolean).length).toBe(2200);
+  });
+
+  it('splits a long passage across pages instead of overflowing one', () => {
+    // ~880 words in a single paragraph; must be divided since that exceeds a page.
+    const pages = paginateBlocks([fakeSentenceParagraph(110)]);
+
+    expect(pages.length).toBeGreaterThanOrEqual(2);
+    for (const page of pages) {
+      const words = page.reduce((total, block) => total + countWords(block), 0);
+      expect(words).toBeLessThanOrEqual(650);
+    }
   });
 
   it('does not strand a heading at the bottom of a page', () => {
@@ -50,12 +67,12 @@ describe('lesson pagination', () => {
   });
 
   it('folds a tiny final page into the previous one', () => {
-    const blocks = [fakeParagraph(500), fakeParagraph(450), fakeParagraph(40)];
-    const pages = paginateBlocks(blocks);
+    // 76 short sentences (~608 words): packing leaves an ~8-word tail that folds back.
+    const pages = paginateBlocks([fakeSentenceParagraph(76)]);
 
-    const lastPage = pages[pages.length - 1];
-    const lastWords = lastPage.reduce((total, block) => total + countWords(block), 0);
-    expect(lastWords).toBeGreaterThanOrEqual(200);
+    expect(pages).toHaveLength(1);
+    const lastWords = pages[0].reduce((total, block) => total + countWords(block), 0);
+    expect(lastWords).toBeGreaterThanOrEqual(120);
   });
 
   it('builds lesson pages from seeded article paragraphs', () => {

@@ -845,3 +845,77 @@ export async function askOpenAI({ apiKey, endpoint, model, messages, question, l
   const payload = await response.json().catch(() => null);
   return extractResponseText(payload);
 }
+
+// Markdown-prose variant of the nonfiction expansion contract: same teaching
+// rules, but the model returns flowing prose (no JSON envelope) so the text can
+// stream straight into the reader and be paginated live.
+const NONFICTION_MARKDOWN_OUTPUT = [
+  'Output:',
+  'Write the lesson as continuous markdown prose — paragraphs only.',
+  '- No JSON, no code fences, no title line, no section headings, no bullet lists, no labels.',
+  '- Just the flowing lesson text, the way a calm book chapter reads.',
+  '- Separate paragraphs with a blank line.',
+].join('\n');
+
+function nonfictionMarkdownInstructions() {
+  const base = NONFICTION_EXPANSION_INSTRUCTIONS.split('\nOutput:')[0];
+  return `${base}\n\n${NONFICTION_MARKDOWN_OUTPUT}`;
+}
+
+// Stream a markdown lesson/expansion, reporting each delta through onDelta and
+// resolving to the full markdown text. Falls back to a non-streaming read if the
+// endpoint does not return an event stream.
+export async function streamMarkdownExpansion({ apiKey, endpoint, model, instructions, contextInput, onDelta }) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  let response;
+  try {
+    response = await fetch(endpoint || DEFAULT_AI_SETTINGS.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: model || DEFAULT_AI_SETTINGS.model,
+        instructions,
+        input: [{ role: 'user', content: contextInput }],
+        max_output_tokens: 3600,
+        stream: true,
+      }),
+    });
+  } catch {
+    throw new Error('The browser could not reach the API endpoint. Check the endpoint, network, or browser CORS restrictions.');
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error?.message || `OpenAI request failed with status ${response.status}.`);
+  }
+
+  if (isEventStreamResponse(response)) {
+    return streamOpenAiResponse(response, onDelta);
+  }
+
+  const payload = await response.json().catch(() => null);
+  const text = extractResponseText(payload);
+  if (typeof onDelta === 'function' && text) onDelta(text);
+  return text;
+}
+
+export function streamExpandLearningContent({ apiKey, endpoint, model, lesson, chapter = null, onDelta }) {
+  const isNovelChapter = isNovelReadingLesson(lesson) && !!chapter;
+  const instructions = isNovelChapter ? NOVEL_CHAPTER_RETELLING_INSTRUCTIONS : nonfictionMarkdownInstructions();
+  const contextInput = isNovelChapter
+    ? buildNovelChapterContextInput({ lesson, chapter })
+    : buildNonFictionExpansionContextInput({ lesson, chapter });
+  return streamMarkdownExpansion({ apiKey, endpoint, model, instructions, contextInput, onDelta });
+}
+
+export function streamExpandArticleContent({ apiKey, endpoint, model, article, onDelta }) {
+  const isLiterature = article?.articleType === 'literature';
+  const instructions = isLiterature ? NOVEL_CHAPTER_RETELLING_INSTRUCTIONS : nonfictionMarkdownInstructions();
+  const contextInput = [
+    'Expand this opened article into a flowing lesson written as markdown prose.',
+    JSON.stringify(buildArticleExpansionInput(article).article, null, 2),
+  ].join('\n\n');
+  return streamMarkdownExpansion({ apiKey, endpoint, model, instructions, contextInput, onDelta });
+}
