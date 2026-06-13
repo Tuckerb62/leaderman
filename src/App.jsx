@@ -2002,7 +2002,6 @@ function LearnView({ state, selectedLesson, session, setContextLessonId, complet
           onReaderSettings={saveReaderSettings}
           savePagePosition={savePagePosition}
         />
-        <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
       </section>
     );
   }
@@ -2026,7 +2025,6 @@ function LearnView({ state, selectedLesson, session, setContextLessonId, complet
         isGenerating={isGenerating}
       />
       {genError && <p className="error-text reader-error">{genError}</p>}
-      <NoteBox note={state.notes[selectedLesson.id] || ''} onSave={(note) => saveLessonNote(selectedLesson.id, note)} />
     </section>
   );
 }
@@ -2151,21 +2149,7 @@ function ArticleDetailView({
         onGenerate={savedMarkdown ? null : handleGenerate}
         isGenerating={isGenerating}
       />
-      <div className="reader-quiet-actions">
-        <button
-          className={saved ? 'secondary-button active' : 'secondary-button'}
-          onClick={() => toggleSavedItem(selectedArticle.key, {
-            domain: 'article',
-            subjectIds: [selectedArticle.subjectId],
-            topicIds: [selectedArticle.subjectId, selectedArticle.topicId, selectedArticle.subtopicId, selectedArticle.subsubtopicId].filter(Boolean),
-          })}
-        >
-          {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-          {saved ? 'Saved' : 'Save'}
-        </button>
-      </div>
       {genError && <p className="error-text reader-error">{genError}</p>}
-      <NoteBox note={state.notes[selectedArticle.key] || ''} onSave={(note) => saveLessonNote(selectedArticle.key, note)} />
     </section>
   );
 }
